@@ -10,5 +10,6 @@ backend_image_uri = "890839646565.dkr.ecr.ap-south-1.amazonaws.com/perkhaven-bac
 # alert_email = "operations@perkhaven.com"
 
 # Keep these production safeguards enabled.
+database_backup_retention_days = 1
 database_deletion_protection = true
 database_skip_final_snapshot = false

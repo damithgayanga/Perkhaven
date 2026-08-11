@@ -60,13 +60,16 @@ read-only Terraform plan after the AWS bootstrap has completed.
 
 `.github/workflows/deploy-production.yml` runs after every push to `main`:
 
-1. test the backend and static frontend;
-2. build an ARM64 image tagged with the immutable Git commit SHA and push it to ECR;
-3. apply Terraform using S3 native state locking;
-4. run Flyway as a one-off Fargate task and stop if it fails;
-5. update and scale the ECS service, waiting for stability;
-6. upload `front/out` to S3 and invalidate CloudFront;
-7. smoke-test the public website and backend health endpoint.
+1. build an ARM64 image tagged with the immutable Git commit SHA and push it to ECR;
+2. apply Terraform using S3 native state locking;
+3. run Flyway as a one-off Fargate task and stop if it fails;
+4. update and scale the ECS service, waiting for stability;
+5. upload `front/out` to S3 and invalidate CloudFront.
+
+The RDS backup-retention default is one day so the initial deployment stays within the account's current
+Free Plan restriction. To increase it later, add or change the GitHub Actions repository variable
+`RDS_BACKUP_RETENTION_DAYS` to a whole number from `0` through `35`; no source-code change is required.
+Pull-request checks remain the place for backend, frontend, container and Terraform validation.
 
 ECS has a deployment circuit breaker with automatic rollback. Database migrations remain forward-only and
 must be backward compatible with the previously running application revision.

@@ -98,6 +98,17 @@ variable "database_max_allocated_storage" {
   default = 100
 }
 
+variable "database_backup_retention_days" {
+  description = "Automated RDS backup retention in days. The initial AWS Free Plan deployment uses 1; increase this after upgrading the account plan."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.database_backup_retention_days >= 0 && var.database_backup_retention_days <= 35 && floor(var.database_backup_retention_days) == var.database_backup_retention_days
+    error_message = "database_backup_retention_days must be a whole number from 0 through 35."
+  }
+}
+
 variable "database_deletion_protection" {
   type    = bool
   default = true
