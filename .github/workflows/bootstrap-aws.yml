@@ -125,6 +125,29 @@ jobs:
         working-directory: infrastructure/bootstrap
         run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
 
+      - name: Resolve Terraform-managed account resources
+        id: managed
+        working-directory: infrastructure/bootstrap
+        shell: bash
+        env:
+          DISCOVERED_CREATE_OIDC: ${{ steps.discovery.outputs.create_oidc }}
+          DISCOVERED_OIDC_ARN: ${{ steps.discovery.outputs.oidc_arn }}
+          DISCOVERED_ROUTE53_ZONE_ID: ${{ steps.discovery.outputs.route53_zone_id }}
+        run: |
+          if terraform state show 'aws_iam_openid_connect_provider.github[0]' >/dev/null 2>&1; then
+            echo "create_oidc=true" >> "$GITHUB_OUTPUT"
+            echo "oidc_arn=" >> "$GITHUB_OUTPUT"
+          else
+            echo "create_oidc=${DISCOVERED_CREATE_OIDC}" >> "$GITHUB_OUTPUT"
+            echo "oidc_arn=${DISCOVERED_OIDC_ARN}" >> "$GITHUB_OUTPUT"
+          fi
+
+          if terraform state show 'aws_route53_zone.main[0]' >/dev/null 2>&1; then
+            echo "route53_zone_id=" >> "$GITHUB_OUTPUT"
+          else
+            echo "route53_zone_id=${DISCOVERED_ROUTE53_ZONE_ID}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Import pre-created state bucket on the first run
         working-directory: infrastructure/bootstrap
         shell: bash
@@ -142,9 +165,9 @@ jobs:
           TF_VAR_github_repository: ${{ github.event.repository.name }}
           TF_VAR_github_repository_id: ${{ github.event.repository.id }}
           TF_VAR_domain_name: ${{ inputs.domain_name || 'perkhaven.com' }}
-          TF_VAR_create_github_oidc_provider: ${{ steps.discovery.outputs.create_oidc }}
-          TF_VAR_existing_github_oidc_provider_arn: ${{ steps.discovery.outputs.oidc_arn }}
-          TF_VAR_existing_route53_zone_id: ${{ steps.discovery.outputs.route53_zone_id }}
+          TF_VAR_create_github_oidc_provider: ${{ steps.managed.outputs.create_oidc }}
+          TF_VAR_existing_github_oidc_provider_arn: ${{ steps.managed.outputs.oidc_arn }}
+          TF_VAR_existing_route53_zone_id: ${{ steps.managed.outputs.route53_zone_id }}
         run: terraform plan -lock-timeout=5m -out=bootstrap.tfplan
 
       - name: Apply bootstrap
