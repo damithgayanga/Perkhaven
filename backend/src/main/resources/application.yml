@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: perkhaven-backend
+  profiles:
+    default: local
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        order_inserts: true
+        order_updates: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/common
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+  jackson:
+    time-zone: UTC
+
+server:
+  forward-headers-strategy: framework
+  error:
+    include-message: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+perkhaven:
+  storage:
+    provider: local
+    local-root: ${PERKHAVEN_STORAGE_ROOT:./data/uploads}
+  security:
+    local-secret: ${PERKHAVEN_LOCAL_JWT_SECRET:perkhaven-local-development-secret-change-me-2026}
+    token-ttl: PT8H

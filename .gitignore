@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/front/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -36,6 +37,12 @@ yarn-error.log*
 # typescript
 next-env.d.ts
 /dist/
+/front/dist/
+/front/.next/
+/backend/.gradle/
+/backend/.gradle-user-home/
+/backend/build/
+/backend/data/
 /.wrangler/
 /.sites-runtime/
 /outputs/
