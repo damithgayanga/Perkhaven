@@ -1,6 +1,6 @@
 locals {
   state_bucket_name = coalesce(var.state_bucket_name, "perkhaven-terraform-state-${data.aws_caller_identity.current.account_id}")
-  repository_path   = "${var.github_owner}/${var.github_repository}"
+  repository_path   = "${var.github_owner}@${var.github_owner_id}/${var.github_repository}@${var.github_repository_id}"
   oidc_provider_arn = var.create_github_oidc_provider ? aws_iam_openid_connect_provider.github[0].arn : var.existing_github_oidc_provider_arn
 }
 

@@ -10,10 +10,20 @@ variable "github_owner" {
   default     = "damithgayanga"
 }
 
+variable "github_owner_id" {
+  description = "Numeric GitHub owner ID included in the repository's customized OIDC subject."
+  type        = string
+}
+
 variable "github_repository" {
   description = "GitHub repository name."
   type        = string
   default     = "Perkhaven"
+}
+
+variable "github_repository_id" {
+  description = "Numeric GitHub repository ID included in the customized OIDC subject."
+  type        = string
 }
 
 variable "production_environment" {

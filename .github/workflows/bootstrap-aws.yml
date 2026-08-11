@@ -22,6 +22,10 @@ on:
         required: true
         default: false
         type: boolean
+  push:
+    branches: [main]
+    paths:
+      - infrastructure/bootstrap/**
 
 permissions:
   actions: write
@@ -73,7 +77,7 @@ jobs:
         id: discovery
         shell: bash
         env:
-          DOMAIN_NAME: ${{ inputs.domain_name }}
+          DOMAIN_NAME: ${{ inputs.domain_name || 'perkhaven.com' }}
         run: |
           oidc_arn="arn:aws:iam::${EXPECTED_AWS_ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
           if aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$oidc_arn" >/dev/null 2>&1; then
@@ -134,8 +138,10 @@ jobs:
         env:
           TF_VAR_aws_region: ${{ env.AWS_REGION }}
           TF_VAR_github_owner: ${{ github.repository_owner }}
+          TF_VAR_github_owner_id: ${{ github.event.repository.owner.id }}
           TF_VAR_github_repository: ${{ github.event.repository.name }}
-          TF_VAR_domain_name: ${{ inputs.domain_name }}
+          TF_VAR_github_repository_id: ${{ github.event.repository.id }}
+          TF_VAR_domain_name: ${{ inputs.domain_name || 'perkhaven.com' }}
           TF_VAR_create_github_oidc_provider: ${{ steps.discovery.outputs.create_oidc }}
           TF_VAR_existing_github_oidc_provider_arn: ${{ steps.discovery.outputs.oidc_arn }}
           TF_VAR_existing_route53_zone_id: ${{ steps.discovery.outputs.route53_zone_id }}
@@ -198,7 +204,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Start production deployment
-        if: ${{ inputs.deploy_production_after_bootstrap }}
+        if: ${{ github.event_name == 'push' || inputs.deploy_production_after_bootstrap }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run deploy-production.yml --ref main

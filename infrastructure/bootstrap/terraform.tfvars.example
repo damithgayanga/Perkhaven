@@ -1,6 +1,8 @@
 aws_region             = "ap-south-1"
 github_owner           = "damithgayanga"
+github_owner_id        = "314482339"
 github_repository      = "Perkhaven"
+github_repository_id   = "1327320371"
 production_environment = "production"
 domain_name            = "perkhaven.com"
 
