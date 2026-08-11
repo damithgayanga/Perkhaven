@@ -1,6 +1,14 @@
 "use client";
 import { Dispatch, FormEvent, SetStateAction, useEffect, useRef, useState } from "react";
 import { defaultRooms, type Room } from "../lib/room-data";
+import {
+  completeSignIn,
+  installAuthenticatedFetch,
+  signOut,
+  startSignIn,
+  type AppRole,
+  type AuthenticatedUser,
+} from "../lib/auth";
 type Student = {
   id: number;
   registrationNo: string;
@@ -390,57 +398,6 @@ type StaffPermissionKey =
   | "viewExpensesOwn"
   | "pettyCash";
 type StaffPermissionMatrix = Record<string, Partial<Record<StaffPermissionKey, boolean>>>;
-type DemoRole =
-  | "Admin"
-  | "Chairman"
-  | "Managing Director"
-  | "Hostel Warden"
-  | "Staff"
-  | "Student";
-type DemoUser = {
-  email: string;
-  password: string;
-  role: DemoRole;
-  name: string;
-};
-const demoUsers: DemoUser[] = [
-  {
-    email: "admin@perkhaven.demo",
-    password: "PerkAdmin#2026",
-    role: "Admin",
-    name: "Admin Manager",
-  },
-  {
-    email: "chairman@perkhaven.demo",
-    password: "PerkChair#2026",
-    role: "Chairman",
-    name: "Demo Chairman",
-  },
-  {
-    email: "director@perkhaven.demo",
-    password: "PerkDirector#2026",
-    role: "Managing Director",
-    name: "Demo Managing Director",
-  },
-  {
-    email: "warden@perkhaven.demo",
-    password: "PerkWarden#2026",
-    role: "Hostel Warden",
-    name: "Demo Hostel Warden",
-  },
-  {
-    email: "staff@perkhaven.demo",
-    password: "PerkStaff#2026",
-    role: "Staff",
-    name: "Demo Staff Member",
-  },
-  {
-    email: "student@perkhaven.demo",
-    password: "PerkStudent#2026",
-    role: "Student",
-    name: "Demo Student",
-  },
-];
 const cash = new Intl.NumberFormat("en-LK", {
   style: "currency",
   currency: "LKR",
@@ -877,7 +834,8 @@ export default function Home() {
       | "invoices"
     >("ledger"),
     [toast, setToast] = useState(""),
-    [demoUser, setDemoUser] = useState<DemoUser | null>(null),
+    [currentUser, setAuthenticatedUser] = useState<AuthenticatedUser | null | undefined>(undefined),
+    [authError, setAuthError] = useState(""),
     [staffPermissions, setStaffPermissions] = useState<StaffPermissionMatrix>(() => {
       if (typeof window === "undefined") return {};
       try {
@@ -886,6 +844,16 @@ export default function Home() {
         return {};
       }
     });
+  useEffect(() => {
+    const restoreFetch = installAuthenticatedFetch();
+    completeSignIn()
+      .then(setAuthenticatedUser)
+      .catch((reason) => {
+        setAuthError(reason instanceof Error ? reason.message : "Sign-in failed.");
+        setAuthenticatedUser(null);
+      });
+    return restoreFetch;
+  }, []);
   useEffect(() => {
     window.localStorage.setItem(
       "perkhaven-staff-permissions",
@@ -1006,11 +974,12 @@ export default function Home() {
     setStaffProfile(null);
     setPage(destination);
   };
-  if (!demoUser) return <DemoLogin onLogin={setDemoUser} />;
-  if (!["Admin", "Chairman", "Managing Director"].includes(demoUser.role))
+  if (currentUser === undefined) return <ProductionLogin loading />;
+  if (!currentUser) return <ProductionLogin error={authError} />;
+  if (!["Admin", "Chairman", "Managing Director"].includes(currentUser.role))
     return (
-      <LimitedDemoPortal
-        user={demoUser}
+      <LimitedPortal
+        user={currentUser}
         students={students}
         studentUpdated={(updated) =>
           setStudents((current) =>
@@ -1057,7 +1026,7 @@ export default function Home() {
           setPaymentEvidence((current) => [entry, ...current])
         }
         staffPermissions={staffPermissions}
-        onLogout={() => setDemoUser(null)}
+        onLogout={signOut}
       />
     );
   return (
@@ -1085,7 +1054,7 @@ export default function Home() {
               "Financial Accounts",
               "Agreements & Settlements",
               "Admin Controls",
-            ].filter((item) => item !== "Admin Controls" || demoUser.role === "Admin") as Page[]
+            ].filter((item) => item !== "Admin Controls" || currentUser.role === "Admin") as Page[]
           ).map((x, i) => (
             <button
               key={x}
@@ -1140,17 +1109,17 @@ export default function Home() {
         </nav>
         <div className="admin">
           <i>
-            {demoUser.name
+            {currentUser.name
               .split(" ")
               .map((word) => word[0])
               .join("")
               .slice(0, 2)}
           </i>
           <span>
-            <b>{demoUser.name}</b>
-            <small>{demoUser.role} · Demo</small>
+            <b>{currentUser.name}</b>
+            <small>{currentUser.role}</small>
           </span>
-          <button className="demo-signout" onClick={() => setDemoUser(null)}>
+          <button className="signout" onClick={signOut}>
             Sign out
           </button>
         </div>
@@ -1275,7 +1244,7 @@ export default function Home() {
             addPay={() => setPaymentForm(true)}
           />
         )}{" "}
-        {page === "Admin Controls" && demoUser.role === "Admin" && (
+        {page === "Admin Controls" && currentUser.role === "Admin" && (
           <AdminControls
             staff={staffMembers}
             permissions={staffPermissions}
@@ -1427,8 +1396,8 @@ export default function Home() {
               );
               if (payment) setPayments((current) => [payment, ...current]);
             }}
-            reviewer={demoUser.name}
-            canExportLedger={demoUser.role === "Admin"}
+            reviewer={currentUser.name}
+            canExportLedger={currentUser.role === "Admin"}
             addPayment={() => setPaymentForm(true)}
           />
         )}{" "}
@@ -1590,8 +1559,8 @@ export default function Home() {
             profileRequests={profileRequests}
             roomTransferRequests={roomTransferRequests}
             students={students}
-            reviewer={demoUser.name}
-            reviewerRole={demoUser.role}
+            reviewer={currentUser.name}
+            reviewerRole={currentUser.role}
             evidenceReviewed={(entry, payment) => {
               setPaymentEvidence((current) =>
                 current.map((item) => (item.id === entry.id ? entry : item)),
@@ -1652,7 +1621,7 @@ export default function Home() {
         <Register
           students={students}
           rooms={rooms}
-          creatorRole={demoUser.role}
+          creatorRole={currentUser.role}
           close={() => setStudentForm(false)}
           save={(s) => {
             setStudents((v) => [...v, s]);
@@ -1685,7 +1654,7 @@ export default function Home() {
       {staffForm && (
         <AddStaff
           staff={staffMembers}
-          creatorRole={demoUser.role}
+          creatorRole={currentUser.role}
           designations={staffDesignations.filter(
             (designation) => designation.active,
           )}
@@ -1758,71 +1727,38 @@ export default function Home() {
     </main>
   );
 }
-function DemoLogin({ onLogin }: { onLogin: (user: DemoUser) => void }) {
-  const [email, setEmail] = useState(""),
-    [password, setPassword] = useState(""),
-    [error, setError] = useState("");
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const user = demoUsers.find(
-      (item) =>
-        item.email.toLowerCase() === email.trim().toLowerCase() &&
-        item.password === password,
-    );
-    if (!user) return setError("The demo email or password is incorrect.");
-    setError("");
-    onLogin(user);
-  };
+function ProductionLogin({ loading = false, error = "" }: { loading?: boolean; error?: string }) {
+  const [starting, setStarting] = useState(false);
   return (
-    <main className="demo-login-page">
-      <section className="demo-login-card">
-        <div className="demo-login-brand">
+    <main className="production-login-page">
+      <section className="production-login-card">
+        <div className="production-login-brand">
           <span className="brand-logo" />
           <p className="tag">THE PERK HAVEN HOSTEL</p>
-          <h1>Sign in to the demo</h1>
-          <p>
-            Use the test credentials supplied by the system administrator. This
-            temporary login will be replaced by verified email accounts.
-          </p>
+          <h1>Sign in to Perkhaven</h1>
+          <p>Continue to the secure account sign-in service.</p>
         </div>
-        <form onSubmit={submit}>
-          <label>
-            Email address
-            <input
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="name@perkhaven.demo"
-              required
-            />
-          </label>
-          <label>
-            Password
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </label>
-          {error && <p className="form-error">⚠ {error}</p>}
-          <button className="primary">Sign in</button>
-        </form>
-        <div className="demo-mode-note">
-          <b>Demo Access Mode</b>
-          <span>
-            These credentials are for testing only and must not be used as
-            production passwords.
-          </span>
-        </div>
+        {error && <p className="form-error">⚠ {error}</p>}
+        <button
+          className="primary production-signin"
+          disabled={loading || starting}
+          onClick={async () => {
+            setStarting(true);
+            try {
+              await startSignIn();
+            } catch {
+              setStarting(false);
+            }
+          }}
+        >
+          {loading ? "Checking session…" : starting ? "Opening secure sign-in…" : "Continue to sign in"}
+        </button>
       </section>
     </main>
   );
 }
 
-function LimitedDemoPortal({
+function LimitedPortal({
   user,
   students,
   studentUpdated,
@@ -1848,7 +1784,7 @@ function LimitedDemoPortal({
   staffPermissions,
   onLogout,
 }: {
-  user: DemoUser;
+  user: AuthenticatedUser;
   students: Student[];
   studentUpdated: (student: Student) => void;
   staff: Staff[];
@@ -1946,7 +1882,7 @@ function LimitedDemoPortal({
           <span className="brand-logo" />
           <span>
             <b>THE PERK HAVEN</b>
-            <small>DEMO ACCESS</small>
+            <small>SECURE ACCESS</small>
           </span>
         </div>
         <div>
@@ -1980,7 +1916,7 @@ function LimitedDemoPortal({
             </div>
             <section className="panel limited-submissions">
               <p className="tag">MY SUBMISSIONS</p>
-              <h2>Entries submitted in this demo session</h2>
+              <h2>Entries submitted in this session</h2>
               <table>
                 <thead>
                   <tr>
@@ -2035,7 +1971,7 @@ function LimitedDemoPortal({
           <section className="panel own-profile-card">
             <p className="tag">MY PROFILE</p>
             <h2>
-              {(user.role as DemoRole) === "Student"
+              {(user.role as AppRole) === "Student"
                 ? student
                   ? `${student.firstName} ${student.lastName}`
                   : user.name
@@ -2043,7 +1979,7 @@ function LimitedDemoPortal({
                   ? `${member.firstName} ${member.lastName}`
                   : user.name}
             </h2>
-            {(user.role as DemoRole) === "Student" && student ? (
+            {(user.role as AppRole) === "Student" && student ? (
               <div className="profile-summary-grid">
                 <span>
                   <small>Registration no.</small>
@@ -2091,7 +2027,7 @@ function LimitedDemoPortal({
               </>
             ) : (
               <p>
-                A demo profile will appear here when a matching record is
+                A profile will appear here when a matching record is
                 available.
               </p>
             )}
@@ -2155,7 +2091,7 @@ function StaffAccessLocked({
   user,
   onLogout,
 }: {
-  user: DemoUser;
+  user: AuthenticatedUser;
   onLogout: () => void;
 }) {
   return (
@@ -2201,7 +2137,7 @@ function WardenPortal({
   permissions,
   onLogout,
 }: {
-  user: DemoUser;
+  user: AuthenticatedUser;
   activeStudents: Student[];
   shopTenants: ShopTenant[];
   shopUtilityBills: ShopUtilityBill[];
@@ -2685,7 +2621,7 @@ function StudentSelfService({
   evidenceAdded,
   onLogout,
 }: {
-  user: DemoUser;
+  user: AuthenticatedUser;
   student?: Student;
   studentUpdated: (student: Student) => void;
   payments: Payment[];
@@ -4829,7 +4765,7 @@ function ProfileRequestAdmin({
   requests: StudentProfileRequest[];
   students: Student[];
   reviewer: string;
-  reviewerRole: DemoUser["role"];
+  reviewerRole: AuthenticatedUser["role"];
   reviewed: (request: StudentProfileRequest, student?: Student) => void;
 }) {
   const [notes, setNotes] = useState<Record<number, string>>({}),
@@ -5090,7 +5026,7 @@ const numberInWords = (raw: number) => {
   const under = (n: number) => `${n >= 100 ? `${small[Math.floor(n / 100)]} Hundred ` : ""}${n % 100 < 20 ? small[n % 100] : `${tens[Math.floor((n % 100) / 10)]}${n % 10 ? ` ${small[n % 10]}` : ""}`}`.trim();
   const parts: string[] = []; let n = value; ([[1_000_000, "Million"], [1_000, "Thousand"]] as Array<[number, string]>).forEach(([unit, label]) => { const count = Math.floor(n / unit); if (count) { parts.push(`${under(count)} ${label}`); n %= unit; } }); if (n) parts.push(under(n)); return `${parts.join(" ")} Rupees Only`;
 };
-const agreementValuesFor = (student: Student): AgreementData => { const beds = defaultRooms.find((room) => room.roomNo === student.roomNo)?.beds || 1; return { studentName: `${student.firstName} ${student.lastName}`.trim(), studentId: student.idNo || "", wardenName: "Demo Hostel Warden", wardenId: "", startDate: student.startDate || "", roomNo: student.roomNo || "", monthlyRent: amountOnly.format(student.monthlyRent || 0), monthlyRentWords: numberInWords(student.monthlyRent || 0), depositAmount: amountOnly.format(student.depositPayable || 0), depositAmountWords: numberInWords(student.depositPayable || 0), occupancyBasis: beds === 1 ? "Single room – sole occupancy" : beds === 2 ? "Double room – shared with one other resident" : "Triple room – shared with two other residents", agreementDate: student.startDate || new Date().toISOString().slice(0, 10), rentalDuration: "Six months" }; };
+const agreementValuesFor = (student: Student): AgreementData => { const beds = defaultRooms.find((room) => room.roomNo === student.roomNo)?.beds || 1; return { studentName: `${student.firstName} ${student.lastName}`.trim(), studentId: student.idNo || "", wardenName: "Hostel Warden", wardenId: "", startDate: student.startDate || "", roomNo: student.roomNo || "", monthlyRent: amountOnly.format(student.monthlyRent || 0), monthlyRentWords: numberInWords(student.monthlyRent || 0), depositAmount: amountOnly.format(student.depositPayable || 0), depositAmountWords: numberInWords(student.depositPayable || 0), occupancyBasis: beds === 1 ? "Single room – sole occupancy" : beds === 2 ? "Double room – shared with one other resident" : "Triple room – shared with two other residents", agreementDate: student.startDate || new Date().toISOString().slice(0, 10), rentalDuration: "Six months" }; };
 type AgreementSignature = { name: string; date: string };
 const agreementTemplateData = (data: AgreementData, signature?: AgreementSignature) => ({ "Full Name of the Student": data.studentName, "ID Card No of the Student": data.studentId, "Name of the Warden": data.wardenName, "ID Card of the Warden": data.wardenId, "Start Date of the Student": data.startDate ? fmtDate(data.startDate) : "", "Room No": data.roomNo, "Monthly Rent": data.monthlyRent, "Monthly Rent in words": data.monthlyRentWords, "Deposit Amount": data.depositAmount, "Deposit Amount in Words": data.depositAmountWords, "Name of the Student": data.studentName, "Student Signature": signature ? `${signature.name} — ${fmtDate(signature.date)}\nSignature of the Resident` : "Signature of the Resident" });
 function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
@@ -6819,7 +6755,7 @@ type ActionListProps = {
   roomTransferRequests: RoomTransferRequest[];
   students: Student[];
   reviewer: string;
-  reviewerRole: DemoUser["role"];
+  reviewerRole: AuthenticatedUser["role"];
   evidenceReviewed: (entry: StudentPaymentEvidence, payment?: Payment) => void;
   expenseUpdated: (expense: Expense) => void;
   profileReviewed: (request: StudentProfileRequest, student?: Student) => void;
@@ -7199,7 +7135,7 @@ function RoomTransferActionList({
 }: {
   entries: RoomTransferRequest[];
   reviewer: string;
-  reviewerRole: DemoUser["role"];
+  reviewerRole: AuthenticatedUser["role"];
   reviewed: (request: RoomTransferRequest, student?: Student) => void;
   statusFor: (
     request: RoomTransferRequest,
@@ -7315,7 +7251,7 @@ function RoomTransferApproval({
 }: {
   request: RoomTransferRequest;
   reviewer: string;
-  reviewerRole: DemoUser["role"];
+  reviewerRole: AuthenticatedUser["role"];
   close: () => void;
   save: (request: RoomTransferRequest, student?: Student) => void;
 }) {
@@ -16717,7 +16653,7 @@ function AddStaff({
 }: {
   staff: Staff[];
   designations: StaffDesignation[];
-  creatorRole: DemoRole;
+  creatorRole: AppRole;
   close: () => void;
   save: (member: Staff) => void;
 }) {
@@ -17103,7 +17039,7 @@ function Register({
 }: {
   students: Student[];
   rooms: Room[];
-  creatorRole: DemoRole;
+  creatorRole: AppRole;
   close: () => void;
   save: (s: Student) => void;
 }) {

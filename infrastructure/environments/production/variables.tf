@@ -120,6 +120,17 @@ variable "database_skip_final_snapshot" {
   default     = false
 }
 
+variable "initial_admin_email" {
+  description = "Email address Cognito should invite and manage as the first production administrator. Keep this repository variable set after creation."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = trimspace(var.initial_admin_email) == "" || can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", trimspace(var.initial_admin_email)))
+    error_message = "initial_admin_email must be empty or a valid email address."
+  }
+}
+
 variable "alert_email" {
   description = "Optional email address for CloudWatch alarm notifications. Subscription confirmation is required by AWS."
   type        = string

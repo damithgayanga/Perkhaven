@@ -25,6 +25,7 @@ env:
   TF_VAR_enable_ses_domain: "false"
   TF_VAR_create_route53_zone: "false"
   TF_VAR_database_backup_retention_days: ${{ vars.RDS_BACKUP_RETENTION_DAYS || '1' }}
+  TF_VAR_initial_admin_email: ${{ vars.INITIAL_ADMIN_EMAIL || 'admin@perkhaven.com' }}
 
 jobs:
   aws-ready:
@@ -150,6 +151,8 @@ jobs:
           echo "frontend_bucket=$(terraform output -raw frontend_bucket_name)" >> "$GITHUB_OUTPUT"
           echo "distribution=$(terraform output -raw cloudfront_distribution_id)" >> "$GITHUB_OUTPUT"
           echo "application_url=$(terraform output -raw application_url)" >> "$GITHUB_OUTPUT"
+          echo "cognito_domain=$(terraform output -raw cognito_hosted_ui_domain)" >> "$GITHUB_OUTPUT"
+          echo "cognito_client_id=$(terraform output -raw cognito_client_id)" >> "$GITHUB_OUTPUT"
 
       - name: Configure application deployment credentials
         uses: aws-actions/configure-aws-credentials@v5
@@ -208,6 +211,9 @@ jobs:
 
       - name: Build static frontend
         working-directory: front
+        env:
+          NEXT_PUBLIC_COGNITO_DOMAIN: ${{ steps.infra.outputs.cognito_domain }}
+          NEXT_PUBLIC_COGNITO_CLIENT_ID: ${{ steps.infra.outputs.cognito_client_id }}
         run: npm ci && npm run build
 
       - name: Publish frontend

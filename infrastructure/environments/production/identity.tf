@@ -51,7 +51,7 @@ resource "aws_cognito_user_pool_client" "frontend" {
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_scopes                 = ["openid", "email", "profile"]
   supported_identity_providers         = ["COGNITO"]
-  callback_urls                        = var.enable_custom_domain ? ["https://${var.domain_name}/auth/callback", "https://www.${var.domain_name}/auth/callback"] : ["${local.application_public_url}/auth/callback"]
+  callback_urls                        = var.enable_custom_domain ? ["https://${var.domain_name}/", "https://www.${var.domain_name}/"] : ["${local.application_public_url}/"]
   logout_urls                          = var.enable_custom_domain ? ["https://${var.domain_name}/", "https://www.${var.domain_name}/"] : ["${local.application_public_url}/"]
 
   access_token_validity  = 60
@@ -82,6 +82,26 @@ resource "aws_cognito_user_group" "roles" {
   name         = each.key
   precedence   = each.value
   user_pool_id = aws_cognito_user_pool.main.id
+}
+
+resource "aws_cognito_user" "initial_admin" {
+  count = trimspace(var.initial_admin_email) == "" ? 0 : 1
+
+  user_pool_id             = aws_cognito_user_pool.main.id
+  username                 = trimspace(var.initial_admin_email)
+  desired_delivery_mediums = ["EMAIL"]
+
+  attributes = {
+    email = trimspace(var.initial_admin_email)
+  }
+}
+
+resource "aws_cognito_user_in_group" "initial_admin" {
+  count = trimspace(var.initial_admin_email) == "" ? 0 : 1
+
+  user_pool_id = aws_cognito_user_pool.main.id
+  group_name   = aws_cognito_user_group.roles["ADMIN"].name
+  username     = aws_cognito_user.initial_admin[0].username
 }
 
 resource "aws_ses_domain_identity" "main" {

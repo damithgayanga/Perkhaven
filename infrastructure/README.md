@@ -46,6 +46,12 @@ The temporary bootstrap key is the only static AWS credential used. Normal plans
 short-lived GitHub OIDC credentials. The account, region, role ARNs and state bucket are deterministic pipeline
 configuration. Database passwords never enter GitHub.
 
+The pipeline initially provisions `admin@perkhaven.com` as the Cognito administrator. A GitHub Actions
+repository variable named `INITIAL_ADMIN_EMAIL` can override that address for a future environment without a
+source-code change. Terraform creates the user, assigns the `ADMIN` group, and Cognito emails a temporary
+password. Keep any override set afterward so Terraform continues to manage the account. No production
+password is stored in GitHub or this repository.
+
 ## Optional custom domain
 
 Production initially uses the generated `https://*.cloudfront.net` URL and does not wait for Route 53 or ACM
