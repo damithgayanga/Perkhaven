@@ -2,6 +2,10 @@ aws_region             = "ap-south-1"
 github_owner           = "damithgayanga"
 github_repository      = "Perkhaven"
 production_environment = "production"
+domain_name            = "perkhaven.com"
+
+# Reuse an existing Route 53 hosted zone. Leave unset to create it in bootstrap.
+# existing_route53_zone_id = "Z0123456789ABCDEFG"
 
 # Use these only when GitHub's OIDC provider already exists in the account.
 # create_github_oidc_provider      = false

@@ -22,6 +22,18 @@ variable "production_environment" {
   default     = "production"
 }
 
+variable "domain_name" {
+  description = "Public domain to create or locate in Route 53 during bootstrap."
+  type        = string
+  default     = "perkhaven.com"
+}
+
+variable "existing_route53_zone_id" {
+  description = "Existing Route 53 hosted zone ID. Leave null or empty to create the zone in bootstrap."
+  type        = string
+  default     = null
+}
+
 variable "state_bucket_name" {
   description = "Optional globally unique state bucket name. A deterministic account-scoped name is used when null."
   type        = string

@@ -84,6 +84,20 @@ resource "aws_ecr_lifecycle_policy" "backend" {
   })
 }
 
+resource "aws_route53_zone" "main" {
+  count = var.existing_route53_zone_id == null || trimspace(var.existing_route53_zone_id) == "" ? 1 : 0
+
+  name = var.domain_name
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+locals {
+  route53_zone_id = length(aws_route53_zone.main) == 1 ? aws_route53_zone.main[0].zone_id : var.existing_route53_zone_id
+}
+
 resource "aws_iam_openid_connect_provider" "github" {
   count = var.create_github_oidc_provider ? 1 : 0
 

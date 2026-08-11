@@ -1,0 +1,204 @@
+name: Bootstrap AWS account
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain_name:
+        description: Production domain
+        required: true
+        default: perkhaven.com
+        type: string
+      request_ses_production_access:
+        description: Submit the SES production-access request
+        required: true
+        default: false
+        type: boolean
+      ses_contact_email:
+        description: Contact email required when requesting SES production access
+        required: false
+        type: string
+      deploy_production_after_bootstrap:
+        description: Start the production deployment after bootstrap (only when DNS is already delegated)
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: perkhaven-aws-bootstrap
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-south-1
+  EXPECTED_AWS_ACCOUNT_ID: "890839646565"
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate workflow inputs
+        shell: bash
+        run: |
+          if [[ "${{ inputs.request_ses_production_access }}" == "true" && -z "${{ inputs.ses_contact_email }}" ]]; then
+            echo "ses_contact_email is required when requesting SES production access." >&2
+            exit 1
+          fi
+
+      - name: Configure one-time bootstrap credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_BOOTSTRAP_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_BOOTSTRAP_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: false
+
+      - name: Verify AWS account
+        shell: bash
+        run: |
+          actual_account_id=$(aws sts get-caller-identity --query Account --output text)
+          if [[ "$actual_account_id" != "$EXPECTED_AWS_ACCOUNT_ID" ]]; then
+            echo "Expected AWS account ${EXPECTED_AWS_ACCOUNT_ID}, received ${actual_account_id}." >&2
+            exit 1
+          fi
+
+      - name: Detect existing account resources
+        id: discovery
+        shell: bash
+        env:
+          DOMAIN_NAME: ${{ inputs.domain_name }}
+        run: |
+          oidc_arn="arn:aws:iam::${EXPECTED_AWS_ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
+          if aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$oidc_arn" >/dev/null 2>&1; then
+            echo "create_oidc=false" >> "$GITHUB_OUTPUT"
+            echo "oidc_arn=$oidc_arn" >> "$GITHUB_OUTPUT"
+          else
+            echo "create_oidc=true" >> "$GITHUB_OUTPUT"
+            echo "oidc_arn=" >> "$GITHUB_OUTPUT"
+          fi
+
+          zone_id=$(aws route53 list-hosted-zones-by-name \
+            --dns-name "$DOMAIN_NAME" \
+            --query "HostedZones[?Name=='${DOMAIN_NAME}.'] | [0].Id" \
+            --output text)
+          if [[ "$zone_id" == "None" ]]; then zone_id=""; fi
+          zone_id="${zone_id#/hostedzone/}"
+          echo "route53_zone_id=$zone_id" >> "$GITHUB_OUTPUT"
+
+      - name: Create and secure the Terraform state bucket when absent
+        shell: bash
+        run: |
+          state_bucket="perkhaven-terraform-state-${EXPECTED_AWS_ACCOUNT_ID}"
+          if ! aws s3api head-bucket --bucket "$state_bucket" >/dev/null 2>&1; then
+            aws s3api create-bucket \
+              --bucket "$state_bucket" \
+              --region "$AWS_REGION" \
+              --create-bucket-configuration "LocationConstraint=${AWS_REGION}"
+            aws s3api put-bucket-versioning \
+              --bucket "$state_bucket" \
+              --versioning-configuration Status=Enabled
+            aws s3api put-public-access-block \
+              --bucket "$state_bucket" \
+              --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+            aws s3api put-bucket-encryption \
+              --bucket "$state_bucket" \
+              --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"},"BucketKeyEnabled":false}]}'
+          fi
+          echo "TF_STATE_BUCKET=$state_bucket" >> "$GITHUB_ENV"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.5"
+
+      - name: Initialize bootstrap state
+        working-directory: infrastructure/bootstrap
+        run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
+
+      - name: Import pre-created state bucket on the first run
+        working-directory: infrastructure/bootstrap
+        shell: bash
+        run: |
+          if ! terraform state show aws_s3_bucket.terraform_state >/dev/null 2>&1; then
+            terraform import aws_s3_bucket.terraform_state "$TF_STATE_BUCKET"
+          fi
+
+      - name: Plan bootstrap
+        working-directory: infrastructure/bootstrap
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_github_owner: ${{ github.repository_owner }}
+          TF_VAR_github_repository: ${{ github.event.repository.name }}
+          TF_VAR_domain_name: ${{ inputs.domain_name }}
+          TF_VAR_create_github_oidc_provider: ${{ steps.discovery.outputs.create_oidc }}
+          TF_VAR_existing_github_oidc_provider_arn: ${{ steps.discovery.outputs.oidc_arn }}
+          TF_VAR_existing_route53_zone_id: ${{ steps.discovery.outputs.route53_zone_id }}
+        run: terraform plan -lock-timeout=5m -out=bootstrap.tfplan
+
+      - name: Apply bootstrap
+        working-directory: infrastructure/bootstrap
+        run: terraform apply -lock-timeout=5m -auto-approve bootstrap.tfplan
+
+      - name: Read bootstrap outputs
+        id: bootstrap
+        working-directory: infrastructure/bootstrap
+        shell: bash
+        run: |
+          echo "state_bucket=$(terraform output -raw state_bucket_name)" >> "$GITHUB_OUTPUT"
+          echo "terraform_role=$(terraform output -raw terraform_role_arn)" >> "$GITHUB_OUTPUT"
+          echo "plan_role=$(terraform output -raw plan_role_arn)" >> "$GITHUB_OUTPUT"
+          echo "deploy_role=$(terraform output -raw deploy_role_arn)" >> "$GITHUB_OUTPUT"
+          echo "route53_zone_id=$(terraform output -raw route53_zone_id)" >> "$GITHUB_OUTPUT"
+          echo "name_servers=$(terraform output -json route53_name_servers | jq -r 'join(", ")')" >> "$GITHUB_OUTPUT"
+
+      - name: Request SES production access
+        if: ${{ inputs.request_ses_production_access }}
+        continue-on-error: true
+        env:
+          DOMAIN_NAME: ${{ inputs.domain_name }}
+          SES_CONTACT_EMAIL: ${{ inputs.ses_contact_email }}
+        run: |
+          aws sesv2 put-account-details \
+            --production-access-enabled \
+            --mail-type TRANSACTIONAL \
+            --website-url "https://${DOMAIN_NAME}" \
+            --additional-contact-email-addresses "$SES_CONTACT_EMAIL" \
+            --contact-language EN \
+            --use-case-description "Perkhaven sends transactional account invitations, approval notifications, invoices and receipts only to registered application users. Bounces and complaints are monitored and suppressed."
+
+      - name: Write bootstrap summary
+        env:
+          STATE_BUCKET: ${{ steps.bootstrap.outputs.state_bucket }}
+          ROUTE53_ZONE_ID: ${{ steps.bootstrap.outputs.route53_zone_id }}
+          NAME_SERVERS: ${{ steps.bootstrap.outputs.name_servers }}
+        shell: bash
+        run: |
+          {
+            echo "## AWS bootstrap completed"
+            echo
+            echo "- Account: ${EXPECTED_AWS_ACCOUNT_ID}"
+            echo "- State bucket: ${STATE_BUCKET}"
+            echo "- Route 53 zone: ${ROUTE53_ZONE_ID}"
+            echo "- Production, plan and deployment roles created for GitHub OIDC"
+            if [[ -n "$NAME_SERVERS" ]]; then
+              echo "- New hosted-zone name servers: ${NAME_SERVERS}"
+              echo
+              echo "Update the registrar name servers before starting production deployment."
+            else
+              echo "- Existing hosted zone reused; no new name-server delegation was created."
+            fi
+            echo
+            echo "Delete the AWS_BOOTSTRAP_ACCESS_KEY_ID and AWS_BOOTSTRAP_SECRET_ACCESS_KEY repository secrets now."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Start production deployment
+        if: ${{ inputs.deploy_production_after_bootstrap }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-production.yml --ref main

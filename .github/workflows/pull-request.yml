@@ -62,19 +62,20 @@ jobs:
         run: terraform init -backend=false && terraform validate
 
   terraform-plan:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && vars.AWS_PLAN_ROLE_ARN != '' && vars.TF_STATE_BUCKET != '' }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     env:
-      AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      AWS_REGION: ap-south-1
+      TF_STATE_BUCKET: perkhaven-terraform-state-890839646565
+      AWS_PLAN_ROLE_ARN: arn:aws:iam::890839646565:role/perkhaven-github-plan
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
-      TF_VAR_backend_image_uri: ${{ vars.AWS_ACCOUNT_ID || '890839646565' }}.dkr.ecr.${{ vars.AWS_REGION || 'ap-south-1' }}.amazonaws.com/perkhaven-backend:plan-only
-      TF_VAR_domain_name: ${{ vars.DOMAIN_NAME || 'perkhaven.com' }}
-      TF_VAR_create_route53_zone: ${{ vars.CREATE_ROUTE53_ZONE || 'true' }}
-      TF_VAR_route53_zone_id: ${{ vars.ROUTE53_ZONE_ID }}
+      TF_VAR_backend_image_uri: 890839646565.dkr.ecr.ap-south-1.amazonaws.com/perkhaven-backend:plan-only
+      TF_VAR_domain_name: perkhaven.com
+      TF_VAR_create_route53_zone: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -82,11 +83,23 @@ jobs:
           terraform_version: "1.13.5"
       - uses: aws-actions/configure-aws-credentials@v5
         with:
-          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          role-to-assume: ${{ env.AWS_PLAN_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Discover production hosted zone
+        shell: bash
+        run: |
+          zone_id=$(aws route53 list-hosted-zones-by-name \
+            --dns-name "$TF_VAR_domain_name" \
+            --query "HostedZones[?Name=='${TF_VAR_domain_name}.'] | [0].Id" \
+            --output text)
+          if [[ -z "$zone_id" || "$zone_id" == "None" ]]; then
+            echo "No Route 53 hosted zone exists for ${TF_VAR_domain_name}. Run the AWS bootstrap workflow first." >&2
+            exit 1
+          fi
+          echo "TF_VAR_route53_zone_id=${zone_id#/hostedzone/}" >> "$GITHUB_ENV"
       - name: Initialize remote state
         working-directory: infrastructure/environments/production
-        run: terraform init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${AWS_REGION}"
+        run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
       - name: Create production plan
         working-directory: infrastructure/environments/production
         run: terraform plan -lock-timeout=5m -no-color

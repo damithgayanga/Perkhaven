@@ -17,3 +17,11 @@ output "plan_role_arn" {
 output "deploy_role_arn" {
   value = aws_iam_role.deploy.arn
 }
+
+output "route53_zone_id" {
+  value = local.route53_zone_id
+}
+
+output "route53_name_servers" {
+  value = length(aws_route53_zone.main) == 1 ? aws_route53_zone.main[0].name_servers : []
+}

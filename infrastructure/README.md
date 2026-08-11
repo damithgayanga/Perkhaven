@@ -22,52 +22,43 @@ private application subnets plus VPC endpoints or NAT when stricter network isol
 
 ## One-time bootstrap
 
-GitHub cannot create its own AWS trust relationship. Run `bootstrap` once with administrator credentials in
-a dedicated Perkhaven AWS account:
+GitHub cannot create its own AWS trust relationship. Create a temporary IAM access key with administrator
+access in account `890839646565`, add it to the repository as these two Actions secrets, and remove both the
+secrets and key immediately after bootstrap succeeds:
 
-```bash
-cd infrastructure/bootstrap
-terraform init
-terraform apply
-terraform output
+```text
+AWS_BOOTSTRAP_ACCESS_KEY_ID
+AWS_BOOTSTRAP_SECRET_ACCESS_KEY
 ```
 
-If the AWS account already has the GitHub OIDC provider, copy `terraform.tfvars.example` to an ignored
-`terraform.tfvars`, set `create_github_oidc_provider = false`, and provide its ARN.
+In GitHub, open **Actions → Bootstrap AWS account → Run workflow**. The workflow detects an existing GitHub
+OIDC provider and Route 53 zone, creates either when absent, initializes remote bootstrap state, creates the
+AWS roles, and can optionally submit the SES production-access request. The production environment is created
+automatically the first time the deployment job runs.
 
 The bootstrap creates:
 
 - versioned and encrypted Terraform state bucket;
 - GitHub OIDC provider and production/plan IAM roles;
-- immutable ECR repository, needed before the main infrastructure exists.
+- immutable ECR repository, needed before the main infrastructure exists;
+- or reuses a Route 53 zone for the production domain.
 
-Create a GitHub environment named `production`, restrict it to `main`, and do not add required reviewers for
-zero-touch deployments. Add these repository or environment variables using the bootstrap outputs:
-
-| Variable | Value |
-| --- | --- |
-| `AWS_REGION` | `ap-south-1` |
-| `AWS_ACCOUNT_ID` | `890839646565` |
-| `TF_STATE_BUCKET` | `state_bucket_name` output |
-| `AWS_TERRAFORM_ROLE_ARN` | `terraform_role_arn` output |
-| `AWS_PLAN_ROLE_ARN` | `plan_role_arn` output |
-| `AWS_DEPLOY_ROLE_ARN` | `deploy_role_arn` output |
-| `DOMAIN_NAME` | `perkhaven.com` |
-| `CREATE_ROUTE53_ZONE` | `true`, or `false` when reusing a zone |
-| `ROUTE53_ZONE_ID` | Existing zone ID when the preceding value is `false` |
-
-No AWS access key or database password belongs in GitHub.
+The temporary bootstrap key is the only static AWS credential used. Normal plans and deployments use
+short-lived GitHub OIDC credentials. The account, region, domain, role ARNs and state bucket are deterministic
+pipeline configuration, and the Route 53 zone is discovered from AWS at runtime. Database passwords never
+enter GitHub.
 
 ## DNS prerequisite
 
-By default Terraform creates a Route 53 hosted zone. If `perkhaven.com` is registered outside Route 53, its
-registrar name servers must be changed once to the `route53_name_servers` output before ACM validation can
-complete. If a hosted zone already exists, set `create_route53_zone = false` and provide `route53_zone_id`.
+Bootstrap reuses a matching Route 53 hosted zone or creates one. If `perkhaven.com` is registered outside
+Route 53 and bootstrap creates the zone, copy the name servers from the workflow summary to the registrar
+before running **Deploy production**. Name-server delegation is the only part an external registrar cannot
+delegate to GitHub Actions.
 
 ## Automated releases
 
 `.github/workflows/pull-request.yml` tests the backend, frontend, container and Terraform. It creates a
-read-only Terraform plan after bootstrap variables exist.
+read-only Terraform plan after the AWS bootstrap has completed.
 
 `.github/workflows/deploy-production.yml` runs after every push to `main`:
 
