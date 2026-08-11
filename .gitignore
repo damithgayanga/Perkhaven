@@ -39,6 +39,8 @@ next-env.d.ts
 /dist/
 /front/dist/
 /front/.next/
+/front/out/
+/front/.sites-runtime/
 /backend/.gradle/
 /backend/.gradle-user-home/
 /backend/build/
@@ -47,3 +49,15 @@ next-env.d.ts
 /.sites-runtime/
 /outputs/
 /work/
+
+# terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tflock
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

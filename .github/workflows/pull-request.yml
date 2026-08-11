@@ -1,0 +1,92 @@
+name: Pull request checks
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pull-request-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Test and package backend
+        run: ./gradlew clean test bootJar --no-daemon
+      - name: Build production container
+        run: docker build --tag perkhaven-backend:pr .
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: front
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  terraform-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.5"
+      - name: Check formatting
+        run: terraform fmt -check -recursive infrastructure
+      - name: Validate bootstrap
+        working-directory: infrastructure/bootstrap
+        run: terraform init -backend=false && terraform validate
+      - name: Validate production
+        working-directory: infrastructure/environments/production
+        run: terraform init -backend=false && terraform validate
+
+  terraform-plan:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && vars.AWS_PLAN_ROLE_ARN != '' && vars.TF_STATE_BUCKET != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_VAR_backend_image_uri: ${{ vars.AWS_ACCOUNT_ID || '890839646565' }}.dkr.ecr.${{ vars.AWS_REGION || 'ap-south-1' }}.amazonaws.com/perkhaven-backend:plan-only
+      TF_VAR_domain_name: ${{ vars.DOMAIN_NAME || 'perkhaven.com' }}
+      TF_VAR_create_route53_zone: ${{ vars.CREATE_ROUTE53_ZONE || 'true' }}
+      TF_VAR_route53_zone_id: ${{ vars.ROUTE53_ZONE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.5"
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Initialize remote state
+        working-directory: infrastructure/environments/production
+        run: terraform init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${AWS_REGION}"
+      - name: Create production plan
+        working-directory: infrastructure/environments/production
+        run: terraform plan -lock-timeout=5m -no-color

@@ -1,0 +1,202 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: perkhaven-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_VAR_domain_name: ${{ vars.DOMAIN_NAME || 'perkhaven.com' }}
+  TF_VAR_create_route53_zone: ${{ vars.CREATE_ROUTE53_ZONE || 'true' }}
+  TF_VAR_route53_zone_id: ${{ vars.ROUTE53_ZONE_ID }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Test backend
+        working-directory: backend
+        run: ./gradlew clean test bootJar --no-daemon
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+      - name: Install and build frontend
+        working-directory: front
+        run: npm ci && npm run lint && npm run build
+
+  deploy:
+    needs: verify
+    if: ${{ vars.AWS_DEPLOY_ROLE_ARN != '' && vars.AWS_TERRAFORM_ROLE_ARN != '' && vars.TF_STATE_BUCKET != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure deployment credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve immutable image URI
+        id: image
+        shell: bash
+        run: |
+          image_tag="sha-${GITHUB_SHA}"
+          image_uri="${{ steps.ecr.outputs.registry }}/perkhaven-backend:${image_tag}"
+          echo "tag=${image_tag}" >> "$GITHUB_OUTPUT"
+          echo "uri=${image_uri}" >> "$GITHUB_OUTPUT"
+          if aws ecr describe-images --repository-name perkhaven-backend --image-ids imageTag="${image_tag}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-qemu-action@v3
+        if: steps.image.outputs.exists != 'true'
+      - uses: docker/setup-buildx-action@v3
+        if: steps.image.outputs.exists != 'true'
+      - name: Build and push backend image
+        if: steps.image.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.image.outputs.uri }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.5"
+
+      - name: Configure Terraform credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Initialize Terraform
+        working-directory: infrastructure/environments/production
+        run: terraform init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${AWS_REGION}"
+
+      - name: Apply infrastructure
+        working-directory: infrastructure/environments/production
+        env:
+          TF_VAR_backend_image_uri: ${{ steps.image.outputs.uri }}
+        run: terraform apply -auto-approve -lock-timeout=10m
+
+      - name: Read deployment outputs
+        id: infra
+        working-directory: infrastructure/environments/production
+        shell: bash
+        run: |
+          echo "cluster=$(terraform output -raw ecs_cluster_name)" >> "$GITHUB_OUTPUT"
+          echo "service=$(terraform output -raw ecs_service_name)" >> "$GITHUB_OUTPUT"
+          echo "task_definition=$(terraform output -raw ecs_task_definition_arn)" >> "$GITHUB_OUTPUT"
+          echo "security_group=$(terraform output -raw ecs_security_group_id)" >> "$GITHUB_OUTPUT"
+          echo "subnets=$(terraform output -json ecs_subnet_ids | jq -c '.')" >> "$GITHUB_OUTPUT"
+          echo "frontend_bucket=$(terraform output -raw frontend_bucket_name)" >> "$GITHUB_OUTPUT"
+          echo "distribution=$(terraform output -raw cloudfront_distribution_id)" >> "$GITHUB_OUTPUT"
+          echo "application_url=$(terraform output -raw application_url)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure application deployment credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run Flyway migrations in Fargate
+        id: migration
+        shell: bash
+        env:
+          CLUSTER: ${{ steps.infra.outputs.cluster }}
+          TASK_DEFINITION: ${{ steps.infra.outputs.task_definition }}
+          SECURITY_GROUP: ${{ steps.infra.outputs.security_group }}
+          SUBNETS: ${{ steps.infra.outputs.subnets }}
+        run: |
+          network_configuration=$(jq -cn \
+            --argjson subnets "$SUBNETS" \
+            --arg security_group "$SECURITY_GROUP" \
+            '{awsvpcConfiguration:{subnets:$subnets,securityGroups:[$security_group],assignPublicIp:"ENABLED"}}')
+          overrides='{"containerOverrides":[{"name":"backend","command":["--spring.main.web-application-type=none","--spring.main.banner-mode=off","--perkhaven.storage.provider=local"]}]}'
+          task_arn=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --launch-type FARGATE \
+            --task-definition "$TASK_DEFINITION" \
+            --network-configuration "$network_configuration" \
+            --overrides "$overrides" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          test "$task_arn" != "None"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"
+          exit_code=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" --query 'tasks[0].containers[?name==`backend`].exitCode | [0]' --output text)
+          reason=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" --query 'tasks[0].stoppedReason' --output text)
+          echo "Migration task stopped: ${reason}; exit code: ${exit_code}"
+          test "$exit_code" = "0"
+
+      - name: Deploy backend service
+        env:
+          CLUSTER: ${{ steps.infra.outputs.cluster }}
+          SERVICE: ${{ steps.infra.outputs.service }}
+          TASK_DEFINITION: ${{ steps.infra.outputs.task_definition }}
+        run: |
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
+            --task-definition "$TASK_DEFINITION" \
+            --desired-count 1 \
+            --force-new-deployment >/dev/null
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+
+      - name: Build static frontend
+        working-directory: front
+        run: npm ci && npm run build
+
+      - name: Publish frontend
+        env:
+          BUCKET: ${{ steps.infra.outputs.frontend_bucket }}
+        run: |
+          aws s3 sync front/out "s3://${BUCKET}" --delete --exclude '_next/static/*' --cache-control 'no-cache, no-store, must-revalidate'
+          aws s3 sync front/out/_next/static "s3://${BUCKET}/_next/static" --cache-control 'public, max-age=31536000, immutable'
+
+      - name: Invalidate CloudFront
+        run: aws cloudfront create-invalidation --distribution-id "${{ steps.infra.outputs.distribution }}" --paths '/*'
+
+      - name: Verify production
+        env:
+          APPLICATION_URL: ${{ steps.infra.outputs.application_url }}
+        run: |
+          curl --fail --retry 12 --retry-delay 10 --retry-all-errors "${APPLICATION_URL}/"
+          curl --fail --retry 12 --retry-delay 10 --retry-all-errors "${APPLICATION_URL}/actuator/health"

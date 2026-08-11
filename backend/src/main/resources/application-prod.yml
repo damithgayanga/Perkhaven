@@ -8,7 +8,13 @@ spring:
       enabled: false
   flyway:
     locations: classpath:db/migration/common
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${PERKHAVEN_SECURITY_COGNITO_ISSUER}
 
 perkhaven:
   storage:
     provider: ${STORAGE_PROVIDER:s3}
+    bucket: ${PERKHAVEN_STORAGE_BUCKET}

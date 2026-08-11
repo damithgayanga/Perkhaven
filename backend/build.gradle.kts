@@ -19,6 +19,7 @@ repositories {
 
 extra["springdocVersion"] = "2.8.13"
 extra["testcontainersVersion"] = "1.21.3"
+extra["awsSdkVersion"] = "2.47.6"
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
@@ -30,6 +31,8 @@ dependencies {
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${property("springdocVersion")}")
+    implementation(platform("software.amazon.awssdk:bom:${property("awsSdkVersion")}"))
+    implementation("software.amazon.awssdk:s3")
 
     runtimeOnly("org.postgresql:postgresql")
     runtimeOnly("com.h2database:h2")

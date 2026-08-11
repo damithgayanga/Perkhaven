@@ -1,18 +1,17 @@
 # Perkhaven
 
-Perkhaven is being migrated from a frontend prototype to a locally verifiable Spring Boot backend and,
-in a later phase, AWS infrastructure.
+Perkhaven is being migrated from a frontend prototype to a Spring Boot backend with automated AWS delivery.
 
 ```text
 perkhaven/
 ├── front/          Existing frontend prototype
 ├── backend/        Spring Boot API (Gradle with Kotlin DSL, Java 21)
-└── infrastructure/ Deferred AWS/Terraform phase
+└── infrastructure/ Terraform for AWS and GitHub OIDC deployment
 ```
 
 Checkpoint 1 is implemented under [`backend`](backend/README.md). Run it directly on the host; Docker
-Compose is not required. The production [`Dockerfile`](backend/Dockerfile) is retained for the later ECS
-Fargate build and deployment pipeline.
+Compose is not required. The production [`Dockerfile`](backend/Dockerfile) is built by GitHub Actions for
+ECS Fargate.
 
-The existing frontend has only been relocated to `front/`. Its API/authentication refactor belongs to the
-later frontend-integration checkpoint.
+AWS infrastructure and pipeline bootstrap instructions are in [`infrastructure`](infrastructure/README.md).
+The frontend `/api/v1` and Cognito integration and later backend checkpoints remain application work.
