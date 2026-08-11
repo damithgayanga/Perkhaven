@@ -39,7 +39,7 @@ output "cloudfront_domain_name" {
 }
 
 output "application_url" {
-  value = "https://${var.domain_name}"
+  value = local.application_public_url
 }
 
 output "cognito_user_pool_id" {
@@ -60,7 +60,7 @@ output "cognito_hosted_ui_domain" {
 
 output "route53_name_servers" {
   description = "Set these at the registrar when Terraform created the hosted zone and the domain is registered elsewhere."
-  value       = var.create_route53_zone ? aws_route53_zone.main[0].name_servers : []
+  value       = var.enable_custom_domain && var.create_route53_zone ? aws_route53_zone.main[0].name_servers : []
 }
 
 output "database_secret_arn" {

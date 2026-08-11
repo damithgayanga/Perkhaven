@@ -72,13 +72,16 @@ data "aws_iam_policy_document" "ecs_task" {
     actions   = ["s3:ListBucket"]
     resources = [aws_s3_bucket.documents.arn]
   }
-  statement {
-    sid = "ApplicationEmail"
-    actions = [
-      "ses:SendEmail",
-      "ses:SendRawEmail"
-    ]
-    resources = [aws_ses_domain_identity.main.arn]
+  dynamic "statement" {
+    for_each = var.enable_ses_domain ? [1] : []
+    content {
+      sid = "ApplicationEmail"
+      actions = [
+        "ses:SendEmail",
+        "ses:SendRawEmail"
+      ]
+      resources = [aws_ses_domain_identity.main[0].arn]
+    }
   }
 }
 
@@ -123,8 +126,8 @@ resource "aws_ecs_task_definition" "backend" {
       { name = "PERKHAVEN_STORAGE_BUCKET", value = aws_s3_bucket.documents.id },
       { name = "PERKHAVEN_SECURITY_COGNITO_ISSUER", value = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.main.id}" },
       { name = "PERKHAVEN_SECURITY_COGNITO_CLIENT_ID", value = aws_cognito_user_pool_client.frontend.id },
-      { name = "PERKHAVEN_MAIL_PROVIDER", value = "ses" },
-      { name = "PERKHAVEN_MAIL_FROM", value = "no-reply@${var.domain_name}" }
+      { name = "PERKHAVEN_MAIL_PROVIDER", value = var.enable_ses_domain ? "ses" : "local" },
+      { name = "PERKHAVEN_MAIL_FROM", value = var.enable_ses_domain ? "no-reply@${var.domain_name}" : "no-reply@perkhaven.invalid" }
     ]
     secrets = [{
       name      = "DB_PASSWORD"

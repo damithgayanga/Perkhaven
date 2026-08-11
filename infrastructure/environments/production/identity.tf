@@ -1,3 +1,7 @@
+locals {
+  application_public_url = "https://${var.enable_custom_domain ? var.domain_name : aws_cloudfront_distribution.main.domain_name}"
+}
+
 resource "aws_cognito_user_pool" "main" {
   name = local.name
 
@@ -17,7 +21,7 @@ resource "aws_cognito_user_pool" "main" {
     allow_admin_create_user_only = true
     invite_message_template {
       email_subject = "Your Perkhaven account"
-      email_message = "Your username is {username} and temporary password is {####}. Visit https://${var.domain_name} to sign in."
+      email_message = "Your username is {username} and temporary password is {####}. Visit ${local.application_public_url} to sign in."
       sms_message   = "Perkhaven username: {username}; temporary password: {####}"
     }
   }
@@ -47,8 +51,8 @@ resource "aws_cognito_user_pool_client" "frontend" {
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_scopes                 = ["openid", "email", "profile"]
   supported_identity_providers         = ["COGNITO"]
-  callback_urls                        = ["https://${var.domain_name}/auth/callback", "https://www.${var.domain_name}/auth/callback"]
-  logout_urls                          = ["https://${var.domain_name}/", "https://www.${var.domain_name}/"]
+  callback_urls                        = var.enable_custom_domain ? ["https://${var.domain_name}/auth/callback", "https://www.${var.domain_name}/auth/callback"] : ["${local.application_public_url}/auth/callback"]
+  logout_urls                          = var.enable_custom_domain ? ["https://${var.domain_name}/", "https://www.${var.domain_name}/"] : ["${local.application_public_url}/"]
 
   access_token_validity  = 60
   id_token_validity      = 60
@@ -81,58 +85,66 @@ resource "aws_cognito_user_group" "roles" {
 }
 
 resource "aws_ses_domain_identity" "main" {
+  count  = var.enable_ses_domain ? 1 : 0
   domain = var.domain_name
 }
 
 resource "aws_route53_record" "ses_verification" {
+  count   = var.enable_ses_domain ? 1 : 0
   zone_id = local.route53_zone_id
   name    = "_amazonses.${var.domain_name}"
   type    = "TXT"
   ttl     = 600
-  records = [aws_ses_domain_identity.main.verification_token]
+  records = [aws_ses_domain_identity.main[0].verification_token]
 }
 
 resource "aws_ses_domain_identity_verification" "main" {
-  domain     = aws_ses_domain_identity.main.id
+  count      = var.enable_ses_domain ? 1 : 0
+  domain     = aws_ses_domain_identity.main[0].id
   depends_on = [aws_route53_record.ses_verification]
 }
 
 resource "aws_ses_domain_dkim" "main" {
-  domain = aws_ses_domain_identity.main.domain
+  count  = var.enable_ses_domain ? 1 : 0
+  domain = aws_ses_domain_identity.main[0].domain
 }
 
 resource "aws_route53_record" "ses_dkim" {
-  count = 3
+  count = var.enable_ses_domain ? 3 : 0
 
   zone_id = local.route53_zone_id
-  name    = "${aws_ses_domain_dkim.main.dkim_tokens[count.index]}._domainkey.${var.domain_name}"
+  name    = "${aws_ses_domain_dkim.main[0].dkim_tokens[count.index]}._domainkey.${var.domain_name}"
   type    = "CNAME"
   ttl     = 600
-  records = ["${aws_ses_domain_dkim.main.dkim_tokens[count.index]}.dkim.amazonses.com"]
+  records = ["${aws_ses_domain_dkim.main[0].dkim_tokens[count.index]}.dkim.amazonses.com"]
 }
 
 resource "aws_ses_domain_mail_from" "main" {
-  domain           = aws_ses_domain_identity.main.domain
+  count            = var.enable_ses_domain ? 1 : 0
+  domain           = aws_ses_domain_identity.main[0].domain
   mail_from_domain = "mail.${var.domain_name}"
 }
 
 resource "aws_route53_record" "ses_mail_from_mx" {
+  count   = var.enable_ses_domain ? 1 : 0
   zone_id = local.route53_zone_id
-  name    = aws_ses_domain_mail_from.main.mail_from_domain
+  name    = aws_ses_domain_mail_from.main[0].mail_from_domain
   type    = "MX"
   ttl     = 600
   records = ["10 feedback-smtp.${var.aws_region}.amazonses.com"]
 }
 
 resource "aws_route53_record" "ses_mail_from_spf" {
+  count   = var.enable_ses_domain ? 1 : 0
   zone_id = local.route53_zone_id
-  name    = aws_ses_domain_mail_from.main.mail_from_domain
+  name    = aws_ses_domain_mail_from.main[0].mail_from_domain
   type    = "TXT"
   ttl     = 600
   records = ["v=spf1 include:amazonses.com -all"]
 }
 
 resource "aws_route53_record" "dmarc" {
+  count   = var.enable_ses_domain ? 1 : 0
   zone_id = local.route53_zone_id
   name    = "_dmarc.${var.domain_name}"
   type    = "TXT"

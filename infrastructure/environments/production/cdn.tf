@@ -28,7 +28,7 @@ resource "aws_cloudfront_distribution" "main" {
   comment             = "Perkhaven production"
   default_root_object = "index.html"
   price_class         = "PriceClass_200"
-  aliases             = [var.domain_name, "www.${var.domain_name}"]
+  aliases             = var.enable_custom_domain ? [var.domain_name, "www.${var.domain_name}"] : []
 
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
@@ -37,7 +37,7 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   origin {
-    domain_name = aws_route53_record.origin.fqdn
+    domain_name = aws_lb.backend.dns_name
     origin_id   = "backend-alb"
 
     custom_header {
@@ -48,7 +48,7 @@ resource "aws_cloudfront_distribution" "main" {
     custom_origin_config {
       http_port              = 80
       https_port             = 443
-      origin_protocol_policy = "https-only"
+      origin_protocol_policy = "http-only"
       origin_ssl_protocols   = ["TLSv1.2"]
     }
   }
@@ -94,9 +94,10 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   viewer_certificate {
-    acm_certificate_arn      = aws_acm_certificate_validation.cloudfront.certificate_arn
-    ssl_support_method       = "sni-only"
-    minimum_protocol_version = "TLSv1.2_2021"
+    cloudfront_default_certificate = !var.enable_custom_domain
+    acm_certificate_arn            = var.enable_custom_domain ? aws_acm_certificate_validation.cloudfront[0].certificate_arn : null
+    ssl_support_method             = var.enable_custom_domain ? "sni-only" : null
+    minimum_protocol_version       = var.enable_custom_domain ? "TLSv1.2_2021" : "TLSv1"
   }
 }
 
@@ -122,6 +123,7 @@ resource "aws_s3_bucket_policy" "frontend" {
 }
 
 resource "aws_route53_record" "apex" {
+  count   = var.enable_custom_domain ? 1 : 0
   zone_id = local.route53_zone_id
   name    = var.domain_name
   type    = "A"
@@ -133,6 +135,7 @@ resource "aws_route53_record" "apex" {
 }
 
 resource "aws_route53_record" "apex_ipv6" {
+  count   = var.enable_custom_domain ? 1 : 0
   zone_id = local.route53_zone_id
   name    = var.domain_name
   type    = "AAAA"
@@ -144,6 +147,7 @@ resource "aws_route53_record" "apex_ipv6" {
 }
 
 resource "aws_route53_record" "www" {
+  count   = var.enable_custom_domain ? 1 : 0
   zone_id = local.route53_zone_id
   name    = "www.${var.domain_name}"
   type    = "A"
@@ -155,6 +159,7 @@ resource "aws_route53_record" "www" {
 }
 
 resource "aws_route53_record" "www_ipv6" {
+  count   = var.enable_custom_domain ? 1 : 0
   zone_id = local.route53_zone_id
   name    = "www.${var.domain_name}"
   type    = "AAAA"

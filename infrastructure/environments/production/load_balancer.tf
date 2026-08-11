@@ -30,12 +30,10 @@ resource "aws_lb_target_group" "backend" {
   }
 }
 
-resource "aws_lb_listener" "https" {
+resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.backend.arn
-  port              = 443
-  protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = aws_acm_certificate_validation.origin.certificate_arn
+  port              = 80
+  protocol          = "HTTP"
 
   default_action {
     type = "fixed-response"
@@ -48,7 +46,7 @@ resource "aws_lb_listener" "https" {
 }
 
 resource "aws_lb_listener_rule" "cloudfront_only" {
-  listener_arn = aws_lb_listener.https.arn
+  listener_arn = aws_lb_listener.http.arn
   priority     = 10
 
   action {
@@ -61,17 +59,5 @@ resource "aws_lb_listener_rule" "cloudfront_only" {
       http_header_name = "X-Perkhaven-Origin"
       values           = [random_password.origin_header.result]
     }
-  }
-}
-
-resource "aws_route53_record" "origin" {
-  zone_id = local.route53_zone_id
-  name    = "api-origin.${var.domain_name}"
-  type    = "A"
-
-  alias {
-    name                   = aws_lb.backend.dns_name
-    zone_id                = aws_lb.backend.zone_id
-    evaluate_target_health = false
   }
 }

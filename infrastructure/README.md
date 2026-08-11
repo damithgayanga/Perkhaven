@@ -5,15 +5,15 @@ these files. GitHub Actions performs normal plans and deployments after the one-
 
 ## Architecture
 
-- Route 53 hosts `perkhaven.com` and `www.perkhaven.com`.
+- CloudFront's AWS-managed HTTPS hostname is the initial public application URL; a custom Route 53 domain can be enabled later.
 - CloudFront is the only public application URL. Its default origin is a private S3 frontend bucket.
-- `/api/*` and `/actuator/health*` route to an HTTPS Application Load Balancer origin.
+- `/api/*` and `/actuator/health*` route to the Application Load Balancer origin.
 - The ALB requires a secret CloudFront origin header before forwarding traffic to ECS.
 - The Spring Boot container runs on ECS Fargate across two public subnets. It has a public IP for outbound
   AWS/API access, but its security group accepts port 8080 only from the ALB.
 - RDS PostgreSQL is in isolated database subnets and accepts traffic only from the backend security group.
 - Application documents use a separate private, encrypted and versioned S3 bucket.
-- Cognito supplies user accounts and role groups. SES supplies domain-verified outbound email.
+- Cognito supplies user accounts and role groups. SES domain email remains disabled until a domain is registered.
 - Secrets Manager owns the RDS password and CloudFront-to-ALB origin secret.
 - CloudWatch retains backend logs and monitors ALB failures, unhealthy targets and RDS CPU.
 
@@ -32,9 +32,8 @@ AWS_BOOTSTRAP_SECRET_ACCESS_KEY
 ```
 
 In GitHub, open **Actions → Bootstrap AWS account → Run workflow**. The workflow detects an existing GitHub
-OIDC provider and Route 53 zone, creates either when absent, initializes remote bootstrap state, creates the
-AWS roles, and can optionally submit the SES production-access request. The production environment is created
-automatically the first time the deployment job runs.
+OIDC provider and Route 53 zone, creates either when absent, initializes remote bootstrap state, and creates
+the AWS roles. The production environment is created automatically the first time the deployment job runs.
 
 The bootstrap creates:
 
@@ -44,16 +43,15 @@ The bootstrap creates:
 - or reuses a Route 53 zone for the production domain.
 
 The temporary bootstrap key is the only static AWS credential used. Normal plans and deployments use
-short-lived GitHub OIDC credentials. The account, region, domain, role ARNs and state bucket are deterministic
-pipeline configuration, and the Route 53 zone is discovered from AWS at runtime. Database passwords never
-enter GitHub.
+short-lived GitHub OIDC credentials. The account, region, role ARNs and state bucket are deterministic pipeline
+configuration. Database passwords never enter GitHub.
 
-## DNS prerequisite
+## Optional custom domain
 
-Bootstrap reuses a matching Route 53 hosted zone or creates one. If `perkhaven.com` is registered outside
-Route 53 and bootstrap creates the zone, copy the name servers from the workflow summary to the registrar
-before running **Deploy production**. Name-server delegation is the only part an external registrar cannot
-delegate to GitHub Actions.
+Production initially uses the generated `https://*.cloudfront.net` URL and does not wait for Route 53 or ACM
+validation. HTTP viewer requests redirect to HTTPS. After registering `perkhaven.com`, set
+`enable_custom_domain` and `enable_ses_domain` to true and supply the existing hosted-zone ID; Terraform will
+then add the custom CloudFront certificate, DNS aliases and SES identity records.
 
 ## Automated releases
 

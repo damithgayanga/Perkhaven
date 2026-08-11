@@ -18,6 +18,23 @@ variable "domain_name" {
   default = "perkhaven.com"
 }
 
+variable "enable_custom_domain" {
+  description = "Enable Route 53 records and an ACM certificate for domain_name. Leave false to use the CloudFront HTTPS hostname."
+  type        = bool
+  default     = false
+}
+
+variable "enable_ses_domain" {
+  description = "Enable SES domain identity and DNS records after the custom domain is registered."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.enable_ses_domain || var.enable_custom_domain
+    error_message = "enable_ses_domain requires enable_custom_domain to be true."
+  }
+}
+
 variable "create_route53_zone" {
   description = "Create a public Route 53 hosted zone. Set false and provide route53_zone_id to reuse an existing zone."
   type        = bool
@@ -25,13 +42,13 @@ variable "create_route53_zone" {
 }
 
 variable "route53_zone_id" {
-  description = "Existing hosted zone ID when create_route53_zone is false."
+  description = "Existing hosted zone ID when custom-domain support is enabled and create_route53_zone is false."
   type        = string
   default     = null
 
   validation {
-    condition     = var.create_route53_zone || var.route53_zone_id != null
-    error_message = "route53_zone_id is required when create_route53_zone is false."
+    condition     = !var.enable_custom_domain || var.create_route53_zone || try(trimspace(var.route53_zone_id) != "", false)
+    error_message = "route53_zone_id is required when custom-domain support is enabled without creating a zone."
   }
 }
 

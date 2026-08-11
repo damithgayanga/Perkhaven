@@ -68,16 +68,15 @@ resource "aws_route_table_association" "database" {
 
 resource "aws_security_group" "alb" {
   name        = "${local.name}-alb"
-  description = "Public HTTPS access to the Perkhaven load balancer"
+  description = "CloudFront origin access to the Perkhaven load balancer"
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description      = "HTTPS"
-    protocol         = "tcp"
-    from_port        = 443
-    to_port          = 443
-    cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
+    description     = "HTTP from CloudFront origin-facing servers"
+    protocol        = "tcp"
+    from_port       = 80
+    to_port         = 80
+    prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront_origin.id]
   }
 
   egress {
@@ -86,6 +85,10 @@ resource "aws_security_group" "alb" {
     to_port     = 8080
     cidr_blocks = [var.vpc_cidr]
   }
+}
+
+data "aws_ec2_managed_prefix_list" "cloudfront_origin" {
+  name = "com.amazonaws.global.cloudfront.origin-facing"
 }
 
 resource "aws_security_group" "backend" {
