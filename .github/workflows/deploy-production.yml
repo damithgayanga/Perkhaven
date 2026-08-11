@@ -53,6 +53,25 @@ jobs:
     outputs:
       ready: ${{ steps.status.outputs.ready }}
     steps:
+      - name: Report OIDC trust claims
+        shell: bash
+        run: |
+          response=$(curl --fail --silent --show-error \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")
+          export PERKHAVEN_OIDC_TOKEN
+          PERKHAVEN_OIDC_TOKEN=$(jq -r '.value' <<< "$response")
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+
+          payload = os.environ["PERKHAVEN_OIDC_TOKEN"].split(".")[1]
+          payload += "=" * (-len(payload) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload))
+          visible = {key: claims.get(key) for key in ("sub", "aud", "repository", "ref", "environment")}
+          print("GitHub OIDC claims:", json.dumps(visible, sort_keys=True))
+          PY
       - name: Check whether AWS bootstrap is complete
         id: credentials
         continue-on-error: true
