@@ -11293,20 +11293,43 @@ function RoomView({
   const [section, setSection] = useState<"rooms" | "shops">("rooms");
   const [view, setView] = useState<"cards" | "table">("table");
   const [adding, setAdding] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const createProperty = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (creating) return;
+    setCreating(true);
     setError("");
-    const form = new FormData(event.currentTarget);
-    const path = section === "rooms" ? "/api/v1/rooms" : "/api/v1/shops";
-    const body = section === "rooms"
-      ? { roomNo: form.get("roomNo"), type: form.get("type"), beds: Number(form.get("beds")), price: Number(form.get("price")), active: true }
-      : { shopNo: form.get("shopNo"), standardRent: Number(form.get("standardRent")), active: true };
-    const response = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    const result = await response.json();
-    if (!response.ok) return setError(result.detail || "Unable to create this property");
-    if (section === "rooms") roomAdded(result as Room); else shopAdded(result as Shop);
-    setAdding(false);
+    try {
+      const propertySection = section;
+      const form = new FormData(event.currentTarget);
+      const identifier = String(form.get(propertySection === "rooms" ? "roomNo" : "shopNo") ?? "").trim();
+      const path = propertySection === "rooms" ? "/api/v1/rooms" : "/api/v1/shops";
+      const body = propertySection === "rooms"
+        ? { roomNo: identifier, type: form.get("type"), beds: Number(form.get("beds")), price: Number(form.get("price")), active: true }
+        : { shopNo: identifier, standardRent: Number(form.get("standardRent")), active: true };
+      const response = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const result = await response.json();
+      if (!response.ok) {
+        if (response.status === 409 && identifier) {
+          const existingResponse = await fetch(`${path}/${encodeURIComponent(identifier)}`);
+          if (existingResponse.ok) {
+            const existing = await existingResponse.json();
+            if (propertySection === "rooms") roomAdded(existing as Room); else shopAdded(existing as Shop);
+            setAdding(false);
+            return;
+          }
+        }
+        setError(result.detail || "Unable to create this property");
+        return;
+      }
+      if (propertySection === "rooms") roomAdded(result as Room); else shopAdded(result as Shop);
+      setAdding(false);
+    } catch {
+      setError("Unable to reach the server. Please try again.");
+    } finally {
+      setCreating(false);
+    }
   };
   const deleteRoom = async (room: Room) => {
     if (!window.confirm(`Delete room ${room.roomNo}?`)) return;
@@ -11367,8 +11390,8 @@ function RoomView({
               <Field name="standardRent" label="Standard rent (LKR)" type="number" min="0" required />
             </>
           )}
-          <button className="primary">Save</button>
-          <button type="button" className="secondary" onClick={() => setAdding(false)}>Cancel</button>
+          <button className="primary" disabled={creating}>{creating ? "Saving…" : "Save"}</button>
+          <button type="button" className="secondary" disabled={creating} onClick={() => setAdding(false)}>Cancel</button>
           {error && <p className="form-error">⚠ {error}</p>}
         </form>
       )}
