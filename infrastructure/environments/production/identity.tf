@@ -105,6 +105,112 @@ resource "aws_cognito_user_in_group" "initial_admin" {
   username     = aws_cognito_user.initial_admin[0].username
 }
 
+# Username-based production pool. The original pool above is intentionally
+# retained during this migration so switching issuers cannot lock out the only
+# administrator. Remove the legacy pool only after login to this pool is proven.
+resource "aws_cognito_user_pool" "username_main" {
+  name = "${local.name}-users"
+
+  alias_attributes         = ["email"]
+  auto_verified_attributes = ["email"]
+
+  password_policy {
+    minimum_length                   = 12
+    require_lowercase                = true
+    require_numbers                  = true
+    require_symbols                  = true
+    require_uppercase                = true
+    temporary_password_validity_days = 7
+  }
+
+  admin_create_user_config {
+    allow_admin_create_user_only = true
+    invite_message_template {
+      email_subject = "Your Perkhaven account"
+      email_message = "Your username is {username} and temporary password is {####}. Visit ${local.application_public_url} to sign in."
+      sms_message   = "Perkhaven username: {username}; temporary password: {####}"
+    }
+  }
+
+  account_recovery_setting {
+    recovery_mechanism {
+      name     = "verified_email"
+      priority = 1
+    }
+  }
+
+  user_attribute_update_settings {
+    attributes_require_verification_before_update = ["email"]
+  }
+
+  deletion_protection = "ACTIVE"
+}
+
+resource "aws_cognito_user_pool_client" "username_frontend" {
+  name         = "${local.name}-username-frontend"
+  user_pool_id = aws_cognito_user_pool.username_main.id
+
+  generate_secret                      = false
+  prevent_user_existence_errors        = "ENABLED"
+  enable_token_revocation              = true
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_flows                  = ["code"]
+  allowed_oauth_scopes                 = ["openid", "email", "profile"]
+  supported_identity_providers         = ["COGNITO"]
+  callback_urls                        = var.enable_custom_domain ? ["https://${var.domain_name}/", "https://www.${var.domain_name}/"] : ["${local.application_public_url}/"]
+  logout_urls                          = var.enable_custom_domain ? ["https://${var.domain_name}/", "https://www.${var.domain_name}/"] : ["${local.application_public_url}/"]
+
+  access_token_validity  = 60
+  id_token_validity      = 60
+  refresh_token_validity = 30
+  token_validity_units {
+    access_token  = "minutes"
+    id_token      = "minutes"
+    refresh_token = "days"
+  }
+}
+
+resource "aws_cognito_user_pool_domain" "username_main" {
+  domain       = "${local.name}-users-${data.aws_caller_identity.current.account_id}"
+  user_pool_id = aws_cognito_user_pool.username_main.id
+}
+
+resource "aws_cognito_user_group" "username_roles" {
+  for_each = {
+    ADMIN             = 10
+    CHAIRMAN          = 20
+    MANAGING_DIRECTOR = 30
+    WARDEN            = 40
+    STAFF             = 50
+    STUDENT           = 60
+  }
+
+  name         = each.key
+  precedence   = each.value
+  user_pool_id = aws_cognito_user_pool.username_main.id
+}
+
+resource "aws_cognito_user" "username_initial_admin" {
+  count = trimspace(var.initial_admin_email) == "" ? 0 : 1
+
+  user_pool_id             = aws_cognito_user_pool.username_main.id
+  username                 = trimspace(var.initial_admin_username)
+  desired_delivery_mediums = ["EMAIL"]
+
+  attributes = {
+    email              = trimspace(var.initial_admin_email)
+    preferred_username = trimspace(var.initial_admin_username)
+  }
+}
+
+resource "aws_cognito_user_in_group" "username_initial_admin" {
+  count = trimspace(var.initial_admin_email) == "" ? 0 : 1
+
+  user_pool_id = aws_cognito_user_pool.username_main.id
+  group_name   = aws_cognito_user_group.username_roles["ADMIN"].name
+  username     = aws_cognito_user.username_initial_admin[0].username
+}
+
 resource "aws_ses_domain_identity" "main" {
   count  = var.enable_ses_domain ? 1 : 0
   domain = var.domain_name

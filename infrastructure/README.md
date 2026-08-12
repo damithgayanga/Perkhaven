@@ -51,13 +51,18 @@ snapshot `perkhaven-production-pre-initial-cleanup` if it does not already exist
 Delete that snapshot only after the empty production registers have been accepted and recovery is no longer
 required.
 
-The pipeline initially provisions `admin@perkhaven.com` as the Cognito administrator with the explicit
-preferred username `admin`. GitHub Actions repository variables named `INITIAL_ADMIN_EMAIL` and
+The pipeline provisions a username-based Cognito pool named `perkhaven-production-users`. Its initial
+administrator has the actual Cognito username `admin` and email `admin@perkhaven.com`. GitHub Actions
+repository variables named `INITIAL_ADMIN_EMAIL` and
 `INITIAL_ADMIN_USERNAME` can override those values for a future environment without a source-code change.
-Terraform creates the user, assigns the `ADMIN` group, and Cognito emails a temporary password. Cognito still
-shows an immutable UUID in its internal **User name** column for email-based pools; the application, `/api/v1/me`
-and audit events use `admin`. Keep any overrides set afterward so Terraform continues to manage the account.
-No production password is stored in GitHub or this repository.
+Terraform creates the user, assigns the `ADMIN` group, and Cognito emails a temporary password. Both `admin`
+and its email alias can be used to sign in; the application, `/api/v1/me` and audit events use `admin`. Keep any
+overrides set afterward so Terraform continues to manage the account. No production password is stored in
+GitHub or this repository.
+
+The original email-based pool `perkhaven-production` is temporarily retained during the identity migration.
+Production switches to `perkhaven-production-users` immediately, but the legacy pool should only be deleted
+after the new `admin` login is confirmed.
 
 ## Optional custom domain
 

@@ -124,8 +124,8 @@ resource "aws_ecs_task_definition" "backend" {
       { name = "AWS_REGION", value = var.aws_region },
       { name = "PERKHAVEN_STORAGE_PROVIDER", value = "s3" },
       { name = "PERKHAVEN_STORAGE_BUCKET", value = aws_s3_bucket.documents.id },
-      { name = "PERKHAVEN_SECURITY_COGNITO_ISSUER", value = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.main.id}" },
-      { name = "PERKHAVEN_SECURITY_COGNITO_CLIENT_ID", value = aws_cognito_user_pool_client.frontend.id },
+      { name = "PERKHAVEN_SECURITY_COGNITO_ISSUER", value = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.username_main.id}" },
+      { name = "PERKHAVEN_SECURITY_COGNITO_CLIENT_ID", value = aws_cognito_user_pool_client.username_frontend.id },
       { name = "PERKHAVEN_MAIL_PROVIDER", value = var.enable_ses_domain ? "ses" : "local" },
       { name = "PERKHAVEN_MAIL_FROM", value = var.enable_ses_domain ? "no-reply@${var.domain_name}" : "no-reply@perkhaven.invalid" }
     ]

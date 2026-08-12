@@ -43,19 +43,23 @@ output "application_url" {
 }
 
 output "cognito_user_pool_id" {
-  value = aws_cognito_user_pool.main.id
+  value = aws_cognito_user_pool.username_main.id
+}
+
+output "cognito_user_pool_name" {
+  value = aws_cognito_user_pool.username_main.name
 }
 
 output "cognito_client_id" {
-  value = aws_cognito_user_pool_client.frontend.id
+  value = aws_cognito_user_pool_client.username_frontend.id
 }
 
 output "cognito_issuer" {
-  value = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.main.id}"
+  value = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.username_main.id}"
 }
 
 output "cognito_hosted_ui_domain" {
-  value = "https://${aws_cognito_user_pool_domain.main.domain}.auth.${var.aws_region}.amazoncognito.com"
+  value = "https://${aws_cognito_user_pool_domain.username_main.domain}.auth.${var.aws_region}.amazoncognito.com"
 }
 
 output "route53_name_servers" {
