@@ -18,6 +18,17 @@ variable "domain_name" {
   default = "perkhaven.com"
 }
 
+variable "initial_admin_username" {
+  description = "Human-readable username assigned to the initial Cognito administrator."
+  type        = string
+  default     = "admin"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._-]+$", var.initial_admin_username)) && length(var.initial_admin_username) > 0
+    error_message = "initial_admin_username must contain only letters, numbers, periods, underscores or hyphens."
+  }
+}
+
 variable "enable_custom_domain" {
   description = "Enable Route 53 records and an ACM certificate for domain_name. Leave false to use the CloudFront HTTPS hostname."
   type        = bool

@@ -23,4 +23,6 @@ public class AuditEvent extends AuditedEntity {
     public AuditEvent(String actor, String action, String entityType, String entityReference, String detail) {
         this.actor = actor; this.action = action; this.entityType = entityType; this.entityReference = entityReference; this.detail = detail;
     }
+
+    public String getActor() { return actor; }
 }

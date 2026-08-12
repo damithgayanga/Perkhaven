@@ -51,11 +51,13 @@ snapshot `perkhaven-production-pre-initial-cleanup` if it does not already exist
 Delete that snapshot only after the empty production registers have been accepted and recovery is no longer
 required.
 
-The pipeline initially provisions `admin@perkhaven.com` as the Cognito administrator. A GitHub Actions
-repository variable named `INITIAL_ADMIN_EMAIL` can override that address for a future environment without a
-source-code change. Terraform creates the user, assigns the `ADMIN` group, and Cognito emails a temporary
-password. Keep any override set afterward so Terraform continues to manage the account. No production
-password is stored in GitHub or this repository.
+The pipeline initially provisions `admin@perkhaven.com` as the Cognito administrator with the explicit
+preferred username `admin`. GitHub Actions repository variables named `INITIAL_ADMIN_EMAIL` and
+`INITIAL_ADMIN_USERNAME` can override those values for a future environment without a source-code change.
+Terraform creates the user, assigns the `ADMIN` group, and Cognito emails a temporary password. Cognito still
+shows an immutable UUID in its internal **User name** column for email-based pools; the application, `/api/v1/me`
+and audit events use `admin`. Keep any overrides set afterward so Terraform continues to manage the account.
+No production password is stored in GitHub or this repository.
 
 ## Optional custom domain
 

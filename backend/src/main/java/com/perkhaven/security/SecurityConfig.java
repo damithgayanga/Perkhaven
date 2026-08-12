@@ -25,7 +25,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -69,17 +69,25 @@ public class SecurityConfig {
 
     @Bean
     Converter<Jwt, AbstractAuthenticationToken> jwtAuthenticationConverter() {
-        var converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+        return jwt -> {
             var authorities = new ArrayList<GrantedAuthority>();
             var role = jwt.getClaimAsString("role");
             if (role != null) authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
             var groups = jwt.getClaimAsStringList("cognito:groups");
             if (groups != null) groups.forEach(group -> authorities.add(new SimpleGrantedAuthority("ROLE_" + group)));
-            return authorities;
-        });
-        converter.setPrincipalClaimName("preferred_username");
-        return converter;
+            var principal = firstNonBlank(
+                    jwt.getClaimAsString("preferred_username"),
+                    jwt.getClaimAsString("cognito:username"),
+                    jwt.getClaimAsString("email"),
+                    jwt.getSubject(),
+                    "authenticated-user");
+            return new JwtAuthenticationToken(jwt, authorities, principal);
+        };
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (var value : values) if (value != null && !value.isBlank()) return value;
+        return "authenticated-user";
     }
 
     @Bean

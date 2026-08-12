@@ -16,3 +16,4 @@ database_skip_final_snapshot = false
 
 # Optional first Cognito administrator. Keep this value set after accepting the invitation.
 # initial_admin_email = "admin@example.com"
+# initial_admin_username = "admin"

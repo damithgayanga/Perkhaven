@@ -92,7 +92,8 @@ resource "aws_cognito_user" "initial_admin" {
   desired_delivery_mediums = ["EMAIL"]
 
   attributes = {
-    email = trimspace(var.initial_admin_email)
+    email              = trimspace(var.initial_admin_email)
+    preferred_username = trimspace(var.initial_admin_username)
   }
 }
 

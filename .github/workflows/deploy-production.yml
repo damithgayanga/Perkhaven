@@ -26,6 +26,7 @@ env:
   TF_VAR_create_route53_zone: "false"
   TF_VAR_database_backup_retention_days: ${{ vars.RDS_BACKUP_RETENTION_DAYS || '1' }}
   TF_VAR_initial_admin_email: ${{ vars.INITIAL_ADMIN_EMAIL || 'admin@perkhaven.com' }}
+  TF_VAR_initial_admin_username: ${{ vars.INITIAL_ADMIN_USERNAME || 'admin' }}
 
 jobs:
   aws-ready:
