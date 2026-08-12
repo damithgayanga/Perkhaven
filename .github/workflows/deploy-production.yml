@@ -153,6 +153,20 @@ jobs:
           echo "application_url=$(terraform output -raw application_url)" >> "$GITHUB_OUTPUT"
           echo "cognito_domain=$(terraform output -raw cognito_hosted_ui_domain)" >> "$GITHUB_OUTPUT"
           echo "cognito_client_id=$(terraform output -raw cognito_client_id)" >> "$GITHUB_OUTPUT"
+          echo "database_identifier=$(terraform output -raw database_identifier)" >> "$GITHUB_OUTPUT"
+
+      - name: Preserve pre-cleanup database snapshot
+        env:
+          DATABASE_IDENTIFIER: ${{ steps.infra.outputs.database_identifier }}
+        shell: bash
+        run: |
+          snapshot_identifier="${DATABASE_IDENTIFIER}-pre-initial-cleanup"
+          if ! aws rds describe-db-snapshots --db-snapshot-identifier "$snapshot_identifier" >/dev/null 2>&1; then
+            aws rds create-db-snapshot \
+              --db-instance-identifier "$DATABASE_IDENTIFIER" \
+              --db-snapshot-identifier "$snapshot_identifier" >/dev/null
+            aws rds wait db-snapshot-completed --db-snapshot-identifier "$snapshot_identifier"
+          fi
 
       - name: Configure application deployment credentials
         uses: aws-actions/configure-aws-credentials@v5

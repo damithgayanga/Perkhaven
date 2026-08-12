@@ -46,6 +46,11 @@ The temporary bootstrap key is the only static AWS credential used. Normal plans
 short-lived GitHub OIDC credentials. The account, region, role ARNs and state bucket are deterministic pipeline
 configuration. Database passwords never enter GitHub.
 
+Before the one-time initial-data cleanup migration runs, the production workflow creates the manual RDS
+snapshot `perkhaven-production-pre-initial-cleanup` if it does not already exist. Later deployments reuse it.
+Delete that snapshot only after the empty production registers have been accepted and recovery is no longer
+required.
+
 The pipeline initially provisions `admin@perkhaven.com` as the Cognito administrator. A GitHub Actions
 repository variable named `INITIAL_ADMIN_EMAIL` can override that address for a future environment without a
 source-code change. Terraform creates the user, assigns the `ADMIN` group, and Cognito emails a temporary

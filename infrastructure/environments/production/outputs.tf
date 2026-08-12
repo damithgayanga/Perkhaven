@@ -67,3 +67,7 @@ output "database_secret_arn" {
   value     = aws_db_instance.postgres.master_user_secret[0].secret_arn
   sensitive = true
 }
+
+output "database_identifier" {
+  value = aws_db_instance.postgres.identifier
+}

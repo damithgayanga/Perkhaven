@@ -1,6 +1,6 @@
 "use client";
 import { Dispatch, FormEvent, SetStateAction, useEffect, useRef, useState } from "react";
-import { defaultRooms, type Room } from "../lib/room-data";
+import { type Room } from "../lib/room-data";
 import {
   completeSignIn,
   installAuthenticatedFetch,
@@ -407,160 +407,69 @@ const amountOnly = new Intl.NumberFormat("en-LK", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
-const seedS: Student[] = [
-  {
-    id: 1001,
-    registrationNo: "PH-2026-001",
-    firstName: "Nethmi",
-    lastName: "Perera",
-    idNo: "200178902345",
-    mobile: "077 234 8871",
-    whatsapp: "077 234 8871",
-    email: "nethmi.p@email.com",
-    university: "University of Colombo",
-    currentYear: "Year 3",
-    address: "42, Temple Road, Galle",
-    emergency1Name: "S. Perera",
-    emergency1Contact: "071 321 9980",
-    emergency1Relationship: "Mother",
-    emergency1Address: "42, Temple Road, Galle",
-    emergency2Name: "R. Perera",
-    emergency2Contact: "076 555 1010",
-    emergency2Relationship: "Brother",
-    emergency2Address: "42, Temple Road, Galle",
-    registeredDate: "2026-01-04",
-    startDate: "2026-01-10",
-    roomNo: "101",
-    monthlyRent: 22500,
-    depositPayable: 67500,
-    status: "Active",
-  },
-  {
-    id: 1002,
-    registrationNo: "PH-2026-002",
-    firstName: "Sachini",
-    lastName: "Fernando",
-    idNo: "200265501122",
-    mobile: "071 882 4160",
-    whatsapp: "071 882 4160",
-    email: "sachini.f@email.com",
-    university: "University of Sri Jayewardenepura",
-    currentYear: "Year 2",
-    address: "16, Lake View, Negombo",
-    emergency1Name: "M. Fernando",
-    emergency1Contact: "077 110 4098",
-    emergency1Relationship: "Father",
-    emergency1Address: "16, Lake View, Negombo",
-    emergency2Name: "",
-    emergency2Contact: "",
-    emergency2Relationship: "",
-    emergency2Address: "",
-    registeredDate: "2026-01-16",
-    startDate: "2026-02-01",
-    roomNo: "102",
-    monthlyRent: 27500,
-    depositPayable: 82500,
-    status: "Active",
-  },
-  {
-    id: 1003,
-    registrationNo: "PH-2026-003",
-    firstName: "Tharushi",
-    lastName: "Silva",
-    idNo: "200087612789",
-    mobile: "075 432 1189",
-    whatsapp: "075 432 1189",
-    email: "tharushi.s@email.com",
-    university: "University of Kelaniya",
-    currentYear: "Year 4",
-    address: "8, Station Lane, Matara",
-    emergency1Name: "A. Silva",
-    emergency1Contact: "071 989 3300",
-    emergency1Relationship: "Mother",
-    emergency1Address: "8, Station Lane, Matara",
-    emergency2Name: "",
-    emergency2Contact: "",
-    emergency2Relationship: "",
-    emergency2Address: "",
-    registeredDate: "2025-09-20",
-    startDate: "2025-10-01",
-    roomNo: "103",
-    monthlyRent: 27500,
-    depositPayable: 82500,
-    status: "Active",
-  },
-];
-const seedP: Payment[] = [
-  {
-    id: 1,
-    transactionId: "T-2026-0003",
-    registrationNo: "PH-2026-001",
-    studentName: "Nethmi Perera",
-    roomNo: "101",
-    month: "2026-07",
-    type: "Rent",
-    payableAmount: 22500,
-    vacationDiscount: 0,
-    paidAmount: 22500,
-    paidDate: "2026-07-03",
-    evidenceName: "bank-slip-july.pdf",
-  },
-  {
-    id: 2,
-    transactionId: "T-2026-0004",
-    registrationNo: "PH-2026-002",
-    studentName: "Sachini Fernando",
-    roomNo: "102",
-    month: "2026-07",
-    type: "Rent",
-    payableAmount: 27500,
-    vacationDiscount: 5000,
-    paidAmount: 16000,
-    paidDate: "2026-07-08",
-    evidenceName: "cash-receipt-209.jpg",
-  },
-  {
-    id: 3,
-    registrationNo: "PH-2026-003",
-    studentName: "Tharushi Silva",
-    roomNo: "103",
-    month: "2026-07",
-    type: "Rent",
-    payableAmount: 27500,
-    vacationDiscount: 0,
-    paidAmount: 0,
-    paidDate: "",
-    evidenceName: "",
-  },
-  {
-    id: 4,
-    transactionId: "T-2026-0001",
-    registrationNo: "PH-2026-002",
-    studentName: "Sachini Fernando",
-    roomNo: "102",
-    month: "2026-02",
-    type: "Deposit",
-    payableAmount: 55000,
-    vacationDiscount: 0,
-    paidAmount: 30000,
-    paidDate: "2026-02-01",
-    evidenceName: "advance-1.pdf",
-  },
-  {
-    id: 5,
-    transactionId: "T-2026-0002",
-    registrationNo: "PH-2026-002",
-    studentName: "Sachini Fernando",
-    roomNo: "102",
-    month: "2026-02",
-    type: "Deposit",
-    payableAmount: 55000,
-    vacationDiscount: 0,
-    paidAmount: 25000,
-    paidDate: "2026-02-18",
-    evidenceName: "advance-2.pdf",
-  },
-];
+type ApiContact = { order: number; name: string; phone: string; relationship: string; address?: string };
+type ApiPage<T> = { items: T[] };
+const uiStatus = (status: string): "Active" | "Inactive" =>
+  status === "ACTIVE" ? "Active" : "Inactive";
+const contactFields = (contacts: ApiContact[] = []) => ({
+  emergency1Name: contacts[0]?.name || "",
+  emergency1Contact: contacts[0]?.phone || "",
+  emergency1Relationship: contacts[0]?.relationship || "",
+  emergency1Address: contacts[0]?.address || "",
+  emergency2Name: contacts[1]?.name || "",
+  emergency2Contact: contacts[1]?.phone || "",
+  emergency2Relationship: contacts[1]?.relationship || "",
+  emergency2Address: contacts[1]?.address || "",
+});
+const studentFromApi = (value: Record<string, unknown>): Student => ({
+  ...(value as unknown as Student),
+  whatsapp: String(value.whatsapp || ""),
+  university: String(value.university || ""),
+  currentYear: String(value.currentYear || ""),
+  roomNo: String(value.roomNo || ""),
+  status: uiStatus(String(value.status || "INACTIVE")),
+  ...contactFields((value.emergencyContacts || []) as ApiContact[]),
+});
+const staffFromApi = (value: Record<string, unknown>): Staff => ({
+  ...(value as unknown as Staff),
+  whatsapp: String(value.whatsapp || ""),
+  designation: String(value.designation || ""),
+  accountHolderName: String(value.accountHolderName || ""),
+  accountNo: String(value.accountNo || ""),
+  bank: String(value.bank || ""),
+  bankBranch: String(value.bankBranch || ""),
+  status: uiStatus(String(value.status || "INACTIVE")),
+  ...contactFields((value.emergencyContacts || []) as ApiContact[]),
+});
+const tenantFromApi = (value: Record<string, unknown>): ShopTenant => ({
+  ...(value as unknown as ShopTenant),
+  whatsapp: String(value.whatsapp || ""),
+  endDate: String(value.endDate || ""),
+  status: uiStatus(String(value.status || "INACTIVE")),
+  ...contactFields((value.emergencyContacts || []) as ApiContact[]),
+});
+const tenantRequest = (tenant: ShopTenant) => ({
+  registrationNo: tenant.registrationNo,
+  shopNo: tenant.shopNo,
+  businessName: tenant.businessName,
+  firstName: tenant.firstName,
+  lastName: tenant.lastName,
+  idNo: tenant.idNo,
+  mobile: tenant.mobile,
+  whatsapp: tenant.whatsapp,
+  email: tenant.email,
+  address: tenant.address,
+  registeredDate: tenant.registeredDate,
+  startDate: tenant.startDate,
+  endDate: tenant.endDate || null,
+  monthlyRent: tenant.monthlyRent,
+  depositPayable: tenant.depositPayable,
+  status: tenant.status.toUpperCase(),
+  emergencyContacts: [
+    { name: tenant.emergency1Name, phone: tenant.emergency1Contact, relationship: tenant.emergency1Relationship, address: tenant.emergency1Address },
+    { name: tenant.emergency2Name, phone: tenant.emergency2Contact, relationship: tenant.emergency2Relationship, address: tenant.emergency2Address },
+  ].filter((contact) => contact.name),
+});
 const fmtMonth = (m: string) =>
     m
       ? new Date(`${m}-02`).toLocaleDateString("en-LK", {
@@ -790,7 +699,7 @@ const expenseMainCategoryCodes: Record<string, string> = {
 
 export default function Home() {
   const [page, setPage] = useState<Page>("Overview"),
-    [students, setStudents] = useState(seedS),
+    [students, setStudents] = useState<Student[]>([]),
     [staffMembers, setStaffMembers] = useState<Staff[]>([]),
     [staffPayroll, setStaffPayroll] = useState<StaffPayroll[]>([]),
     [staffDesignations, setStaffDesignations] = useState<StaffDesignation[]>(
@@ -798,9 +707,9 @@ export default function Home() {
     ),
     [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]),
     [expenses, setExpenses] = useState<Expense[]>([]),
-    [payments, setPayments] = useState(seedP),
+    [payments, setPayments] = useState<Payment[]>([]),
     [adjustments, setAdjustments] = useState<MonthlyAdjustment[]>([]),
-    [rooms, setRooms] = useState<Room[]>(defaultRooms),
+    [rooms, setRooms] = useState<Room[]>([]),
     [shops, setShops] = useState<Shop[]>([]),
     [shopTenants, setShopTenants] = useState<ShopTenant[]>([]),
     [shopUtilityBills, setShopUtilityBills] = useState<ShopUtilityBill[]>([]),
@@ -836,14 +745,7 @@ export default function Home() {
     [toast, setToast] = useState(""),
     [currentUser, setAuthenticatedUser] = useState<AuthenticatedUser | null | undefined>(undefined),
     [authError, setAuthError] = useState(""),
-    [staffPermissions, setStaffPermissions] = useState<StaffPermissionMatrix>(() => {
-      if (typeof window === "undefined") return {};
-      try {
-        return JSON.parse(window.localStorage.getItem("perkhaven-staff-permissions") || "{}");
-      } catch {
-        return {};
-      }
-    });
+    [staffPermissions, setStaffPermissions] = useState<StaffPermissionMatrix>({});
   useEffect(() => {
     const restoreFetch = installAuthenticatedFetch();
     completeSignIn()
@@ -855,106 +757,34 @@ export default function Home() {
     return restoreFetch;
   }, []);
   useEffect(() => {
-    window.localStorage.setItem(
-      "perkhaven-staff-permissions",
-      JSON.stringify(staffPermissions),
-    );
-  }, [staffPermissions]);
+    if (!currentUser) return;
+    const page = <T,>(path: string) =>
+      fetch(`${path}${path.includes("?") ? "&" : "?"}size=100`).then(async (response) => {
+        if (!response.ok) throw new Error(`Unable to load ${path}`);
+        return (await response.json()) as ApiPage<T>;
+      });
+    void Promise.all([
+      page<Record<string, unknown>>("/api/v1/students").then((result) => setStudents(result.items.map(studentFromApi))),
+      page<Room>("/api/v1/rooms").then((result) => setRooms(result.items)),
+      page<Record<string, unknown>>("/api/v1/staff").then((result) => setStaffMembers(result.items.map(staffFromApi))),
+      page<StaffDesignation>("/api/v1/staff-designations").then((result) => setStaffDesignations(result.items)),
+      page<Shop>("/api/v1/shops").then((result) => setShops(result.items)),
+      page<Record<string, unknown>>("/api/v1/shop-tenants").then((result) => setShopTenants(result.items.map(tenantFromApi))),
+    ]).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load registers"));
+  }, [currentUser]);
   useEffect(() => {
-    fetch("/api/students")
-      .then((r) => r.json())
-      .then((x) => x.students?.length && setStudents(x.students))
-      .catch(() => {});
-    fetch("/api/payments")
-      .then((r) => r.json())
-      .then((x) => x.payments?.length && setPayments(x.payments))
-      .catch(() => {});
-    fetch("/api/rooms")
-      .then((r) => r.json())
-      .then((x) => x.rooms?.length && setRooms(x.rooms))
-      .catch(() => {});
-    fetch("/api/shops")
-      .then((r) => r.json())
-      .then((x) => {
-        if (x.shops) setShops(x.shops);
-        if (x.tenants) setShopTenants(x.tenants);
-      })
-      .catch(() => {});
-    fetch("/api/shop-utilities")
-      .then((r) => r.json())
-      .then((x) => x.bills && setShopUtilityBills(x.bills))
-      .catch(() => {});
-    fetch("/api/adjustments")
-      .then((r) => r.json())
-      .then((x) => x.adjustments && setAdjustments(x.adjustments))
-      .catch(() => {});
-    fetch("/api/staff")
-      .then((r) => r.json())
-      .then((x) => x.staff && setStaffMembers(x.staff))
-      .catch(() => {});
-    fetch("/api/staff/payroll")
-      .then((r) => r.json())
-      .then((x) => x.payroll && setStaffPayroll(x.payroll))
-      .catch(() => {});
-    fetch("/api/staff/designations")
-      .then((r) => r.json())
-      .then((x) => x.designations && setStaffDesignations(x.designations))
-      .catch(() => {});
-    fetch("/api/expenses/categories")
-      .then((r) => r.json())
-      .then((x) => x.categories && setExpenseCategories(x.categories))
-      .catch(() => {});
-    fetch("/api/expenses")
-      .then((r) => r.json())
-      .then((x) => x.expenses && setExpenses(x.expenses))
-      .catch(() => {});
-    fetch("/api/student-profile-requests")
-      .then((r) => r.json())
-      .then((x) => x.requests && setProfileRequests(x.requests))
-      .catch(() => {});
-    fetch("/api/room-transfer-requests")
-      .then((r) => r.json())
-      .then((x) => x.requests && setRoomTransferRequests(x.requests))
-      .catch(() => {});
-    fetch("/api/invoices")
-      .then((r) => r.json())
-      .then((x) => x.invoices && setStudentInvoices(x.invoices))
-      .catch(() => {});
-    fetch("/api/payment-evidence")
-      .then((r) => r.json())
-      .then((x) => x.evidence && setPaymentEvidence(x.evidence))
-      .catch(() => {});
-  }, []);
-  useEffect(() => {
-    const refreshPayroll = () =>
-      fetch("/api/staff/payroll")
-        .then((response) => response.json())
-        .then((result) => result.payroll && setStaffPayroll(result.payroll))
-        .catch(() => {});
-    window.addEventListener("bank-reconciliation-updated", refreshPayroll);
-    return () =>
-      window.removeEventListener("bank-reconciliation-updated", refreshPayroll);
-  }, []);
-  useEffect(() => {
-    fetch("/api/room-transfer-requests")
-      .then((response) => response.json())
-      .then(
-        (result) => result.requests && setRoomTransferRequests(result.requests),
-      )
-      .catch(() => {});
-  }, [students]);
-  useEffect(() => {
-    const refresh = () =>
-      fetch("/api/room-transfer-requests")
-        .then((response) => response.json())
-        .then(
-          (result) =>
-            result.requests && setRoomTransferRequests(result.requests),
-        )
-        .catch(() => {});
-    const timer = window.setInterval(refresh, 30000);
-    return () => window.clearInterval(timer);
-  }, []);
+    if (currentUser?.role !== "Admin" || !staffMembers.length) return;
+    void Promise.all(
+      staffMembers.map(async (member) => {
+        const response = await fetch(`/api/v1/admin/staff/${encodeURIComponent(member.staffNo)}/permissions`);
+        if (!response.ok) throw new Error("Unable to load staff permissions");
+        const values = (await response.json()) as Array<{ permissionKey: StaffPermissionKey; enabled: boolean }>;
+        return [member.staffNo, Object.fromEntries(values.map((value) => [value.permissionKey, value.enabled]))] as const;
+      }),
+    )
+      .then((entries) => setStaffPermissions(Object.fromEntries(entries)))
+      .catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load staff permissions"));
+  }, [currentUser, staffMembers]);
   useEffect(() => {
     if (toast) {
       const t = setTimeout(() => setToast(""), 3000);
@@ -1403,6 +1233,7 @@ export default function Home() {
         )}{" "}
         {page === "Rooms" && (
           <RoomView
+            canManage={currentUser.role === "Admin"}
             students={currentResidents}
             rooms={rooms}
             shops={shops}
@@ -1416,12 +1247,16 @@ export default function Home() {
               );
               setToast(`Room ${room.roomNo} price updated`);
             }}
+            roomAdded={(room) => setRooms((current) => [...current, room].sort((a, b) => a.roomNo.localeCompare(b.roomNo)))}
+            roomRemoved={(roomNo) => setRooms((current) => current.filter((room) => room.roomNo !== roomNo))}
             shopUpdated={(shop) => {
               setShops((current) =>
                 current.map((item) => (item.id === shop.id ? shop : item)),
               );
               setToast(`${shop.shopNo} rent updated`);
             }}
+            shopAdded={(shop) => setShops((current) => [...current, shop].sort((a, b) => a.shopNo.localeCompare(b.shopNo)))}
+            shopRemoved={(shopNo) => setShops((current) => current.filter((shop) => shop.shopNo !== shopNo))}
           />
         )}{" "}
         {page === "Staff" && (
@@ -4955,13 +4790,30 @@ function AdminControls({
   permissions: StaffPermissionMatrix;
   updatePermissions: Dispatch<SetStateAction<StaffPermissionMatrix>>;
 }) {
-  const setPermission = (staffNo: string, key: StaffPermissionKey, enabled: boolean) =>
+  const setPermission = async (staffNo: string, key: StaffPermissionKey, enabled: boolean) => {
+    const response = await fetch(`/api/v1/admin/staff/${encodeURIComponent(staffNo)}/permissions/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    if (!response.ok) return window.alert("Unable to update this permission.");
     updatePermissions((current) => ({
       ...current,
       [staffNo]: { ...current[staffNo], [key]: enabled },
     }));
-  const clearStaff = (staffNo: string) =>
+  };
+  const setPaymentScope = async (staffNo: string, scope: string) => {
+    await Promise.all([
+      setPermission(staffNo, "viewPaymentsOwn", scope === "own"),
+      setPermission(staffNo, "viewPaymentsAll", scope === "all"),
+    ]);
+  };
+  const clearStaff = async (staffNo: string) => {
+    const keys = Object.keys(permissions[staffNo] || {}) as StaffPermissionKey[];
+    const responses = await Promise.all(keys.map((key) => fetch(`/api/v1/admin/staff/${encodeURIComponent(staffNo)}/permissions/${encodeURIComponent(key)}`, { method: "DELETE" })));
+    if (responses.some((response) => !response.ok)) return window.alert("Unable to remove all permissions.");
     updatePermissions((current) => ({ ...current, [staffNo]: {} }));
+  };
   const totalGranted = Object.values(permissions).reduce(
     (sum, row) => sum + Object.values(row).filter(Boolean).length,
     0,
@@ -4990,22 +4842,22 @@ function AdminControls({
                   {staffPermissionColumns.slice(0, 2).map((column) => (
                     <td key={column.key}>
                       <label className="permission-toggle" title={column.note}>
-                        <input type="checkbox" checked={Boolean(permissions[member.staffNo]?.[column.key])} onChange={(event) => setPermission(member.staffNo, column.key, event.target.checked)} />
+                        <input type="checkbox" checked={Boolean(permissions[member.staffNo]?.[column.key])} onChange={(event) => void setPermission(member.staffNo, column.key, event.target.checked)} />
                         <span aria-hidden="true" />
                         <em>{permissions[member.staffNo]?.[column.key] ? "Allowed" : "No access"}</em>
                       </label>
                     </td>
                   ))}
-                  <td><select className="permission-scope-select" aria-label={`Payment view access for ${member.firstName}`} value={permissions[member.staffNo]?.viewPaymentsAll ? "all" : permissions[member.staffNo]?.viewPaymentsOwn ? "own" : "none"} onChange={(event) => updatePermissions((current) => ({ ...current, [member.staffNo]: { ...current[member.staffNo], viewPaymentsOwn: event.target.value === "own", viewPaymentsAll: event.target.value === "all" } }))}><option value="none">No access</option><option value="own">Own entries only</option><option value="all">All payments</option></select></td>
+                  <td><select className="permission-scope-select" aria-label={`Payment view access for ${member.firstName}`} value={permissions[member.staffNo]?.viewPaymentsAll ? "all" : permissions[member.staffNo]?.viewPaymentsOwn ? "own" : "none"} onChange={(event) => void setPaymentScope(member.staffNo, event.target.value)}><option value="none">No access</option><option value="own">Own entries only</option><option value="all">All payments</option></select></td>
                   {staffPermissionColumns.slice(2).map((column) => (
                     <td key={column.key}>
                       <label className="permission-toggle" title={column.note}>
-                        <input type="checkbox" checked={Boolean(permissions[member.staffNo]?.[column.key])} onChange={(event) => setPermission(member.staffNo, column.key, event.target.checked)} />
+                        <input type="checkbox" checked={Boolean(permissions[member.staffNo]?.[column.key])} onChange={(event) => void setPermission(member.staffNo, column.key, event.target.checked)} />
                         <span aria-hidden="true" /><em>{permissions[member.staffNo]?.[column.key] ? "Allowed" : "No access"}</em>
                       </label>
                     </td>
                   ))}
-                  <td><button className="secondary" onClick={() => clearStaff(member.staffNo)}>Remove all</button></td>
+                  <td><button className="secondary" onClick={() => void clearStaff(member.staffNo)}>Remove all</button></td>
                 </tr>
               ))}
               {!staff.length && <tr><td colSpan={8}>No staff accounts are available.</td></tr>}
@@ -5026,7 +4878,7 @@ const numberInWords = (raw: number) => {
   const under = (n: number) => `${n >= 100 ? `${small[Math.floor(n / 100)]} Hundred ` : ""}${n % 100 < 20 ? small[n % 100] : `${tens[Math.floor((n % 100) / 10)]}${n % 10 ? ` ${small[n % 10]}` : ""}`}`.trim();
   const parts: string[] = []; let n = value; ([[1_000_000, "Million"], [1_000, "Thousand"]] as Array<[number, string]>).forEach(([unit, label]) => { const count = Math.floor(n / unit); if (count) { parts.push(`${under(count)} ${label}`); n %= unit; } }); if (n) parts.push(under(n)); return `${parts.join(" ")} Rupees Only`;
 };
-const agreementValuesFor = (student: Student): AgreementData => { const beds = defaultRooms.find((room) => room.roomNo === student.roomNo)?.beds || 1; return { studentName: `${student.firstName} ${student.lastName}`.trim(), studentId: student.idNo || "", wardenName: "Hostel Warden", wardenId: "", startDate: student.startDate || "", roomNo: student.roomNo || "", monthlyRent: amountOnly.format(student.monthlyRent || 0), monthlyRentWords: numberInWords(student.monthlyRent || 0), depositAmount: amountOnly.format(student.depositPayable || 0), depositAmountWords: numberInWords(student.depositPayable || 0), occupancyBasis: beds === 1 ? "Single room – sole occupancy" : beds === 2 ? "Double room – shared with one other resident" : "Triple room – shared with two other residents", agreementDate: student.startDate || new Date().toISOString().slice(0, 10), rentalDuration: "Six months" }; };
+const agreementValuesFor = (student: Student): AgreementData => ({ studentName: `${student.firstName} ${student.lastName}`.trim(), studentId: student.idNo || "", wardenName: "Hostel Warden", wardenId: "", startDate: student.startDate || "", roomNo: student.roomNo || "", monthlyRent: amountOnly.format(student.monthlyRent || 0), monthlyRentWords: numberInWords(student.monthlyRent || 0), depositAmount: amountOnly.format(student.depositPayable || 0), depositAmountWords: numberInWords(student.depositPayable || 0), occupancyBasis: "As assigned in the room register", agreementDate: student.startDate || new Date().toISOString().slice(0, 10), rentalDuration: "Six months" });
 type AgreementSignature = { name: string; date: string };
 const agreementTemplateData = (data: AgreementData, signature?: AgreementSignature) => ({ "Full Name of the Student": data.studentName, "ID Card No of the Student": data.studentId, "Name of the Warden": data.wardenName, "ID Card of the Warden": data.wardenId, "Start Date of the Student": data.startDate ? fmtDate(data.startDate) : "", "Room No": data.roomNo, "Monthly Rent": data.monthlyRent, "Monthly Rent in words": data.monthlyRentWords, "Deposit Amount": data.depositAmount, "Deposit Amount in Words": data.depositAmountWords, "Name of the Student": data.studentName, "Student Signature": signature ? `${signature.name} — ${fmtDate(signature.date)}\nSignature of the Resident` : "Signature of the Resident" });
 function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
@@ -5816,50 +5668,45 @@ function StaffDesignationsRegister({
   const add = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
-    const response = await fetch("/api/staff/designations", {
+    const response = await fetch("/api/v1/staff-designations", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, active: true }),
     });
     const result = await response.json();
     if (!response.ok)
-      return setError(result.error || "Unable to add designation");
-    added(result.designation);
+      return setError(result.detail || "Unable to add designation");
+    added(result);
     setName("");
     setShowAdd(false);
   };
   const toggle = async (designation: StaffDesignation) => {
-    const response = await fetch("/api/staff/designations", {
-      method: "PATCH",
+    const response = await fetch(`/api/v1/staff-designations/${designation.id}`, {
+      method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: designation.id, active: !designation.active }),
+      body: JSON.stringify({ name: designation.name, active: !designation.active }),
     });
     const result = await response.json();
-    if (response.ok) updated(result.designation);
+    if (response.ok) updated(result);
   };
   const edit = async (designation: StaffDesignation) => {
     const name = window.prompt("Edit designation", designation.name)?.trim();
     if (!name || name === designation.name) return;
-    const response = await fetch("/api/staff/designations", {
-      method: "PATCH",
+    const response = await fetch(`/api/v1/staff-designations/${designation.id}`, {
+      method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: designation.id, name }),
+      body: JSON.stringify({ name, active: designation.active }),
     });
     const result = await response.json();
     if (!response.ok)
-      return window.alert(result.error || "Unable to edit designation");
-    updated(result.designation);
+      return window.alert(result.detail || "Unable to edit designation");
+    updated(result);
   };
   const remove = async (designation: StaffDesignation) => {
     if (!window.confirm(`Delete the ${designation.name} designation?`)) return;
-    const response = await fetch("/api/staff/designations", {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: designation.id }),
-    });
-    const result = await response.json();
+    const response = await fetch(`/api/v1/staff-designations/${designation.id}`, { method: "DELETE" });
     if (!response.ok)
-      return window.alert(result.error || "Unable to delete designation");
+      return window.alert("Unable to delete designation. It may still be assigned to a staff member.");
     removed(designation.id);
   };
   return (
@@ -5966,14 +5813,9 @@ function StaffRegisterOnly({
       )
     )
       return;
-    const response = await fetch("/api/staff", {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ staffNo: member.staffNo }),
-    });
-    const result = await response.json();
+    const response = await fetch(`/api/v1/staff/${encodeURIComponent(member.staffNo)}`, { method: "DELETE" });
     if (!response.ok)
-      return window.alert(result.error || "Unable to delete staff member");
+      return window.alert("Unable to delete staff member");
     remove(member.staffNo);
   };
   return (
@@ -6100,14 +5942,9 @@ function StudentView({
       )
     )
       return;
-    const response = await fetch("/api/students", {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ registrationNo: student.registrationNo }),
-    });
-    const result = await response.json();
+    const response = await fetch(`/api/v1/students/${encodeURIComponent(student.registrationNo)}`, { method: "DELETE" });
     if (!response.ok)
-      return window.alert(result.error || "Unable to delete student");
+      return window.alert("Unable to delete student");
     remove(student.registrationNo);
   };
   const today = new Date();
@@ -11427,24 +11264,62 @@ function ShopAdjustmentBreakdownModal({
 }
 
 function RoomView({
+  canManage,
   students,
   rooms,
   shops,
   tenants,
   openStudent,
   saveRoom,
+  roomAdded,
+  roomRemoved,
   shopUpdated,
+  shopAdded,
+  shopRemoved,
 }: {
+  canManage: boolean;
   students: Student[];
   rooms: Room[];
   shops: Shop[];
   tenants: ShopTenant[];
   openStudent: (student: Student) => void;
   saveRoom: (room: Room) => void;
+  roomAdded: (room: Room) => void;
+  roomRemoved: (roomNo: string) => void;
   shopUpdated: (shop: Shop) => void;
+  shopAdded: (shop: Shop) => void;
+  shopRemoved: (shopNo: string) => void;
 }) {
   const [section, setSection] = useState<"rooms" | "shops">("rooms");
   const [view, setView] = useState<"cards" | "table">("table");
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState("");
+  const createProperty = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    const form = new FormData(event.currentTarget);
+    const path = section === "rooms" ? "/api/v1/rooms" : "/api/v1/shops";
+    const body = section === "rooms"
+      ? { roomNo: form.get("roomNo"), type: form.get("type"), beds: Number(form.get("beds")), price: Number(form.get("price")), active: true }
+      : { shopNo: form.get("shopNo"), standardRent: Number(form.get("standardRent")), active: true };
+    const response = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const result = await response.json();
+    if (!response.ok) return setError(result.detail || "Unable to create this property");
+    if (section === "rooms") roomAdded(result as Room); else shopAdded(result as Shop);
+    setAdding(false);
+  };
+  const deleteRoom = async (room: Room) => {
+    if (!window.confirm(`Delete room ${room.roomNo}?`)) return;
+    const response = await fetch(`/api/v1/rooms/${encodeURIComponent(room.roomNo)}`, { method: "DELETE" });
+    if (!response.ok) return window.alert("Unable to delete this room. Remove assigned residents first.");
+    roomRemoved(room.roomNo);
+  };
+  const deleteShop = async (shop: Shop) => {
+    if (!window.confirm(`Delete ${shop.shopNo}?`)) return;
+    const response = await fetch(`/api/v1/shops/${encodeURIComponent(shop.shopNo)}`, { method: "DELETE" });
+    if (!response.ok) return window.alert("Unable to delete this shop. Remove assigned tenants first.");
+    shopRemoved(shop.shopNo);
+  };
   return (
     <div className="content">
       <Title
@@ -11470,6 +11345,33 @@ function RoomView({
           Shops
         </button>
       </div>
+      {canManage && (
+        <div className="register-actions">
+          <button className="primary" onClick={() => { setAdding(true); setError(""); }}>
+            ＋ Add {section === "rooms" ? "room" : "shop"}
+          </button>
+        </div>
+      )}
+      {adding && (
+        <form className="panel category-add" onSubmit={createProperty}>
+          {section === "rooms" ? (
+            <>
+              <Field name="roomNo" label="Room number" required />
+              <Field name="type" label="Room type" required />
+              <Field name="beds" label="Number of beds" type="number" min="1" required />
+              <Field name="price" label="Price per bed (LKR)" type="number" min="0" required />
+            </>
+          ) : (
+            <>
+              <Field name="shopNo" label="Shop number" required />
+              <Field name="standardRent" label="Standard rent (LKR)" type="number" min="0" required />
+            </>
+          )}
+          <button className="primary">Save</button>
+          <button type="button" className="secondary" onClick={() => setAdding(false)}>Cancel</button>
+          {error && <p className="form-error">⚠ {error}</p>}
+        </form>
+      )}
       {section === "rooms" && (
         <>
           <div className="room-viewbar" aria-label="Room view">
@@ -11497,6 +11399,7 @@ function RoomView({
                   )}
                   openStudent={openStudent}
                   saveRoom={saveRoom}
+                  onDelete={canManage ? deleteRoom : undefined}
                 />
               ))}
             </div>
@@ -11511,7 +11414,7 @@ function RoomView({
         </>
       )}
       {section === "shops" && (
-        <ShopOccupancy shops={shops} tenants={tenants} update={shopUpdated} />
+        <ShopOccupancy shops={shops} tenants={tenants} update={shopUpdated} onDelete={canManage ? deleteShop : undefined} />
       )}
     </div>
   );
@@ -11544,21 +11447,14 @@ function ShopRegister({
     `${tenant.mobile} ${tenant.whatsapp} ${tenant.email}`.toLowerCase().includes(shopFilters.contact.toLowerCase()));
   const changeStatus = async (tenant: ShopTenant) => {
     const nextStatus = tenant.status === "Active" ? "Inactive" : "Active";
-    const response = await fetch("/api/shops", {
-      method: "PATCH",
+    const updated = { ...tenant, status: nextStatus, endDate: nextStatus === "Inactive" ? tenant.endDate || new Date().toISOString().slice(0, 10) : "" } as ShopTenant;
+    const response = await fetch(`/api/v1/shop-tenants/${encodeURIComponent(tenant.registrationNo)}`, {
+      method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        kind: "tenant",
-        id: tenant.id,
-        status: nextStatus,
-        endDate:
-          nextStatus === "Inactive"
-            ? tenant.endDate || new Date().toISOString().slice(0, 10)
-            : "",
-      }),
+      body: JSON.stringify(tenantRequest(updated)),
     });
     const result = await response.json();
-    if (response.ok) update(result.tenant);
+    if (response.ok) update(tenantFromApi(result));
   };
   const deleteTenant = async (tenant: ShopTenant) => {
     if (
@@ -11567,14 +11463,9 @@ function ShopRegister({
       )
     )
       return;
-    const response = await fetch("/api/shops", {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: tenant.id }),
-    });
-    const result = await response.json();
+    const response = await fetch(`/api/v1/shop-tenants/${encodeURIComponent(tenant.registrationNo)}`, { method: "DELETE" });
     if (!response.ok)
-      return window.alert(result.error || "Unable to delete shop tenant");
+      return window.alert("Unable to delete shop tenant");
     remove(tenant.id);
   };
   return (
@@ -11715,10 +11606,12 @@ function ShopOccupancy({
   shops,
   tenants,
   update,
+  onDelete,
 }: {
   shops: Shop[];
   tenants: ShopTenant[];
   update: (shop: Shop) => void;
+  onDelete?: (shop: Shop) => void;
 }) {
   return (
     <section>
@@ -11742,6 +11635,7 @@ function ShopOccupancy({
                 tenant.shopNo === shop.shopNo && tenant.status === "Active",
             )}
             update={update}
+            onDelete={onDelete}
           />
         ))}
       </div>
@@ -11753,26 +11647,24 @@ function ShopCard({
   shop,
   tenant,
   update,
+  onDelete,
 }: {
   shop: Shop;
   tenant?: ShopTenant;
   update: (shop: Shop) => void;
+  onDelete?: (shop: Shop) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [rent, setRent] = useState(String(shop.standardRent));
   const save = async () => {
-    const response = await fetch("/api/shops", {
-      method: "PATCH",
+    const response = await fetch(`/api/v1/shops/${encodeURIComponent(shop.shopNo)}`, {
+      method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        kind: "shop",
-        shopNo: shop.shopNo,
-        standardRent: Number(rent),
-      }),
+      body: JSON.stringify({ shopNo: shop.shopNo, standardRent: Number(rent), active: shop.active }),
     });
     const result = await response.json();
     if (response.ok) {
-      update(result.shop);
+      update(result);
       setEditing(false);
     }
   };
@@ -11825,6 +11717,7 @@ function ShopCard({
           )}
         </span>
       </div>
+      {onDelete && !tenant && <button className="review-button danger" onClick={() => onDelete(shop)}>Delete shop</button>}
     </article>
   );
 }
@@ -11847,21 +11740,30 @@ function ShopTenantModal({
     event.preventDefault();
     setSaving(true);
     setError("");
-    const data = Object.fromEntries(new FormData(event.currentTarget));
+    const form = new FormData(event.currentTarget);
+    const value = (name: string) => String(form.get(name) || "");
     try {
-      const response = await fetch("/api/shops", {
+      const response = await fetch("/api/v1/shop-tenants", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          ...data,
+          registrationNo: value("registrationNo"), shopNo: value("shopNo"), businessName: value("businessName"),
+          firstName: value("firstName"), lastName: value("lastName"), idNo: value("idNo"), mobile: value("mobile"),
+          whatsapp: value("whatsapp"), email: value("email"), address: value("address"),
+          registeredDate: value("registeredDate"), startDate: value("startDate"), endDate: null,
           monthlyRent: Number(rent),
           depositPayable: Number(deposit),
+          status: "ACTIVE",
+          emergencyContacts: [
+            { name: value("emergency1Name"), phone: value("emergency1Contact"), relationship: value("emergency1Relationship"), address: value("emergency1Address") },
+            { name: value("emergency2Name"), phone: value("emergency2Contact"), relationship: value("emergency2Relationship"), address: value("emergency2Address") },
+          ].filter((contact) => contact.name),
         }),
       });
       const result = await response.json();
       if (!response.ok)
-        throw new Error(result.error || "Unable to register tenant");
-      save(result.tenant);
+        throw new Error(result.detail || "Unable to register tenant");
+      save(tenantFromApi(result));
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Unable to register tenant",
@@ -11880,6 +11782,7 @@ function ShopTenantModal({
           close={close}
         />
         <FormSection title="Shop and business details">
+          <Field name="registrationNo" label="Registration number" required />
           <label>
             Shop
             <select
@@ -11904,13 +11807,13 @@ function ShopTenantModal({
             </select>
           </label>
           <Field name="businessName" label="Business / trading name" required />
-          <Field name="idNo" label="Business registration / ID no." />
+          <Field name="idNo" label="Business registration / ID no." required />
           <Field name="firstName" label="Tenant first name" required />
           <Field name="lastName" label="Tenant last name" required />
           <Field name="mobile" label="Mobile no." required />
           <Field name="whatsapp" label="WhatsApp no." />
-          <Field name="email" label="Email address" type="email" />
-          <Field name="address" label="Address" />
+          <Field name="email" label="Email address" type="email" required />
+          <Field name="address" label="Address" required />
           <Field
             name="registeredDate"
             label="Registered date"
@@ -11991,29 +11894,25 @@ function ShopTenantEditModal({
     event.preventDefault();
     setError("");
     const form = new FormData(event.currentTarget);
-    const data = Object.fromEntries(form);
     const value = (name: string) => String(form.get(name) || "");
-    const phone = (prefix: string) =>
-      combinePhone(value(`${prefix}CountryCode`), value(`${prefix}Number`));
-    const response = await fetch("/api/shops", {
-      method: "PATCH",
+    const updated = {
+      ...tenant,
+      shopNo: value("shopNo"), businessName: value("businessName"), firstName: value("firstName"), lastName: value("lastName"),
+      idNo: value("idNo"), mobile: value("mobile"), whatsapp: value("whatsapp"), email: value("email"), address: value("address"),
+      registeredDate: value("registeredDate"), startDate: value("startDate"), endDate: value("endDate"),
+      monthlyRent: Number(value("monthlyRent")), depositPayable: Number(value("depositPayable")), status: value("status") as ShopTenant["status"],
+      emergency1Name: value("emergency1Name"), emergency1Contact: value("emergency1Contact"), emergency1Relationship: value("emergency1Relationship"), emergency1Address: value("emergency1Address"),
+      emergency2Name: value("emergency2Name"), emergency2Contact: value("emergency2Contact"), emergency2Relationship: value("emergency2Relationship"), emergency2Address: value("emergency2Address"),
+    };
+    const response = await fetch(`/api/v1/shop-tenants/${encodeURIComponent(tenant.registrationNo)}`, {
+      method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        kind: "details",
-        id: tenant.id,
-        ...data,
-        mobile: phone("mobile"),
-        whatsapp: phone("whatsapp"),
-        emergency1Contact: phone("emergency1Contact"),
-        emergency2Contact: phone("emergency2Contact"),
-        monthlyRent: Number(data.monthlyRent),
-        depositPayable: Number(data.depositPayable),
-      }),
+      body: JSON.stringify(tenantRequest(updated)),
     });
     const result = await response.json();
     if (!response.ok)
-      return setError(result.error || "Unable to update shop tenant");
-    save(result.tenant);
+      return setError(result.detail || "Unable to update shop tenant");
+    save(tenantFromApi(result));
   };
   return (
     <div className="backdrop">
@@ -12189,19 +12088,23 @@ function ShopEmergencyModal({
     setError("");
     const form = new FormData(event.currentTarget);
     try {
-      const response = await fetch("/api/shops", {
-        method: "PATCH",
+      const value = (name: string) => String(form.get(name) || "");
+      const updated = {
+        ...tenant,
+        emergency1Name: value("emergency1Name"), emergency1Contact: value("emergency1Contact"),
+        emergency1Relationship: value("emergency1Relationship"), emergency1Address: value("emergency1Address"),
+        emergency2Name: value("emergency2Name"), emergency2Contact: value("emergency2Contact"),
+        emergency2Relationship: value("emergency2Relationship"), emergency2Address: value("emergency2Address"),
+      };
+      const response = await fetch(`/api/v1/shop-tenants/${encodeURIComponent(tenant.registrationNo)}`, {
+        method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          kind: "emergency",
-          id: tenant.id,
-          ...Object.fromEntries(form),
-        }),
+        body: JSON.stringify(tenantRequest(updated)),
       });
       const result = await response.json();
       if (!response.ok)
-        throw new Error(result.error || "Unable to save emergency contacts");
-      save(result.tenant);
+        throw new Error(result.detail || "Unable to save emergency contacts");
+      save(tenantFromApi(result));
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -12298,7 +12201,7 @@ function RoomBedTable({
   const savePrice = async (room: Room) => {
     const nextPrice = Number(price);
     if (!Number.isFinite(nextPrice) || nextPrice < 0) return;
-    const response = await fetch("/api/rooms", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ roomNo: room.roomNo, price: nextPrice }) });
+    const response = await fetch(`/api/v1/rooms/${encodeURIComponent(room.roomNo)}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...room, price: nextPrice, active: true }) });
     if (!response.ok) return;
     saveRoom({ ...room, price: nextPrice });
     setEditingRoom(null);
@@ -12388,21 +12291,23 @@ function RoomCard({
   occupants,
   openStudent,
   saveRoom,
+  onDelete,
 }: {
   room: Room;
   occupants: Student[];
   openStudent: (student: Student) => void;
   saveRoom: (room: Room) => void;
+  onDelete?: (room: Room) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [price, setPrice] = useState(String(room.price));
   const savePrice = async () => {
     const nextPrice = Number(price);
     if (!Number.isFinite(nextPrice) || nextPrice < 0) return;
-    const response = await fetch("/api/rooms", {
-      method: "PATCH",
+    const response = await fetch(`/api/v1/rooms/${encodeURIComponent(room.roomNo)}`, {
+      method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ roomNo: room.roomNo, price: nextPrice }),
+      body: JSON.stringify({ ...room, price: nextPrice, active: true }),
     });
     if (!response.ok) return;
     saveRoom({ ...room, price: nextPrice });
@@ -12485,6 +12390,7 @@ function RoomCard({
           <p>No active residents assigned.</p>
         )}
       </div>
+      {onDelete && !occupants.length && <button className="review-button danger" onClick={() => onDelete(room)}>Delete room</button>}
     </article>
   );
 }
@@ -16708,15 +16614,23 @@ function AddStaff({
     ];
     if (!managementCreator && delegatedRequired.some((entry) => !String(entry).trim()))
       return setError("Delegated users must complete every staff detail before saving. Finish date may remain blank for current staff.");
-    const response = await fetch("/api/staff", {
+    const response = await fetch("/api/v1/staff", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...member, creatorRole }),
+      body: JSON.stringify({
+        ...member,
+        designationId: designations.find((designation) => designation.name === member.designation)?.id || null,
+        status: member.status.toUpperCase(),
+        emergencyContacts: [
+          { name: member.emergency1Name, phone: member.emergency1Contact, relationship: member.emergency1Relationship, address: member.emergency1Address },
+          { name: member.emergency2Name, phone: member.emergency2Contact, relationship: member.emergency2Relationship, address: member.emergency2Address },
+        ].filter((contact) => contact.name),
+      }),
     });
     const result = await response.json();
     if (!response.ok)
-      return setError(result.error || "Unable to add staff member");
-    save(result.staff);
+      return setError(result.detail || "Unable to add staff member");
+    save(staffFromApi(result));
   };
   return (
     <div className="backdrop">
@@ -16853,15 +16767,23 @@ function EditStaff({
       finishDate: selfService ? member.finishDate || "" : value("finishDate"),
       status: selfService ? member.status : value("status"),
     };
-    const response = await fetch("/api/staff", {
-      method: "PATCH",
+    const response = await fetch(`/api/v1/staff/${encodeURIComponent(member.staffNo)}`, {
+      method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(updated),
+      body: JSON.stringify({
+        ...updated,
+        designationId: designations.find((designation) => designation.name === updated.designation)?.id || null,
+        status: String(updated.status).toUpperCase(),
+        emergencyContacts: [
+          { name: updated.emergency1Name, phone: updated.emergency1Contact, relationship: updated.emergency1Relationship, address: updated.emergency1Address },
+          { name: updated.emergency2Name, phone: updated.emergency2Contact, relationship: updated.emergency2Relationship, address: updated.emergency2Address },
+        ].filter((contact) => contact.name),
+      }),
     });
     const result = await response.json();
     if (!response.ok)
-      return setError(result.error || "Unable to update staff member");
-    save(result.staff);
+      return setError(result.detail || "Unable to update staff member");
+    save(staffFromApi(result));
   };
   return (
     <div className="backdrop">
@@ -17118,15 +17040,22 @@ function Register({
     ];
     if (!managementCreator && delegatedRequired.some((entry) => !String(entry).trim()))
       return setRegistrationError("Delegated users must complete every student detail before saving. Only the vacating date may remain blank.");
-    const response = await fetch("/api/students", {
+    const response = await fetch("/api/v1/students", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...s, creatorRole }),
+      body: JSON.stringify({
+        ...s,
+        status: s.status.toUpperCase(),
+        emergencyContacts: [
+          { name: s.emergency1Name, phone: s.emergency1Contact, relationship: s.emergency1Relationship, address: s.emergency1Address },
+          { name: s.emergency2Name, phone: s.emergency2Contact, relationship: s.emergency2Relationship, address: s.emergency2Address },
+        ].filter((contact) => contact.name),
+      }),
     });
     const result = await response.json();
     if (!response.ok)
-      return setRegistrationError(result.error || "Unable to register student");
-    save(result.student);
+      return setRegistrationError(result.detail || "Unable to register student");
+    save(studentFromApi(result));
   };
   return (
     <div className="backdrop">
@@ -17289,22 +17218,29 @@ function EditStudent({
     event.preventDefault();
     setError("");
     const form = new FormData(event.currentTarget);
-    const data = Object.fromEntries(form);
-    const response = await fetch("/api/students", {
-      method: "PATCH",
+    const value = (name: string) => String(form.get(name) || "");
+    const phone = (prefix: string) => combinePhone(value(`${prefix}CountryCode`), value(`${prefix}Number`));
+    const response = await fetch(`/api/v1/students/${encodeURIComponent(student.registrationNo)}`, {
+      method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        kind: "details",
         registrationNo: student.registrationNo,
-        ...data,
-        monthlyRent: Number(data.monthlyRent),
-        depositPayable: Number(data.depositPayable),
+        firstName: value("firstName"), lastName: value("lastName"), idNo: value("idNo"),
+        mobile: phone("mobile"), whatsapp: phone("whatsapp"), email: value("email"),
+        university: value("university"), currentYear: value("currentYear"), address: value("address"),
+        registeredDate: value("registeredDate"), startDate: value("startDate"), roomNo: value("roomNo"),
+        monthlyRent: Number(value("monthlyRent")), depositPayable: Number(value("depositPayable")),
+        status: student.status.toUpperCase(),
+        emergencyContacts: [
+          { name: value("emergency1Name"), phone: phone("emergency1Contact"), relationship: value("emergency1Relationship"), address: value("emergency1Address") },
+          { name: value("emergency2Name"), phone: phone("emergency2Contact"), relationship: value("emergency2Relationship"), address: value("emergency2Address") },
+        ].filter((contact) => contact.name),
       }),
     });
     const result = await response.json();
     if (!response.ok)
-      return setError(result.error || "Unable to update student");
-    save(result.student);
+      return setError(result.detail || "Unable to update student");
+    save(studentFromApi(result));
   };
   return (
     <div className="backdrop">
