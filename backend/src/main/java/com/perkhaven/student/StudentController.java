@@ -2,6 +2,7 @@ package com.perkhaven.student;
 
 import com.perkhaven.accommodation.Room;
 import com.perkhaven.accommodation.RoomRepository;
+import com.perkhaven.billing.InvoiceService;
 import com.perkhaven.common.api.PageResponse;
 import com.perkhaven.common.audit.AuditService;
 import com.perkhaven.common.domain.RecordStatus;
@@ -31,6 +32,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -52,8 +54,9 @@ public class StudentController {
     private final RoomRepository rooms;
     private final StorageService storage;
     private final AuditService audit;
-    public StudentController(StudentRepository students, RoomRepository rooms, StorageService storage, AuditService audit) {
-        this.students = students; this.rooms = rooms; this.storage = storage; this.audit = audit;
+    private final InvoiceService invoiceService;
+    public StudentController(StudentRepository students, RoomRepository rooms, StorageService storage, AuditService audit, InvoiceService invoiceService) {
+        this.students = students; this.rooms = rooms; this.storage = storage; this.audit = audit; this.invoiceService = invoiceService;
     }
 
     @GetMapping
@@ -85,6 +88,15 @@ public class StudentController {
     @Transactional(readOnly = true)
     public StudentResponse get(@PathVariable String registrationNo) { return StudentResponse.from(find(registrationNo)); }
 
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('STUDENT')")
+    @Transactional(readOnly = true)
+    public StudentResponse me(JwtAuthenticationToken authentication) {
+        var email = authentication.getToken().getClaimAsString("email");
+        if (email == null || email.isBlank()) throw new NotFoundException("Student profile not found for this account.");
+        return StudentResponse.from(students.findByEmailIgnoreCase(email).orElseThrow(() -> new NotFoundException("Student profile not found for this account.")));
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('ADMIN')")
@@ -94,6 +106,7 @@ public class StudentController {
         var student = new Student(request.registrationNo());
         apply(student, request);
         var saved = students.save(student);
+        invoiceService.createDeposit(saved);
         audit.record("CREATE", "STUDENT", saved.getRegistrationNo(), null);
         return StudentResponse.from(saved);
     }
@@ -146,7 +159,8 @@ public class StudentController {
         }
         var contacts = request.emergencyContacts() == null ? List.<Student.EmergencyContactData>of() : request.emergencyContacts().stream()
                 .map(c -> new Student.EmergencyContactData(c.name(), c.phone(), c.relationship(), c.address())).toList();
-        student.update(new Student.StudentData(request.firstName(), request.lastName(), request.idNo(), request.mobile(), request.whatsapp(), request.email(),
+        student.update(new Student.StudentData(request.firstName(), request.middleNames(), request.lastName(), request.dateOfBirth(),
+                request.idNo(), request.mobile(), request.whatsapp(), request.email(),
                 request.university(), request.currentYear(), request.address(), request.registeredDate(), request.startDate(), request.monthlyRent(),
                 request.depositPayable(), request.status(), contacts), room);
     }
@@ -154,7 +168,8 @@ public class StudentController {
     private Student find(String registrationNo) { return students.findByRegistrationNoIgnoreCase(registrationNo).orElseThrow(() -> new NotFoundException("Student not found.")); }
 
     public record EmergencyContactRequest(@NotBlank String name, @NotBlank String phone, @NotBlank String relationship, String address) {}
-    public record StudentRequest(@NotBlank String registrationNo, @NotBlank String firstName, @NotBlank String lastName,
+    public record StudentRequest(@NotBlank String registrationNo, @NotBlank String firstName, String middleNames,
+                                 @NotBlank String lastName, LocalDate dateOfBirth,
                                  @NotBlank String idNo, @NotBlank String mobile, String whatsapp, @Email @NotBlank String email,
                                  String university, String currentYear, @NotBlank String address, @NotNull LocalDate registeredDate,
                                  @NotNull LocalDate startDate, String roomNo, @NotNull @DecimalMin("0.00") BigDecimal monthlyRent,
@@ -164,12 +179,14 @@ public class StudentController {
         static EmergencyContactResponse from(StudentEmergencyContact contact) { return new EmergencyContactResponse(contact.getOrder(), contact.getName(), contact.getPhone(), contact.getRelationship(), contact.getAddress()); }
     }
     public record StudentResponse(Long id, long version, Instant createdAt, Instant updatedAt, String registrationNo,
-                                  String firstName, String lastName, String idNo, String mobile, String whatsapp, String email,
+                                  String firstName, String middleNames, String lastName, LocalDate dateOfBirth,
+                                  String idNo, String mobile, String whatsapp, String email,
                                   String university, String currentYear, String address, LocalDate registeredDate, LocalDate startDate,
                                   String roomNo, BigDecimal monthlyRent, BigDecimal depositPayable, RecordStatus status,
                                   String photoName, Long photoSize, List<EmergencyContactResponse> emergencyContacts) {
         static StudentResponse from(Student student) { return new StudentResponse(student.getId(), student.getVersion(), student.getCreatedAt(), student.getUpdatedAt(),
-                student.getRegistrationNo(), student.getFirstName(), student.getLastName(), student.getIdNo(), student.getMobile(), student.getWhatsapp(), student.getEmail(),
+                student.getRegistrationNo(), student.getFirstName(), student.getMiddleNames(), student.getLastName(), student.getDateOfBirth(),
+                student.getIdNo(), student.getMobile(), student.getWhatsapp(), student.getEmail(),
                 student.getUniversity(), student.getCurrentYear(), student.getAddress(), student.getRegisteredDate(), student.getStartDate(),
                 student.getRoom() == null ? null : student.getRoom().getRoomNo(), student.getMonthlyRent(), student.getDepositPayable(), student.getStatus(),
                 student.getPhotoName(), student.getPhotoSize(), student.getEmergencyContacts().stream().map(EmergencyContactResponse::from).toList()); }

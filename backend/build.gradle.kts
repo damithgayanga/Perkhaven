@@ -33,6 +33,7 @@ dependencies {
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${property("springdocVersion")}")
     implementation(platform("software.amazon.awssdk:bom:${property("awsSdkVersion")}"))
     implementation("software.amazon.awssdk:s3")
+    implementation("software.amazon.awssdk:sesv2")
 
     runtimeOnly("org.postgresql:postgresql")
     runtimeOnly("com.h2database:h2")

@@ -13,7 +13,9 @@ type Student = {
   id: number;
   registrationNo: string;
   firstName: string;
+  middleNames: string;
   lastName: string;
+  dateOfBirth: string;
   idNo: string;
   mobile: string;
   whatsapp: string;
@@ -109,12 +111,14 @@ type StudentInvoice = {
   roomNo: string;
   invoiceType: "Deposit" | "Rent" | "Shop Electricity" | "Shop Water";
   month: string;
+  baseAmount?: number;
   amount: number;
   issueDate: string;
   dueDate: string;
   paidAmount?: number;
   status: "Issued" | "Partially Paid" | "Paid" | "Cancelled";
   version: number;
+  revisionNumber?: number;
   remarks: string;
   emailStatus: string;
   reissuedAt: string;
@@ -124,6 +128,7 @@ type StudentInvoice = {
   otherShopUnits?: number;
   unitRate?: number;
   createdAt: string;
+  adjustments?: Array<{ type: string; effect: "Reduce" | "Increase"; amount: number; note: string }>;
 };
 type StudentPaymentEvidence = {
   id: number;
@@ -423,6 +428,8 @@ const contactFields = (contacts: ApiContact[] = []) => ({
 });
 const studentFromApi = (value: Record<string, unknown>): Student => ({
   ...(value as unknown as Student),
+  middleNames: String(value.middleNames || ""),
+  dateOfBirth: String(value.dateOfBirth || ""),
   whatsapp: String(value.whatsapp || ""),
   university: String(value.university || ""),
   currentYear: String(value.currentYear || ""),
@@ -758,6 +765,17 @@ export default function Home() {
   }, []);
   useEffect(() => {
     if (!currentUser) return;
+    if (currentUser.role === "Student") {
+      void fetch("/api/v1/students/me").then(async (response) => {
+        if (!response.ok) throw new Error("No student profile is linked to this email address");
+        return studentFromApi(await response.json());
+      }).then(async (student) => {
+        setStudents([student]);
+        const response = await fetch(`/api/v1/invoices?registrationNo=${encodeURIComponent(student.registrationNo)}&size=100`);
+        if (response.ok) setStudentInvoices(((await response.json()) as ApiPage<StudentInvoice>).items);
+      }).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load student profile"));
+      return;
+    }
     const page = <T,>(path: string) =>
       fetch(`${path}${path.includes("?") ? "&" : "?"}size=100`).then(async (response) => {
         if (!response.ok) throw new Error(`Unable to load ${path}`);
@@ -770,7 +788,17 @@ export default function Home() {
       page<StaffDesignation>("/api/v1/staff-designations").then((result) => setStaffDesignations(result.items)),
       page<Shop>("/api/v1/shops").then((result) => setShops(result.items)),
       page<Record<string, unknown>>("/api/v1/shop-tenants").then((result) => setShopTenants(result.items.map(tenantFromApi))),
+      page<StudentInvoice>("/api/v1/invoices").then((result) => setStudentInvoices(result.items)),
     ]).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load registers"));
+  }, [currentUser]);
+  useEffect(() => {
+    if (!currentUser || !["Admin", "Chairman", "Managing Director", "Hostel Warden"].includes(currentUser.role)) return;
+    const reload = () => void fetch("/api/v1/invoices?size=100")
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to reload invoices")))
+      .then((result: ApiPage<StudentInvoice>) => setStudentInvoices(result.items))
+      .catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to reload invoices"));
+    window.addEventListener("invoices-changed", reload);
+    return () => window.removeEventListener("invoices-changed", reload);
   }, [currentUser]);
   useEffect(() => {
     if (currentUser?.role !== "Admin" || !staffMembers.length) return;
@@ -2416,7 +2444,9 @@ function WardenPettyCashTable({
 
 const studentEditableFields: Array<{ key: keyof Student; label: string }> = [
   { key: "firstName", label: "First name" },
+  { key: "middleNames", label: "Middle name(s)" },
   { key: "lastName", label: "Last name" },
+  { key: "dateOfBirth", label: "Date of birth" },
   { key: "idNo", label: "National ID" },
   { key: "mobile", label: "Mobile" },
   { key: "whatsapp", label: "WhatsApp" },
@@ -2730,7 +2760,8 @@ function StudentSelfService({
                   title="IDENTIFICATION"
                   rows={[
                     ["Registration no.", student.registrationNo],
-                    ["Full name", `${student.firstName} ${student.lastName}`],
+                    ["Full name", [student.firstName, student.middleNames, student.lastName].filter(Boolean).join(" ")],
+                    ["Date of birth", student.dateOfBirth ? fmtDate(student.dateOfBirth) : "—"],
                     ["National ID", student.idNo],
                   ]}
                 />
@@ -2977,10 +3008,9 @@ function StudentSelfService({
         </section>
       </section>
       {previewingStudentInvoice && (
-        <PdfDocumentPreviewModal
-          title={previewingStudentInvoice.invoiceNo}
-          source={`/api/invoices/pdf?id=${previewingStudentInvoice.id}`}
-          downloadSource={`/api/invoices/pdf?id=${previewingStudentInvoice.id}&download=1`}
+        <InvoicePreviewModal
+          invoice={previewingStudentInvoice}
+          student={student}
           close={() => setPreviewingStudentInvoice(null)}
         />
       )}
@@ -3103,6 +3133,7 @@ function StudentSelfService({
                     {label}
                     <input
                       name={String(key)}
+                      type={key === "dateOfBirth" ? "date" : "text"}
                       defaultValue={String(student[key] ?? "")}
                     />
                   </label>
@@ -3616,7 +3647,7 @@ async function buildInvoicePdf(invoice: StudentInvoice, student?: Student) {
   pdf.line(20, 36, 190, 36);
   pdf.setFont("helvetica", "normal");
   pdf.text(
-    `Invoice: ${invoice.invoiceNo}  |  Rev.${Math.max(0, invoice.version - 1)}`,
+    `Invoice: ${invoice.invoiceNo}  |  Rev.${invoiceRevision(invoice)}`,
     20,
     47,
   );
@@ -3709,7 +3740,7 @@ const downloadInvoicePdf = (invoice: StudentInvoice, student?: Student) => {
   void buildInvoicePdf(invoice, student).then((pdf) =>
     downloadBlob(
       pdf.output("blob"),
-      `${invoice.invoiceNo}-Rev.${Math.max(0, invoice.version - 1)}.pdf`,
+      `${invoice.invoiceNo}-Rev.${invoiceRevision(invoice)}.pdf`,
     ),
   );
 };
@@ -3725,14 +3756,18 @@ function InvoicePreviewModal({
 }) {
   const [source, setSource] = useState("");
   useEffect(() => {
-    let active = true;
-    void buildInvoicePdf(invoice, student).then((pdf) => {
-      if (active) setSource(pdf.output("datauristring"));
+    let active = true, objectUrl = "";
+    void fetch(`/api/v1/invoices/${invoice.id}/pdf`).then(async (response) => {
+      if (!response.ok) throw new Error("Unable to prepare invoice PDF");
+      objectUrl = URL.createObjectURL(await response.blob());
+      if (active) setSource(objectUrl);
     });
-    return () => {
-      active = false;
-    };
-  }, [invoice, student]);
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [invoice]);
+  const download = async () => {
+    const response = await fetch(`/api/v1/invoices/${invoice.id}/pdf?download=true`);
+    if (response.ok) downloadBlob(await response.blob(), `${invoice.invoiceNo}-Rev.${String(invoice.revisionNumber ?? Math.max(0, invoice.version - 1)).padStart(2, "0")}.pdf`);
+  };
   return (
     <div className="backdrop">
       <section className="modal invoice-preview-modal">
@@ -3753,7 +3788,7 @@ function InvoicePreviewModal({
           </button>
           <button
             className="primary"
-            onClick={() => downloadInvoicePdf(invoice, student)}
+            onClick={() => void download()}
           >
             Download PDF
           </button>
@@ -3843,7 +3878,7 @@ function StudentInvoiceList({
                   >
                     {invoice.invoiceNo}
                   </button>
-                  <small>Rev.{Math.max(0, invoice.version - 1)}</small>
+                  <small>Rev.{invoiceRevision(invoice)}</small>
                 </td>
                 <td>{studentInvoiceLabel(invoice)}</td>
                 <td>{fmtDate(invoice.issueDate)}</td>
@@ -3861,7 +3896,7 @@ function StudentInvoiceList({
                 <td>
                   <div className="invoice-copy-actions">
                     <button type="button" className="review-button" onClick={() => onView(invoice)}>View PDF</button>
-                    <a className="review-button" href={`/api/invoices/pdf?id=${invoice.id}&download=1`} download>Download PDF</a>
+                    <button type="button" className="review-button" onClick={() => onView(invoice)}>Download PDF</button>
                   </div>
                 </td>
                 <td>
@@ -3897,6 +3932,20 @@ const studentInvoiceLabel = (invoice: StudentInvoice) =>
     : invoice.invoiceType === "Shop Electricity" || invoice.invoiceType === "Shop Water"
       ? `${invoice.invoiceType} · ${fmtMonth(invoice.month)}`
       : fmtMonth(invoice.month);
+const invoiceRevision = (invoice: StudentInvoice) =>
+  String(invoice.revisionNumber ?? Math.max(0, invoice.version - 1)).padStart(2, "0");
+const adjustmentApiType = (type: MonthlyAdjustment["type"]) => ({
+  "Late Start Adjustment": "LATE_START",
+  "Early Vacate Adjustment": "EARLY_VACATE",
+  "Vacation Adjustment": "VACATION_DISCOUNT",
+  "Other Adjustment": "OTHER",
+}[type]);
+const adjustmentUiType = (type: string): MonthlyAdjustment["type"] => ({
+  LATE_START: "Late Start Adjustment",
+  EARLY_VACATE: "Early Vacate Adjustment",
+  VACATION_DISCOUNT: "Vacation Adjustment",
+  OTHER: "Other Adjustment",
+}[type] as MonthlyAdjustment["type"] || "Other Adjustment");
 
 function StudentEvidencePanel({
   student,
@@ -8039,7 +8088,7 @@ function InvoiceLedger({
     (exportFilters.status === "All" || invoice.status === exportFilters.status));
   const exportInvoicesSpreadsheet = async () => {
     const XLSX = await import("xlsx");
-    const data = exportRows.map((invoice) => ({ "INVOICE NO.": invoice.invoiceNo, "ISSUE DATE": fmtCompactDate(invoice.issueDate), "DUE DATE": fmtCompactDate(invoice.dueDate), TYPE: invoice.invoiceType, MONTH: invoice.invoiceType === "Deposit" ? "" : fmtMonth(invoice.month), REGISTRATION: invoice.registrationNo, NAME: invoice.studentName, ROOM: invoice.roomNo, AMOUNT: invoice.amount, STATUS: invoice.status, REVISION: `Rev.${Math.max(0, invoice.version - 1)}` }));
+    const data = exportRows.map((invoice) => ({ "INVOICE NO.": invoice.invoiceNo, "ISSUE DATE": fmtCompactDate(invoice.issueDate), "DUE DATE": fmtCompactDate(invoice.dueDate), TYPE: invoice.invoiceType, MONTH: invoice.invoiceType === "Deposit" ? "" : fmtMonth(invoice.month), REGISTRATION: invoice.registrationNo, NAME: invoice.studentName, ROOM: invoice.roomNo, AMOUNT: invoice.amount, STATUS: invoice.status, REVISION: `Rev.${invoiceRevision(invoice)}` }));
     const sheet = XLSX.utils.json_to_sheet(data); sheet["!autofilter"] = { ref: `A1:K${Math.max(1, data.length + 1)}` }; sheet["!cols"] = [{wch:20},{wch:14},{wch:14},{wch:18},{wch:16},{wch:20},{wch:28},{wch:10},{wch:16},{wch:14},{wch:12}];
     const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, sheet, "Invoice Ledger"); XLSX.writeFile(book, `Perk-Haven-Invoice-Ledger-${new Date().toISOString().slice(0,10)}.xlsx`);
   };
@@ -8047,20 +8096,19 @@ function InvoiceLedger({
     const { jsPDF } = await import("jspdf"); const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" }); const pageWidth = pdf.internal.pageSize.getWidth(), pageHeight = pdf.internal.pageSize.getHeight(), margin = 8;
     const headers = ["INVOICE NO.","ISSUED","DUE","TYPE","MONTH","REGISTRATION","NAME","ROOM","AMOUNT","STATUS","REV."]; const widths = [28,19,19,20,20,28,40,15,24,20,14];
     const drawHeader = (page:number) => { pdf.setFillColor(15,48,78); pdf.rect(0,0,pageWidth,22,"F"); pdf.setTextColor(255,255,255); pdf.setFont("helvetica","bold"); pdf.setFontSize(13); pdf.text("THE PERK HAVEN HOSTEL",margin,9); pdf.setFontSize(9); pdf.text("INVOICE LEDGER",margin,16); pdf.setFontSize(7); pdf.text(`Page ${page}`,pageWidth-margin,16,{align:"right"}); let x=margin; pdf.setFillColor(229,237,246); pdf.rect(margin,26,widths.reduce((a,b)=>a+b,0),10,"F"); pdf.setTextColor(15,48,78); pdf.setFontSize(6.2); headers.forEach((h,i)=>{pdf.text(h,x+widths[i]/2,32,{align:"center",maxWidth:widths[i]-2});x+=widths[i];}); return 36; };
-    let page=1,y=drawHeader(page); exportRows.forEach((invoice,index)=>{ if(y+8>pageHeight-10){pdf.addPage("a4","landscape");page++;y=drawHeader(page);} if(index%2){pdf.setFillColor(247,249,252);pdf.rect(margin,y,widths.reduce((a,b)=>a+b,0),8,"F");} const values=[invoice.invoiceNo,fmtCompactDate(invoice.issueDate),fmtCompactDate(invoice.dueDate),invoice.invoiceType,invoice.invoiceType==="Deposit"?"—":fmtMonth(invoice.month),invoice.registrationNo,invoice.studentName,invoice.roomNo,`LKR ${invoice.amount.toLocaleString("en-LK")}`,invoice.status,`Rev.${Math.max(0,invoice.version-1)}`]; let x=margin; pdf.setTextColor(20,39,61);pdf.setFont("helvetica","normal");pdf.setFontSize(6.2);values.forEach((v,i)=>{pdf.text(String(v),x+1,y+5,{maxWidth:widths[i]-2});x+=widths[i];});y+=8; }); downloadBlob(pdf.output("blob"),`Perk-Haven-Invoice-Ledger-${new Date().toISOString().slice(0,10)}.pdf`);
+    let page=1,y=drawHeader(page); exportRows.forEach((invoice,index)=>{ if(y+8>pageHeight-10){pdf.addPage("a4","landscape");page++;y=drawHeader(page);} if(index%2){pdf.setFillColor(247,249,252);pdf.rect(margin,y,widths.reduce((a,b)=>a+b,0),8,"F");} const values=[invoice.invoiceNo,fmtCompactDate(invoice.issueDate),fmtCompactDate(invoice.dueDate),invoice.invoiceType,invoice.invoiceType==="Deposit"?"—":fmtMonth(invoice.month),invoice.registrationNo,invoice.studentName,invoice.roomNo,`LKR ${invoice.amount.toLocaleString("en-LK")}`,invoice.status,`Rev.${invoiceRevision(invoice)}`]; let x=margin; pdf.setTextColor(20,39,61);pdf.setFont("helvetica","normal");pdf.setFontSize(6.2);values.forEach((v,i)=>{pdf.text(String(v),x+1,y+5,{maxWidth:widths[i]-2});x+=widths[i];});y+=8; }); downloadBlob(pdf.output("blob"),`Perk-Haven-Invoice-Ledger-${new Date().toISOString().slice(0,10)}.pdf`);
   };
   const generate = async () => {
     setBusy(true);
     setError("");
-    const response = await fetch("/api/invoices", {
+    const response = await fetch("/api/v1/invoices/generation-runs", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: "generate" }),
     });
     const result = await response.json();
     setBusy(false);
     if (!response.ok)
-      return setError(result.error || "Unable to issue invoices");
+      return setError(result.detail || "Unable to issue invoices");
     invoicesUpdated(result.invoices || []);
   };
   useEffect(() => {
@@ -8120,7 +8168,7 @@ function InvoiceLedger({
                       {invoice.status}
                     </span>
                   </td>
-                  <td>Rev.{Math.max(0, invoice.version - 1)}</td>
+                  <td>Rev.{invoiceRevision(invoice)}</td>
                   <td>
                     <small>{invoice.emailStatus}</small>
                   </td>
@@ -8133,10 +8181,9 @@ function InvoiceLedger({
                       >
                         View PDF
                       </button>
-                      <a className="review-button" href={`/api/invoices/pdf?id=${invoice.id}&download=1`} download>Download PDF</a>
+                      <button type="button" className="review-button" onClick={() => setPreviewing(invoice)}>Download PDF</button>
                       <button
                         className="review-button"
-                        disabled={invoice.status === "Paid"}
                         onClick={() => setEditing(invoice)}
                       >
                         Adjust & reissue
@@ -8195,67 +8242,18 @@ function InvoiceEditModal({
   close: () => void;
   save: (invoice: StudentInvoice) => void;
 }) {
-  const [amount, setAmount] = useState(invoice.amount),
-    [baseAmount, setBaseAmount] = useState(invoice.amount),
-    [invoiceAdjustments, setInvoiceAdjustments] = useState<
-      Array<{
-        type: MonthlyAdjustment["type"];
-        effect: "Reduce" | "Increase";
-        amount: number;
-        note: string;
-      }>
-    >(
-      [
-        "Late Start Adjustment",
-        "Early Vacate Adjustment",
-        "Vacation Adjustment",
-        "Other Adjustment",
-      ].map((type) => ({
-        type: type as MonthlyAdjustment["type"],
-        effect: "Reduce",
-        amount: 0,
-        note: "",
-      })),
-    ),
-    [remarks, setRemarks] = useState(invoice.remarks),
-    [saving, setSaving] = useState(false),
-    [error, setError] = useState("");
-  useEffect(() => {
-    if (invoice.invoiceType !== "Rent") return;
-    fetch("/api/adjustments")
-      .then((response) => response.json())
-      .then((result) => {
-        const rows = (result.adjustments || []).filter(
-          (row: MonthlyAdjustment) =>
-            row.registrationNo === invoice.registrationNo &&
-            row.month === invoice.month,
-        ) as MonthlyAdjustment[];
-        const types: MonthlyAdjustment["type"][] = [
-          "Late Start Adjustment",
-          "Early Vacate Adjustment",
-          "Vacation Adjustment",
-          "Other Adjustment",
-        ];
-        setInvoiceAdjustments(
-          types.map((type) => {
-            const signed = rows
-              .filter((row) => row.type === type)
-              .reduce((sum, row) => sum + row.amount, 0);
-            return {
-              type,
-              effect: signed < 0 ? "Increase" : "Reduce",
-              amount: Math.abs(signed),
-              note:
-                rows.find((row) => row.type === type && row.note)?.note || "",
-            };
-          }),
-        );
-        setBaseAmount(
-          invoice.amount + rows.reduce((sum, row) => sum + row.amount, 0),
-        );
-      })
-      .catch(() => {});
-  }, [invoice]);
+  const initialAdjustments: Array<{ type: MonthlyAdjustment["type"]; effect: "Reduce" | "Increase"; amount: number; note: string }> =
+    invoice.adjustments?.length
+      ? invoice.adjustments.map((row) => ({ type: adjustmentUiType(row.type), effect: row.effect, amount: Number(row.amount), note: row.note || "" }))
+      : ["Late Start Adjustment", "Early Vacate Adjustment", "Vacation Adjustment", "Other Adjustment"].map((type) => ({
+          type: type as MonthlyAdjustment["type"], effect: "Reduce" as const, amount: 0, note: "",
+        }));
+  const [amount, setAmount] = useState(invoice.amount);
+  const [baseAmount] = useState(invoice.baseAmount ?? invoice.amount);
+  const [invoiceAdjustments, setInvoiceAdjustments] = useState(initialAdjustments);
+  const [remarks, setRemarks] = useState(invoice.remarks);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const calculatedAmount =
     invoice.invoiceType === "Rent"
       ? Math.max(
@@ -8272,22 +8270,26 @@ function InvoiceEditModal({
     event.preventDefault();
     setSaving(true);
     setError("");
-    const response = await fetch("/api/invoices", {
-      method: "PATCH",
+    const response = await fetch(`/api/v1/invoices/${invoice.id}`, {
+      method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        id: invoice.id,
         amount: calculatedAmount,
         remarks,
         adjustments:
-          invoice.invoiceType === "Rent" ? invoiceAdjustments : undefined,
+          invoice.invoiceType === "Rent" ? invoiceAdjustments.map((row) => ({
+            type: adjustmentApiType(row.type),
+            effect: row.effect.toUpperCase(),
+            amount: row.amount,
+            note: row.note,
+          })) : undefined,
       }),
     });
     const result = await response.json();
     setSaving(false);
     if (!response.ok)
-      return setError(result.error || "Unable to reissue invoice");
-    save(result.invoice);
+      return setError(result.detail || "Unable to reissue invoice");
+    save(result);
   };
   return (
     <div className="backdrop">
@@ -8295,7 +8297,7 @@ function InvoiceEditModal({
         <ModalHead
           tag="INVOICE ADMINISTRATION"
           title={`Adjust and reissue ${invoice.invoiceNo}`}
-          text={`Apply any increase or reduction to this invoice here. Saving creates Rev.${invoice.version} and the revised total becomes the Amount Payable source.`}
+          text={`Apply any increase or reduction to this invoice here. Saving creates Rev.${String(invoice.version).padStart(2, "0")} and the revised total becomes the Amount Payable source.`}
           close={close}
         />
         <section className="formgrid two">
@@ -11350,31 +11352,19 @@ function RoomView({
         title="Room and shop occupancy"
         text="Monitor occupied and vacant hostel rooms and commercial shops."
       />
-      <div
-        className="payment-tabs"
-        role="tablist"
-        aria-label="Room and shop views"
-      >
-        <button
-          className={section === "rooms" ? "active" : ""}
-          onClick={() => setSection("rooms")}
-        >
-          Rooms
-        </button>
-        <button
-          className={section === "shops" ? "active" : ""}
-          onClick={() => setSection("shops")}
-        >
-          Shops
-        </button>
-      </div>
-      {canManage && (
-        <div className="register-actions">
+      <div className="payment-tabs-row occupancy-actions-row">
+        <div className="payment-tabs" role="tablist" aria-label="Room and shop views">
+          <button className={section === "rooms" ? "active" : ""} onClick={() => setSection("rooms")}>Rooms</button>
+          <button className={section === "shops" ? "active" : ""} onClick={() => setSection("shops")}>Shops</button>
+        </div>
+        {canManage && (
+          <div className="register-actions">
           <button className="primary" onClick={() => { setAdding(true); setError(""); }}>
             ＋ Add {section === "rooms" ? "room" : "shop"}
           </button>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
       {adding && (
         <form className="panel category-add" onSubmit={createProperty}>
           {section === "rooms" ? (
@@ -17026,7 +17016,9 @@ function Register({
       id: next,
       registrationNo: reg,
       firstName: v("firstName"),
+      middleNames: v("middleNames"),
       lastName: v("lastName"),
+      dateOfBirth: v("dateOfBirth"),
       idNo: v("idNo"),
       mobile: phone("mobile"),
       whatsapp: phone("whatsapp"),
@@ -17079,6 +17071,7 @@ function Register({
     if (!response.ok)
       return setRegistrationError(result.detail || "Unable to register student");
     save(studentFromApi(result));
+    window.dispatchEvent(new Event("invoices-changed"));
   };
   return (
     <div className="backdrop">
@@ -17096,7 +17089,9 @@ function Register({
         </p>
         <FormSection title="Personal details">
           <Field name="firstName" label="First name" required />
+          <Field name="middleNames" label="Middle name(s)" />
           <Field name="lastName" label="Last name" required />
+          <Field name="dateOfBirth" label="Date of birth" type="date" />
           <Field name="idNo" label="National ID no." required={!managementCreator} />
           <PhoneField prefix="mobile" label="Mobile no." required={!managementCreator} />
           <PhoneField prefix="whatsapp" label="WhatsApp no." required={!managementCreator} />
@@ -17248,7 +17243,8 @@ function EditStudent({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         registrationNo: student.registrationNo,
-        firstName: value("firstName"), lastName: value("lastName"), idNo: value("idNo"),
+        firstName: value("firstName"), middleNames: value("middleNames"), lastName: value("lastName"),
+        dateOfBirth: value("dateOfBirth") || null, idNo: value("idNo"),
         mobile: phone("mobile"), whatsapp: phone("whatsapp"), email: value("email"),
         university: value("university"), currentYear: value("currentYear"), address: value("address"),
         registeredDate: value("registeredDate"), startDate: value("startDate"), roomNo: value("roomNo"),
@@ -17282,10 +17278,21 @@ function EditStudent({
             required
           />
           <Field
+            name="middleNames"
+            label="Middle name(s)"
+            defaultValue={student.middleNames}
+          />
+          <Field
             name="lastName"
             label="Last name"
             defaultValue={student.lastName}
             required
+          />
+          <Field
+            name="dateOfBirth"
+            label="Date of birth"
+            type="date"
+            defaultValue={student.dateOfBirth}
           />
           <Field
             name="idNo"
@@ -18208,7 +18215,7 @@ async function downloadStudentProfilePdf(student: Student) {
   doc.setTextColor(18, 42, 66);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(17);
-  doc.text(`${student.firstName} ${student.lastName}`, 18, 49);
+  doc.text([student.firstName, student.middleNames, student.lastName].filter(Boolean).join(" "), 18, 49);
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.text(`Registration No: ${student.registrationNo}`, 18, 57);
@@ -18216,14 +18223,15 @@ async function downloadStudentProfilePdf(student: Student) {
 
   doc.setFontSize(9);
   section("PERSONAL DETAILS", 72);
-  row("Full name", `${student.firstName} ${student.lastName}`, 84);
-  row("National ID", student.idNo, 94);
-  row("Mobile", student.mobile, 104);
-  row("WhatsApp", student.whatsapp, 114);
-  row("Email", student.email, 124);
-  row("University", student.university, 134);
-  row("Current year", student.currentYear, 144);
-  row("Address", student.address, 154);
+  row("Full name", [student.firstName, student.middleNames, student.lastName].filter(Boolean).join(" "), 84);
+  row("Date of birth", student.dateOfBirth ? fmtDate(student.dateOfBirth) : "—", 94);
+  row("National ID", student.idNo, 104);
+  row("Mobile", student.mobile, 114);
+  row("WhatsApp", student.whatsapp, 124);
+  row("Email", student.email, 134);
+  row("University", student.university, 144);
+  row("Current year", student.currentYear, 154);
+  row("Address", student.address, 164);
 
   section("PRIMARY EMERGENCY CONTACT", 172);
   row("Name", student.emergency1Name, 184);
@@ -18376,7 +18384,8 @@ function Profile({
             <Detail
               title="IDENTIFICATION"
               rows={[
-                ["Full name", `${student.firstName} ${student.lastName}`],
+                ["Full name", [student.firstName, student.middleNames, student.lastName].filter(Boolean).join(" ")],
+                ["Date of birth", student.dateOfBirth ? fmtDate(student.dateOfBirth) : "—"],
                 ["National ID", student.idNo],
                 ["Registration", student.registrationNo],
               ]}
@@ -18883,11 +18892,11 @@ function StudentPaymentProfile({
       .catch(() => setEvidenceEntries([]));
   }, [student.registrationNo]);
   useEffect(() => {
-    fetch("/api/invoices")
+    fetch(`/api/v1/invoices?registrationNo=${encodeURIComponent(student.registrationNo)}&size=100`)
       .then((response) => response.json())
       .then((result) =>
         setInvoiceEntries(
-          (result.invoices || []).filter(
+          (result.items || []).filter(
             (entry: StudentInvoice) =>
               entry.registrationNo === student.registrationNo,
           ),

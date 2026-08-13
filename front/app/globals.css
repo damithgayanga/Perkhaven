@@ -1647,6 +1647,7 @@ mark {
 .register-tabs-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .register-tabs-row > .register-tabs { margin-bottom: 15px; }
 .payment-tabs-row > .payment-tabs { margin-bottom: 15px; }
+.occupancy-actions-row { width: 100%; }
 .payment-tab-actions { display: flex; align-items: center; gap: 9px; margin-left: auto; }
 .section-toolbar.end { display: flex; justify-content: flex-end; margin-bottom: 12px; }
 .cash-verification-control { display: grid; gap: 3px; min-width: 92px; }

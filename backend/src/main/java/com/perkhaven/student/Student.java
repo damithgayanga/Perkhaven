@@ -26,8 +26,12 @@ public class Student extends AuditedEntity {
     private String registrationNo;
     @Column(name = "first_name", nullable = false, length = 100)
     private String firstName;
+    @Column(name = "middle_names", length = 180)
+    private String middleNames;
     @Column(name = "last_name", nullable = false, length = 100)
     private String lastName;
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
     @Column(name = "id_no", nullable = false, length = 80)
     private String idNo;
     @Column(nullable = false, length = 40)
@@ -68,7 +72,8 @@ public class Student extends AuditedEntity {
     public Student(String registrationNo) { this.registrationNo = registrationNo; }
 
     public void update(StudentData data, Room room) {
-        this.firstName = data.firstName(); this.lastName = data.lastName(); this.idNo = data.idNo();
+        this.firstName = data.firstName(); this.middleNames = data.middleNames(); this.lastName = data.lastName();
+        this.dateOfBirth = data.dateOfBirth(); this.idNo = data.idNo();
         this.mobile = data.mobile(); this.whatsapp = data.whatsapp(); this.email = data.email();
         this.university = data.university(); this.currentYear = data.currentYear(); this.address = data.address();
         this.registeredDate = data.registeredDate(); this.startDate = data.startDate(); this.room = room;
@@ -86,7 +91,9 @@ public class Student extends AuditedEntity {
     }
     public String getRegistrationNo() { return registrationNo; }
     public String getFirstName() { return firstName; }
+    public String getMiddleNames() { return middleNames; }
     public String getLastName() { return lastName; }
+    public LocalDate getDateOfBirth() { return dateOfBirth; }
     public String getIdNo() { return idNo; }
     public String getMobile() { return mobile; }
     public String getWhatsapp() { return whatsapp; }
@@ -106,7 +113,8 @@ public class Student extends AuditedEntity {
     public Long getPhotoSize() { return photoSize; }
     public List<StudentEmergencyContact> getEmergencyContacts() { return emergencyContacts; }
 
-    public record StudentData(String firstName, String lastName, String idNo, String mobile, String whatsapp, String email,
+    public record StudentData(String firstName, String middleNames, String lastName, LocalDate dateOfBirth,
+                              String idNo, String mobile, String whatsapp, String email,
                               String university, String currentYear, String address, LocalDate registeredDate, LocalDate startDate,
                               BigDecimal monthlyRent, BigDecimal depositPayable, RecordStatus status,
                               List<EmergencyContactData> emergencyContacts) {}
