@@ -188,17 +188,44 @@ jobs:
             --argjson subnets "$SUBNETS" \
             --arg security_group "$SECURITY_GROUP" \
             '{awsvpcConfiguration:{subnets:$subnets,securityGroups:[$security_group],assignPublicIp:"ENABLED"}}')
-          overrides='{"containerOverrides":[{"name":"backend","command":["--spring.main.web-application-type=none","--spring.main.banner-mode=off","--perkhaven.storage.provider=local"]}]}'
-          task_arn=$(aws ecs run-task \
+          overrides='{"containerOverrides":[{"name":"backend","command":["--spring.main.web-application-type=none","--spring.main.banner-mode=off","--perkhaven.migration-only=true","--perkhaven.scheduling.enabled=false","--perkhaven.storage.provider=local"]}]}'
+          run_task_response=$(aws ecs run-task \
             --cluster "$CLUSTER" \
             --launch-type FARGATE \
             --task-definition "$TASK_DEFINITION" \
             --network-configuration "$network_configuration" \
-            --overrides "$overrides" \
-            --query 'tasks[0].taskArn' \
-            --output text)
-          test "$task_arn" != "None"
-          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"
+            --overrides "$overrides")
+          task_arn=$(jq -r '.tasks[0].taskArn // empty' <<< "$run_task_response")
+          if [[ -z "$task_arn" ]]; then
+            echo "ECS did not start the migration task."
+            jq '.failures' <<< "$run_task_response"
+            exit 1
+          fi
+
+          migration_finished=false
+          cleanup_migration_task() {
+            if [[ "$migration_finished" != "true" ]]; then
+              aws ecs stop-task --cluster "$CLUSTER" --task "$task_arn" \
+                --reason "Migration workflow ended before task completion" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup_migration_task EXIT
+
+          if ! timeout 15m aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"; then
+            echo "Migration task did not stop within 15 minutes."
+            aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" \
+              --query 'tasks[0].{lastStatus:lastStatus,stopCode:stopCode,stoppedReason:stoppedReason,containers:containers[*].{name:name,lastStatus:lastStatus,reason:reason,exitCode:exitCode,logStreamName:logStreamName}}'
+            log_stream=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" \
+              --query 'tasks[0].containers[?name==`backend`].logStreamName | [0]' --output text)
+            log_group=$(aws ecs describe-task-definition --task-definition "$TASK_DEFINITION" \
+              --query 'taskDefinition.containerDefinitions[?name==`backend`].logConfiguration.options."awslogs-group" | [0]' --output text)
+            if [[ "$log_stream" != "None" && "$log_group" != "None" ]]; then
+              aws logs get-log-events --log-group-name "$log_group" --log-stream-name "$log_stream" \
+                --limit 100 --query 'events[*].message' --output text || true
+            fi
+            exit 1
+          fi
+          migration_finished=true
           exit_code=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" --query 'tasks[0].containers[?name==`backend`].exitCode | [0]' --output text)
           reason=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" --query 'tasks[0].stoppedReason' --output text)
           echo "Migration task stopped: ${reason}; exit code: ${exit_code}"
