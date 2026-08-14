@@ -30,6 +30,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
+    implementation("org.apache.pdfbox:pdfbox:3.0.5")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${property("springdocVersion")}")
     implementation(platform("software.amazon.awssdk:bom:${property("awsSdkVersion")}"))
     implementation("software.amazon.awssdk:s3")
@@ -43,6 +44,10 @@ dependencies {
     testImplementation("org.testcontainers:junit-jupiter:${property("testcontainersVersion")}")
     testImplementation("org.testcontainers:postgresql:${property("testcontainersVersion")}")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+sourceSets.main {
+    resources.srcDir("../front/public")
 }
 
 tasks.withType<Test> {

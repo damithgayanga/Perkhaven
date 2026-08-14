@@ -15,6 +15,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockMultipartFile;
+import java.time.LocalDate;
+import java.time.ZoneId;
 
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:perkhaven-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
@@ -118,6 +121,26 @@ class CoreApiIntegrationTest {
                 .andExpect(jsonPath("$.revisionNumber").value(1))
                 .andExpect(jsonPath("$.version").value(2));
 
+        var evidence = new MockMultipartFile("evidence", "transfer.png", "image/png", new byte[]{1, 2, 3});
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payments")
+                        .file(evidence).param("invoiceId", String.valueOf(invoiceId)).param("paidAmount", "50000.00")
+                        .param("paidDate", "2026-08-13").param("settlementMethod", "Bank Transfer")
+                        .param("remarks", "Partial transfer").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.paidAmount").value(50000.0));
+        mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-TEST-900").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].status").value("Partially Paid"))
+                .andExpect(jsonPath("$.items[0].transactionIds.length()").value(1));
+
+        var finalEvidence = new MockMultipartFile("evidence", "transfer-2.pdf", "application/pdf", new byte[]{'%', 'P', 'D', 'F'});
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payments")
+                        .file(finalEvidence).param("invoiceId", String.valueOf(invoiceId)).param("paidAmount", "15000.00")
+                        .param("paidDate", "2026-08-14").param("settlementMethod", "Bank Transfer")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-TEST-900").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].status").value("Paid"))
+                .andExpect(jsonPath("$.items[0].transactionIds.length()").value(2));
+
         mvc.perform(post("/api/v1/invoices/generation-runs").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
         mvc.perform(post("/api/v1/invoices/generation-runs").header("Authorization", "Bearer " + token))
@@ -125,6 +148,22 @@ class CoreApiIntegrationTest {
         mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-TEST-900")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(2));
+    }
+
+    @Test
+    void migratedStudentReceivesDepositAndEveryHistoricalRentInvoice() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var start = LocalDate.now(ZoneId.of("Asia/Colombo")).withDayOfMonth(1).minusMonths(2);
+        var student = """
+                {"registrationNo":"PH-HISTORY-901","firstName":"Historical","lastName":"Student","idNo":"H901",
+                 "mobile":"+94770000001","whatsapp":"+94770000001","email":"history@example.com","university":"Test",
+                 "currentYear":"Year 1","address":"Test","registeredDate":"%s","startDate":"%s","roomNo":"104",
+                 "monthlyRent":20000.00,"depositPayable":60000.00,"status":"ACTIVE","emergencyContacts":[]}
+                """.formatted(start, start);
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(student))
+                .andExpect(status().isCreated());
+        mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-HISTORY-901").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(4));
     }
 
     private String token(String username, String password) throws Exception {

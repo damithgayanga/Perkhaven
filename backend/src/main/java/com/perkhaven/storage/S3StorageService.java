@@ -19,7 +19,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 @Service
 @ConditionalOnProperty(name = "perkhaven.storage.provider", havingValue = "s3")
 public class S3StorageService implements StorageService {
-    private static final Set<String> ALLOWED = Set.of("image/jpeg", "image/png", "image/webp");
+    private static final Set<String> ALLOWED = Set.of("image/jpeg", "image/png", "image/webp", "application/pdf");
 
     private final S3Client s3;
     private final String bucket;
@@ -33,11 +33,12 @@ public class S3StorageService implements StorageService {
     public StoredFile store(String category, MultipartFile file) throws IOException {
         if (file.isEmpty()) throw new IllegalArgumentException("File is empty.");
         if (!ALLOWED.contains(file.getContentType())) {
-            throw new IllegalArgumentException("Only JPEG, PNG and WebP photos are supported.");
+            throw new IllegalArgumentException("Only JPEG, PNG, WebP and PDF evidence files are supported.");
         }
         var extension = switch (file.getContentType()) {
             case "image/png" -> ".png";
             case "image/webp" -> ".webp";
+            case "application/pdf" -> ".pdf";
             default -> ".jpg";
         };
         var key = category + "/" + UUID.randomUUID() + extension;

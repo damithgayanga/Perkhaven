@@ -45,6 +45,9 @@ springdoc:
     path: /swagger-ui.html
 
 perkhaven:
+  hostel:
+    telephone: ${PERKHAVEN_HOSTEL_TELEPHONE:+94 11 234 5678}
+    email: ${PERKHAVEN_HOSTEL_EMAIL:hello@perkhaven.example}
   storage:
     provider: local
     local-root: ${PERKHAVEN_STORAGE_ROOT:./data/uploads}

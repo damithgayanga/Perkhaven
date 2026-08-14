@@ -7,6 +7,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.springframework.data.domain.PageImpl;
@@ -33,7 +34,8 @@ public class InvoiceController {
     private final InvoiceService service;
     private final InvoicePdfService pdf;
     private final AuditService audit;
-    public InvoiceController(InvoiceRepository invoices, InvoiceService service, InvoicePdfService pdf, AuditService audit) { this.invoices = invoices; this.service = service; this.pdf = pdf; this.audit = audit; }
+    private final PaymentRepository payments;
+    public InvoiceController(InvoiceRepository invoices, InvoiceService service, InvoicePdfService pdf, AuditService audit, PaymentRepository payments) { this.invoices = invoices; this.service = service; this.pdf = pdf; this.audit = audit; this.payments = payments; }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN') or @invoiceService.canAccessRegistration(#registrationNo, authentication)")
@@ -43,16 +45,17 @@ public class InvoiceController {
                                        @RequestParam(defaultValue = "100") int size) {
         if (registrationNo != null && !registrationNo.isBlank()) {
             var values = invoices.findByStudentRegistrationNoIgnoreCaseOrderByIssueDateDesc(registrationNo);
-            return PageResponse.from(new PageImpl<>(values, PageRequest.of(0, Math.max(1, values.size())), values.size()), Response::from);
+            return PageResponse.from(new PageImpl<>(values, PageRequest.of(0, Math.max(1, values.size())), values.size()), this::response);
         }
-        return PageResponse.from(invoices.findAll(PageRequest.of(page, Math.min(size, 100), Sort.by(Sort.Direction.DESC, "issueDate", "id"))), Response::from);
+        return PageResponse.from(invoices.findAll(PageRequest.of(page, Math.min(size, 100), Sort.by(Sort.Direction.DESC, "issueDate", "id"))), this::response);
     }
 
     @PostMapping("/generation-runs")
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public GenerationResponse generate() {
-        var values = service.generateDueRentInvoices().stream().map(Response::from).toList();
+    public GenerationResponse generate(@RequestParam(required = false) String month) {
+        var generated = month == null || month.isBlank() ? service.generateDueRentInvoices() : service.generateForMonth(YearMonth.parse(month));
+        var values = generated.stream().map(this::response).toList();
         audit.record("GENERATE", "INVOICE", "DUE_RENT", values.size() + " invoice(s)");
         return new GenerationResponse(values);
     }
@@ -61,11 +64,11 @@ public class InvoiceController {
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public Response revise(@PathVariable long id, @Valid @RequestBody RevisionRequest request) {
-        var adjustments = request.adjustments() == null ? List.<Invoice.AdjustmentData>of() : request.adjustments().stream()
+        var adjustments = request.adjustments() == null ? null : request.adjustments().stream()
                 .map(value -> new Invoice.AdjustmentData(value.type(), value.effect() == Effect.INCREASE, value.amount(), value.note())).toList();
         var invoice = service.revise(id, request.amount(), request.remarks(), adjustments);
         audit.record("REVISE", "INVOICE", invoice.getInvoiceNo(), "Rev." + String.format("%02d", invoice.getRevisionNumber()));
-        return Response.from(invoice);
+        return response(invoice);
     }
 
     @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
@@ -88,8 +91,9 @@ public class InvoiceController {
     public record Response(Long id, String invoiceNo, String registrationNo, String studentName, String roomNo,
                            String invoiceType, String month, BigDecimal baseAmount, BigDecimal amount, BigDecimal paidAmount,
                            String issueDate, String dueDate, String status, int version, int revisionNumber, String remarks,
-                           String emailStatus, Instant reissuedAt, Instant createdAt, List<AdjustmentResponse> adjustments) {
-        static Response from(Invoice value) {
+                           String emailStatus, Instant reissuedAt, Instant createdAt, List<AdjustmentResponse> adjustments,
+                           List<String> transactionIds) {
+        static Response from(Invoice value, List<String> transactionIds) {
             var student = value.getStudent();
             var fullName = List.of(student.getFirstName(), student.getMiddleNames() == null ? "" : student.getMiddleNames(), student.getLastName()).stream().filter(v -> !v.isBlank()).reduce((a,b) -> a + " " + b).orElse("");
             return new Response(value.getId(), value.getInvoiceNo(), student.getRegistrationNo(), fullName,
@@ -97,8 +101,9 @@ public class InvoiceController {
                     value.getBillingMonth() == null ? "" : value.getBillingMonth().format(DateTimeFormatter.ofPattern("uuuu-MM")), value.getBaseAmount(), value.getAmount(), value.getPaidAmount(),
                     value.getIssueDate().toString(), value.getDueDate().toString(), status(value.getStatus()), value.getRevisionNumber() + 1,
                     value.getRevisionNumber(), value.getRemarks() == null ? "" : value.getRemarks(), value.getEmailStatus(), value.getReissuedAt(), value.getCreatedAt(),
-                    value.getAdjustments().stream().map(AdjustmentResponse::from).toList());
+                    value.getAdjustments().stream().map(AdjustmentResponse::from).toList(), transactionIds);
         }
         private static String status(InvoiceStatus value) { return switch (value) { case ISSUED -> "Issued"; case PARTIALLY_PAID -> "Partially Paid"; case PAID -> "Paid"; case CANCELLED -> "Cancelled"; }; }
     }
+    private Response response(Invoice value) { return Response.from(value, payments.findTransactionIdsByInvoiceId(value.getId())); }
 }

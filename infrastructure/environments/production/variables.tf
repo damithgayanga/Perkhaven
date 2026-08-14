@@ -147,3 +147,15 @@ variable "alert_email" {
   type        = string
   default     = null
 }
+
+variable "hostel_contact_email" {
+  description = "Hostel contact email printed on invoices and included in outgoing messages."
+  type        = string
+  default     = "hello@perkhaven.example"
+}
+
+variable "hostel_contact_telephone" {
+  description = "Hostel contact telephone printed on invoices and included in outgoing messages."
+  type        = string
+  default     = "+94 11 234 5678"
+}

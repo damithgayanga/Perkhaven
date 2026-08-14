@@ -70,22 +70,22 @@ public class Invoice extends AuditedEntity {
 
     public void revise(BigDecimal directAmount, String remarks, List<AdjustmentData> values) {
         adjustments.clear();
-        if (invoiceType == InvoiceType.RENT) {
-            var total = baseAmount;
-            for (var value : values == null ? List.<AdjustmentData>of() : values) {
-                if (value.amount() == null || value.amount().signum() == 0) continue;
-                var signed = money(value.amount()).multiply(value.increase() ? BigDecimal.ONE : BigDecimal.valueOf(-1));
-                adjustments.add(new BillingAdjustment(this, value.type(), signed, value.note()));
-                total = total.add(signed);
-            }
-            amount = money(total.max(BigDecimal.ZERO));
-        } else {
-            amount = money(directAmount);
+        var total = baseAmount;
+        for (var value : values == null ? List.<AdjustmentData>of() : values) {
+            if (value.amount() == null || value.amount().signum() == 0) continue;
+            var signed = money(value.amount()).multiply(value.increase() ? BigDecimal.ONE : BigDecimal.valueOf(-1));
+            adjustments.add(new BillingAdjustment(this, value.type(), signed, value.note()));
+            total = total.add(signed);
         }
+        amount = values == null ? money(directAmount) : money(total.max(BigDecimal.ZERO));
         this.remarks = remarks; revisionNumber++; reissuedAt = Instant.now(); emailStatus = "QUEUED";
     }
 
     public void markEmailStatus(String value) { emailStatus = value; }
+    public void recordPayment(BigDecimal value) {
+        paidAmount = money(paidAmount.add(value));
+        status = paidAmount.compareTo(amount) >= 0 ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID;
+    }
     private static BigDecimal money(BigDecimal value) { return value.setScale(2, java.math.RoundingMode.HALF_UP); }
     public String getInvoiceNo() { return invoiceNo; }
     public Student getStudent() { return student; }

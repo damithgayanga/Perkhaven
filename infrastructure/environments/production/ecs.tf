@@ -127,7 +127,9 @@ resource "aws_ecs_task_definition" "backend" {
       { name = "PERKHAVEN_SECURITY_COGNITO_ISSUER", value = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.username_main.id}" },
       { name = "PERKHAVEN_SECURITY_COGNITO_CLIENT_ID", value = aws_cognito_user_pool_client.username_frontend.id },
       { name = "PERKHAVEN_MAIL_PROVIDER", value = var.enable_ses_domain ? "ses" : "local" },
-      { name = "PERKHAVEN_MAIL_FROM", value = var.enable_ses_domain ? "no-reply@${var.domain_name}" : "no-reply@perkhaven.invalid" }
+      { name = "PERKHAVEN_MAIL_FROM", value = var.enable_ses_domain ? "no-reply@${var.domain_name}" : "no-reply@perkhaven.invalid" },
+      { name = "PERKHAVEN_HOSTEL_EMAIL", value = var.hostel_contact_email },
+      { name = "PERKHAVEN_HOSTEL_TELEPHONE", value = var.hostel_contact_telephone }
     ]
     secrets = [{
       name      = "DB_PASSWORD"

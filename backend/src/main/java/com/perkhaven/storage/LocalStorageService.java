@@ -17,15 +17,15 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 @ConditionalOnProperty(name = "perkhaven.storage.provider", havingValue = "local", matchIfMissing = true)
 public class LocalStorageService implements StorageService {
-    private static final Set<String> ALLOWED = Set.of("image/jpeg", "image/png", "image/webp");
+    private static final Set<String> ALLOWED = Set.of("image/jpeg", "image/png", "image/webp", "application/pdf");
     private final Path root;
     public LocalStorageService(@Value("${perkhaven.storage.local-root}") String root) { this.root = Path.of(root).toAbsolutePath().normalize(); }
 
     @Override
     public StoredFile store(String category, MultipartFile file) throws IOException {
         if (file.isEmpty()) throw new IllegalArgumentException("File is empty.");
-        if (!ALLOWED.contains(file.getContentType())) throw new IllegalArgumentException("Only JPEG, PNG and WebP photos are supported.");
-        var extension = switch (file.getContentType()) { case "image/png" -> ".png"; case "image/webp" -> ".webp"; default -> ".jpg"; };
+        if (!ALLOWED.contains(file.getContentType())) throw new IllegalArgumentException("Only JPEG, PNG, WebP and PDF evidence files are supported.");
+        var extension = switch (file.getContentType()) { case "image/png" -> ".png"; case "image/webp" -> ".webp"; case "application/pdf" -> ".pdf"; default -> ".jpg"; };
         var key = category + "/" + UUID.randomUUID() + extension;
         var destination = root.resolve(key).normalize();
         if (!destination.startsWith(root)) throw new IllegalArgumentException("Invalid storage key.");

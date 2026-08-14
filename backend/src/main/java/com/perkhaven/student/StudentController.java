@@ -106,7 +106,7 @@ public class StudentController {
         var student = new Student(request.registrationNo());
         apply(student, request);
         var saved = students.save(student);
-        invoiceService.createDeposit(saved);
+        invoiceService.createRegistrationInvoices(saved);
         audit.record("CREATE", "STUDENT", saved.getRegistrationNo(), null);
         return StudentResponse.from(saved);
     }

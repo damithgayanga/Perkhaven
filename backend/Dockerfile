@@ -1,10 +1,11 @@
 # syntax=docker/dockerfile:1.7
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /workspace
-COPY gradlew gradlew.bat build.gradle.kts settings.gradle.kts gradle.properties ./
-COPY gradle ./gradle
+COPY backend/gradlew backend/gradlew.bat backend/build.gradle.kts backend/settings.gradle.kts backend/gradle.properties ./
+COPY backend/gradle ./gradle
 RUN chmod +x gradlew
-COPY src ./src
+COPY backend/src ./src
+COPY front/public/perkhaven-logo.png /front/public/perkhaven-logo.png
 RUN ./gradlew clean bootJar --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine

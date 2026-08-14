@@ -129,6 +129,7 @@ type StudentInvoice = {
   unitRate?: number;
   createdAt: string;
   adjustments?: Array<{ type: string; effect: "Reduce" | "Increase"; amount: number; note: string }>;
+  transactionIds?: string[];
 };
 type StudentPaymentEvidence = {
   id: number;
@@ -374,7 +375,7 @@ type MonthlyAdjustment = {
   type:
     | "Late Start Adjustment"
     | "Early Vacate Adjustment"
-    | "Vacation Adjustment"
+    | "Vacation Discount"
     | "Other Adjustment";
   amount: number;
   note: string;
@@ -789,6 +790,7 @@ export default function Home() {
       page<Shop>("/api/v1/shops").then((result) => setShops(result.items)),
       page<Record<string, unknown>>("/api/v1/shop-tenants").then((result) => setShopTenants(result.items.map(tenantFromApi))),
       page<StudentInvoice>("/api/v1/invoices").then((result) => setStudentInvoices(result.items)),
+      fetch("/api/v1/payments").then(async (response) => { if (!response.ok) throw new Error("Unable to load payments"); setPayments(await response.json()); }),
     ]).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load registers"));
   }, [currentUser]);
   useEffect(() => {
@@ -3937,13 +3939,13 @@ const invoiceRevision = (invoice: StudentInvoice) =>
 const adjustmentApiType = (type: MonthlyAdjustment["type"]) => ({
   "Late Start Adjustment": "LATE_START",
   "Early Vacate Adjustment": "EARLY_VACATE",
-  "Vacation Adjustment": "VACATION_DISCOUNT",
+  "Vacation Discount": "VACATION_DISCOUNT",
   "Other Adjustment": "OTHER",
 }[type]);
 const adjustmentUiType = (type: string): MonthlyAdjustment["type"] => ({
   LATE_START: "Late Start Adjustment",
   EARLY_VACATE: "Early Vacate Adjustment",
-  VACATION_DISCOUNT: "Vacation Adjustment",
+  VACATION_DISCOUNT: "Vacation Discount",
   OTHER: "Other Adjustment",
 }[type] as MonthlyAdjustment["type"] || "Other Adjustment");
 
@@ -6384,7 +6386,8 @@ function PaymentView({
         )}
         {section === "invoices" && (
           <>
-            <button className="primary" onClick={() => window.dispatchEvent(new Event("issue-due-invoices"))}>Issue due invoices</button>
+            <label className="month-control">Billing month<input id="manual-invoice-month" type="month" defaultValue={new Date().toISOString().slice(0, 7)} /></label>
+            <button className="primary" onClick={() => { const month = (document.getElementById("manual-invoice-month") as HTMLInputElement | null)?.value; window.dispatchEvent(new CustomEvent("issue-due-invoices", { detail: month })); }}>Issue invoices</button>
             <button className="secondary" onClick={() => window.dispatchEvent(new Event("export-invoice-ledger"))}>⇩ Print / Export</button>
           </>
         )}
@@ -8098,10 +8101,10 @@ function InvoiceLedger({
     const drawHeader = (page:number) => { pdf.setFillColor(15,48,78); pdf.rect(0,0,pageWidth,22,"F"); pdf.setTextColor(255,255,255); pdf.setFont("helvetica","bold"); pdf.setFontSize(13); pdf.text("THE PERK HAVEN HOSTEL",margin,9); pdf.setFontSize(9); pdf.text("INVOICE LEDGER",margin,16); pdf.setFontSize(7); pdf.text(`Page ${page}`,pageWidth-margin,16,{align:"right"}); let x=margin; pdf.setFillColor(229,237,246); pdf.rect(margin,26,widths.reduce((a,b)=>a+b,0),10,"F"); pdf.setTextColor(15,48,78); pdf.setFontSize(6.2); headers.forEach((h,i)=>{pdf.text(h,x+widths[i]/2,32,{align:"center",maxWidth:widths[i]-2});x+=widths[i];}); return 36; };
     let page=1,y=drawHeader(page); exportRows.forEach((invoice,index)=>{ if(y+8>pageHeight-10){pdf.addPage("a4","landscape");page++;y=drawHeader(page);} if(index%2){pdf.setFillColor(247,249,252);pdf.rect(margin,y,widths.reduce((a,b)=>a+b,0),8,"F");} const values=[invoice.invoiceNo,fmtCompactDate(invoice.issueDate),fmtCompactDate(invoice.dueDate),invoice.invoiceType,invoice.invoiceType==="Deposit"?"—":fmtMonth(invoice.month),invoice.registrationNo,invoice.studentName,invoice.roomNo,`LKR ${invoice.amount.toLocaleString("en-LK")}`,invoice.status,`Rev.${invoiceRevision(invoice)}`]; let x=margin; pdf.setTextColor(20,39,61);pdf.setFont("helvetica","normal");pdf.setFontSize(6.2);values.forEach((v,i)=>{pdf.text(String(v),x+1,y+5,{maxWidth:widths[i]-2});x+=widths[i];});y+=8; }); downloadBlob(pdf.output("blob"),`Perk-Haven-Invoice-Ledger-${new Date().toISOString().slice(0,10)}.pdf`);
   };
-  const generate = async () => {
+  const generate = async (month?: string) => {
     setBusy(true);
     setError("");
-    const response = await fetch("/api/v1/invoices/generation-runs", {
+    const response = await fetch(`/api/v1/invoices/generation-runs${month ? `?month=${encodeURIComponent(month)}` : ""}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
     });
@@ -8109,10 +8112,11 @@ function InvoiceLedger({
     setBusy(false);
     if (!response.ok)
       return setError(result.detail || "Unable to issue invoices");
-    invoicesUpdated(result.invoices || []);
+    const refreshed = await fetch("/api/v1/invoices?size=100");
+    if (refreshed.ok) invoicesUpdated(((await refreshed.json()) as ApiPage<StudentInvoice>).items);
   };
   useEffect(() => {
-    const issue = () => void generate();
+    const issue = (event: Event) => void generate((event as CustomEvent<string>).detail);
     window.addEventListener("issue-due-invoices", issue);
     return () => window.removeEventListener("issue-due-invoices", issue);
   });
@@ -8135,6 +8139,7 @@ function InvoiceLedger({
               <th>STATUS</th>
               <th>REVISION</th>
               <th>EMAIL</th>
+              <th>TRANSACTION ID(S)</th>
               <th>ACTIONS</th>
             </tr>
           </thead>
@@ -8172,6 +8177,7 @@ function InvoiceLedger({
                   <td>
                     <small>{invoice.emailStatus}</small>
                   </td>
+                  <td>{invoice.transactionIds?.length ? invoice.transactionIds.join(", ") : "—"}</td>
                   <td>
                     <div className="admin-row-actions">
                       <button
@@ -8195,7 +8201,7 @@ function InvoiceLedger({
             })}
             {!invoices.length && (
               <tr>
-                <td colSpan={12}>No invoices have been issued.</td>
+                <td colSpan={13}>No invoices have been issued.</td>
               </tr>
             )}
           </tbody>
@@ -8245,7 +8251,7 @@ function InvoiceEditModal({
   const initialAdjustments: Array<{ type: MonthlyAdjustment["type"]; effect: "Reduce" | "Increase"; amount: number; note: string }> =
     invoice.adjustments?.length
       ? invoice.adjustments.map((row) => ({ type: adjustmentUiType(row.type), effect: row.effect, amount: Number(row.amount), note: row.note || "" }))
-      : ["Late Start Adjustment", "Early Vacate Adjustment", "Vacation Adjustment", "Other Adjustment"].map((type) => ({
+      : ["Late Start Adjustment", "Early Vacate Adjustment", "Vacation Discount", "Other Adjustment"].map((type) => ({
           type: type as MonthlyAdjustment["type"], effect: "Reduce" as const, amount: 0, note: "",
         }));
   const [amount, setAmount] = useState(invoice.amount);
@@ -8254,9 +8260,7 @@ function InvoiceEditModal({
   const [remarks, setRemarks] = useState(invoice.remarks);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const calculatedAmount =
-    invoice.invoiceType === "Rent"
-      ? Math.max(
+  const calculatedAmount = Math.max(
           0,
           baseAmount -
             invoiceAdjustments.reduce(
@@ -8264,8 +8268,7 @@ function InvoiceEditModal({
                 sum + (row.effect === "Increase" ? -row.amount : row.amount),
               0,
             ),
-        )
-      : amount;
+        );
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
@@ -8277,12 +8280,12 @@ function InvoiceEditModal({
         amount: calculatedAmount,
         remarks,
         adjustments:
-          invoice.invoiceType === "Rent" ? invoiceAdjustments.map((row) => ({
+          invoiceAdjustments.map((row) => ({
             type: adjustmentApiType(row.type),
             effect: row.effect.toUpperCase(),
             amount: row.amount,
             note: row.note,
-          })) : undefined,
+          })),
       }),
     });
     const result = await response.json();
@@ -8320,11 +8323,11 @@ function InvoiceEditModal({
               step="0.01"
               value={calculatedAmount}
               onChange={(event) => setAmount(Number(event.target.value))}
-              disabled={invoice.invoiceType === "Rent"}
+              disabled
               required
             />
           </label>
-          {invoice.invoiceType === "Rent" && (
+          {(
             <div className="wide invoice-adjustment-editor">
               <div className="invoice-adjustment-summary">
                 <span>
@@ -10782,7 +10785,7 @@ function AdjustmentModal({
             <select name="type">
               <option>Late Start Adjustment</option>
               <option>Early Vacate Adjustment</option>
-              <option>Vacation Adjustment</option>
+              <option>Vacation Discount</option>
               <option>Other Adjustment</option>
             </select>
           </label>
@@ -10863,7 +10866,7 @@ function ShopAdjustmentModal({
             <select name="type">
               <option>Late Start Adjustment</option>
               <option>Early Vacate Adjustment</option>
-              <option>Vacation Adjustment</option>
+              <option>Vacation Discount</option>
               <option>Other Adjustment</option>
             </select>
           </label>
@@ -11024,7 +11027,7 @@ function AdjustmentBreakdownModal({
               <select name="type" defaultValue={editing.type}>
                 <option>Late Start Adjustment</option>
                 <option>Early Vacate Adjustment</option>
-                <option>Vacation Adjustment</option>
+                <option>Vacation Discount</option>
                 <option>Other Adjustment</option>
               </select>
             </label>
@@ -11210,7 +11213,7 @@ function ShopAdjustmentBreakdownModal({
               <select name="type" defaultValue={editing.type}>
                 <option>Late Start Adjustment</option>
                 <option>Early Vacate Adjustment</option>
-                <option>Vacation Adjustment</option>
+                <option>Vacation Discount</option>
                 <option>Other Adjustment</option>
               </select>
             </label>
@@ -17492,6 +17495,8 @@ function AddPayment({
     [saving, setSaving] = useState(false),
     [error, setError] = useState(""),
     [recordedPayment, setRecordedPayment] = useState<Payment | null>(null),
+    [dueInvoices, setDueInvoices] = useState<StudentInvoice[]>([]),
+    oldestInvoice = dueInvoices.find((invoice) => invoice.status === "Issued" || invoice.status === "Partially Paid"),
     shopIncome =
       type === "Shop Rent" ||
       type === "Shop Electricity" ||
@@ -17516,8 +17521,8 @@ function AddPayment({
       : 0,
     depositOutstanding = Math.max(0, depositAmountPayable - depositAlreadyPaid),
     rentLocked = type === "Rent" && depositOutstanding > 0,
-    payable = type === "Rent" ? rentAmountPayable : depositAmountPayable,
-    alreadyPaid = type === "Rent" ? rentAlreadyPaid : depositAlreadyPaid,
+    payable = oldestInvoice ? oldestInvoice.amount : type === "Rent" ? rentAmountPayable : depositAmountPayable,
+    alreadyPaid = oldestInvoice ? (oldestInvoice.paidAmount || 0) : type === "Rent" ? rentAlreadyPaid : depositAlreadyPaid,
     remaining = Math.max(0, payable - alreadyPaid),
     currentPayment = Number(amount) || 0,
     outstandingAfter = Math.max(0, remaining - currentPayment),
@@ -17578,11 +17583,8 @@ function AddPayment({
       );
     const form = new FormData(e.currentTarget);
     const evidence = form.get("evidence");
-    if (
-      settlementMethod === "Bank Transfer" &&
-      (!(evidence instanceof File) || !evidence.size)
-    )
-      return setError("Please upload the bank transfer evidence.");
+    if (!(evidence instanceof File) || !evidence.size)
+      return setError("Payment evidence is required. Upload an image or PDF before recording the payment.");
     if (!paidDate)
       return setError("Payment date is required.");
     setSaving(true);
@@ -17602,6 +17604,8 @@ function AddPayment({
       form.set("month", month);
       form.set("payableAmount", amount);
     } else if (s) {
+      if (!oldestInvoice) { setSaving(false); return setError("No outstanding invoice is available for this student."); }
+      form.set("invoiceId", String(oldestInvoice.id));
       form.set("registrationNo", s.registrationNo);
       form.set("studentName", `${s.firstName} ${s.lastName}`);
       form.set("roomNo", s.roomNo);
@@ -17609,7 +17613,7 @@ function AddPayment({
       else form.delete("month");
       if (type === "Rent") form.set("payableAmount", String(payable));
     }
-    const response = await fetch("/api/payments", {
+    const response = await fetch(s && !externalIncome ? "/api/v1/payments" : "/api/payments", {
       method: "POST",
       body: form,
     });
@@ -17618,9 +17622,10 @@ function AddPayment({
       setSaving(false);
       return setError(result.error || "Unable to record payment");
     }
-    const recorded = (result.payments || [result.payment]) as Payment[];
+    const recorded = (result.payments || [result.payment || result]) as Payment[];
     recorded.forEach(save);
     setRecordedPayment(recorded[0]);
+    if (s && !externalIncome) window.dispatchEvent(new Event("invoices-changed"));
   };
   const addAnother = () => {
     setReg("");
@@ -17680,6 +17685,7 @@ function AddPayment({
             Payment type
             <select
               value={type}
+              disabled={Boolean(s && oldestInvoice)}
               onChange={(event) => {
                 const nextType = event.target.value as
                   | "Rent"
@@ -17721,17 +17727,15 @@ function AddPayment({
                   );
                   setReg(registrationNo);
                   if (student) {
-                    setMonth(nextUnpaidRentMonth(student));
-                    const paidDeposit = payments
-                      .filter(
-                        (payment) =>
-                          payment.registrationNo === student.registrationNo &&
-                          canonicalPaymentType(payment.type) === "Deposit",
-                      )
-                      .reduce((sum, payment) => sum + payment.paidAmount, 0);
-                    setType(
-                      paidDeposit < student.depositPayable ? "Deposit" : "Rent",
-                    );
+                    void fetch(`/api/v1/invoices?registrationNo=${encodeURIComponent(registrationNo)}&size=100`)
+                      .then(async (response) => { if (!response.ok) throw new Error("Unable to load due invoices"); return (await response.json()) as ApiPage<StudentInvoice>; })
+                      .then((page) => {
+                        const due = page.items.filter((invoice) => invoice.status === "Issued" || invoice.status === "Partially Paid")
+                          .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.issueDate.localeCompare(b.issueDate) || a.id - b.id);
+                        setDueInvoices(due);
+                        if (due[0]) { setType(due[0].invoiceType === "Deposit" ? "Deposit" : "Rent"); setMonth(due[0].month || ""); setAmount(String(Math.max(0, due[0].amount - (due[0].paidAmount || 0)))); }
+                      })
+                      .catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to load due invoices"));
                   }
                   setAmount("");
                   setError("");
@@ -17759,6 +17763,13 @@ function AddPayment({
                   Room {s.roomNo} · {cash.format(s.monthlyRent)} rent
                 </small>
               </span>
+            </div>
+          )}
+          {!externalIncome && s && (
+            <div className="wide invoice-adjustment-editor">
+              <div className="invoice-adjustment-heading"><b>Outstanding invoices - oldest first</b><small>Payments are allocated only to the first invoice until it is fully settled.</small></div>
+              {dueInvoices.map((invoice, index) => <div className="invoice-adjustment-row" key={invoice.id}><span><b>{index + 1}. {invoice.invoiceNo}</b><small>{invoice.invoiceType === "Deposit" ? "Deposit" : fmtMonth(invoice.month)} · due {fmtDate(invoice.dueDate)}</small></span><b>{cash.format(Math.max(0, invoice.amount - (invoice.paidAmount || 0)))}</b></div>)}
+              {!dueInvoices.length && <small>No outstanding invoices are available. Generate the required invoice first.</small>}
             </div>
           )}
           {shopIncome && (
@@ -17825,7 +17836,7 @@ function AddPayment({
               </span>
             </div>
           )}
-          {(type === "Rent" || externalIncome) && (
+          {externalIncome && (
             <label>
               Corresponding month
               <input
@@ -17847,9 +17858,7 @@ function AddPayment({
                 required
               />
               <small>
-                {type === "Rent"
-                  ? "Defaults to this student’s earliest unpaid rent month."
-                  : "Used to place this income in the correct accounting period."}
+                Used to place this income in the correct accounting period.
               </small>
             </label>
           )}
@@ -17920,6 +17929,7 @@ function AddPayment({
             }
             required
           />
+          {!externalIncome && <label className="wide">Remarks<textarea name="remarks" rows={3} placeholder="Required when the payment differs from the outstanding invoice balance" required={currentPayment !== remaining} /></label>}
           <Field
             name="paidDate"
             label="Payment date"
@@ -17958,7 +17968,7 @@ function AddPayment({
               Cash/Bank means cash received and subsequently deposited into the bank.
             </small>
           </label>
-          {settlementMethod === "Bank Transfer" && (
+          {(
             <label className="file">
               Evidence
               <input
@@ -17974,7 +17984,7 @@ function AddPayment({
               <span>
                 {evidenceName
                   ? `✓ ${evidenceName}`
-                  : "↑ Upload bank transfer evidence"}
+                  : "↑ Upload required payment evidence"}
               </span>
             </label>
           )}
@@ -18002,7 +18012,7 @@ function AddPayment({
           text={saving ? "Recording…" : "Record payment"}
           disabled={
             saving || !paidDate ||
-            (settlementMethod === "Bank Transfer" && !evidenceName) ||
+            !evidenceName ||
             currentPayment <= 0 ||
             (shopIncome
               ? !shopTenant ||
@@ -18011,7 +18021,7 @@ function AddPayment({
                 shopRemaining <= 0
               : otherIncome
                 ? !payerName || !reference || !month
-                : !s || rentLocked || overLimit || remaining <= 0
+                : !s || !oldestInvoice || overLimit || remaining <= 0
             )
           }
         />

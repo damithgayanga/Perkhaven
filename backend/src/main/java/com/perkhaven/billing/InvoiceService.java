@@ -12,6 +12,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,8 +26,13 @@ public class InvoiceService {
     private final StudentRepository students;
     private final NotificationOutboxRepository notifications;
     private final InvoicePdfService pdf;
-    public InvoiceService(InvoiceRepository invoices, StudentRepository students, NotificationOutboxRepository notifications, InvoicePdfService pdf) {
+    private final String hostelTelephone;
+    private final String hostelEmail;
+    public InvoiceService(InvoiceRepository invoices, StudentRepository students, NotificationOutboxRepository notifications, InvoicePdfService pdf,
+                          @Value("${perkhaven.hostel.telephone}") String hostelTelephone,
+                          @Value("${perkhaven.hostel.email}") String hostelEmail) {
         this.invoices = invoices; this.students = students; this.notifications = notifications; this.pdf = pdf;
+        this.hostelTelephone = hostelTelephone; this.hostelEmail = hostelEmail;
     }
 
     public Invoice createDeposit(Student student) {
@@ -40,6 +46,22 @@ public class InvoiceService {
     }
 
     @Transactional
+    public List<Invoice> createRegistrationInvoices(Student student) {
+        var created = new java.util.ArrayList<Invoice>();
+        created.add(createDeposit(student));
+        var today = LocalDate.now(BUSINESS_ZONE);
+        var month = YearMonth.from(student.getStartDate());
+        var current = YearMonth.from(today);
+        if (!student.getStartDate().isAfter(today)) {
+            while (!month.isAfter(current)) {
+                created.add(createRent(student, month, historicalIssueDate(student, month, today)));
+                month = month.plusMonths(1);
+            }
+        }
+        return created;
+    }
+
+    @Transactional
     public List<Invoice> generateDueRentInvoices() {
         var today = LocalDate.now(BUSINESS_ZONE);
         var month = YearMonth.from(today);
@@ -47,6 +69,16 @@ public class InvoiceService {
             if (!student.getStartDate().isAfter(month.atEndOfMonth())) createRent(student, month, today);
         }
         return invoices.findAll();
+    }
+
+    @Transactional
+    public List<Invoice> generateForMonth(YearMonth month) {
+        var today = LocalDate.now(BUSINESS_ZONE);
+        var generated = new java.util.ArrayList<Invoice>();
+        for (var student : students.findByStatusOrderByRegistrationNo(RecordStatus.ACTIVE)) {
+            if (!student.getStartDate().isAfter(month.atEndOfMonth())) generated.add(createRent(student, month, today));
+        }
+        return generated;
     }
 
     @Scheduled(cron = "0 5 3 * * *", zone = "Asia/Colombo")
@@ -64,6 +96,12 @@ public class InvoiceService {
             enqueue(invoice);
             return invoice;
         });
+    }
+
+    private LocalDate historicalIssueDate(Student student, YearMonth month, LocalDate today) {
+        if (month.equals(YearMonth.from(today))) return today;
+        var scheduled = month.atEndOfMonth().minusDays(7);
+        return scheduled.isBefore(student.getStartDate()) ? student.getStartDate() : scheduled;
     }
 
     @Transactional
@@ -103,7 +141,7 @@ public class InvoiceService {
         var subject = "Perkhaven invoice " + invoice.getInvoiceNo() + " Rev." + String.format("%02d", invoice.getRevisionNumber());
         var body = "Dear " + student.getFirstName() + ",\n\nAttached is your invoice for " + descriptor +
                 ". The amount due is LKR " + invoice.getAmount().toPlainString() + " and payment is due by " + invoice.getDueDate() +
-                ".\n\nRegards,\nThe Perk Haven Hostel";
+                ".\n\nRegards,\nThe Perk Haven Hostel\n" + hostelTelephone + " | " + hostelEmail;
         notifications.save(new NotificationOutbox(invoice, student.getEmail(), subject, body,
                 invoice.getInvoiceNo() + "-Rev." + String.format("%02d", invoice.getRevisionNumber()) + ".pdf", pdf.create(invoice)));
     }
