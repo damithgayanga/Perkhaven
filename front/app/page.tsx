@@ -13764,8 +13764,7 @@ function FinancialMonthlyMatrix({
     expenseAmount(expenses, month);
   const rowTotal = (values: number[]) =>
     values.reduce((sum, value) => sum + value, 0);
-  const matrixWidth =
-    months.length === 12 ? "100%" : `${230 + months.length * 110 + 125}px`;
+  const matrixWidth = `${230 + months.length * 110 + 125}px`;
   return (
     <div className="panel financial-matrix-panel">
       <div className="financial-matrix-title">

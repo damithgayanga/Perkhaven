@@ -1120,9 +1120,9 @@ mark {
 .approval-actions .disapprove { color: #a7433d; border-color: #e5b5b1; }
 .approval-actions .approve { color: white; background: #19785a; border-color: #19785a; }
 .financial-heading {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: flex-start;
-  justify-content: space-between;
   gap: 20px;
   min-height: 0;
 }
@@ -1154,13 +1154,10 @@ mark {
   width: min(76%, 1180px);
 }
 .financial-accounts .account-summary-cards {
-  position: fixed;
-  top: 8px;
-  left: calc(238px + (100vw - 238px) / 2);
-  z-index: 24;
-  width: min(54vw, 1040px);
-  margin: 0;
-  transform: translateX(-50%);
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  margin: 0 0 20px;
 }
 .financial-accounts .account-summary-cards article {
   min-height: 62px;
@@ -1180,10 +1177,8 @@ mark {
   line-height: 1.15;
 }
 .financial-accounts .account-period {
-  position: fixed;
-  top: 12px;
-  right: 24px;
-  z-index: 25;
+  grid-column: 2;
+  grid-row: 1;
   margin: 0;
   align-items: flex-end;
 }
@@ -1211,7 +1206,18 @@ mark {
   border-radius: 7px;
   background: white;
 }
-.financial-matrix-panel { overflow: hidden; }
+.financial-matrix-panel {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.financial-matrix-panel > .tablewrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+}
 .financial-matrix-title {
   display: flex;
   align-items: center;
@@ -1222,10 +1228,41 @@ mark {
 .financial-matrix-title b { color: var(--navy); font-size: 13px; }
 .financial-matrix-title span { color: #778599; font-size: 9px; }
 .financial-monthly-table {
-  width: 100%;
-  min-width: 0;
+  min-width: max-content;
+  max-width: none;
   border-collapse: collapse;
   table-layout: fixed;
+}
+
+@media (max-width: 1180px) {
+  .financial-heading {
+    grid-template-columns: 1fr;
+  }
+  .financial-accounts .account-summary-cards,
+  .financial-accounts .account-period {
+    grid-column: 1;
+  }
+  .financial-accounts .account-summary-cards { grid-row: 1; }
+  .financial-accounts .account-period {
+    grid-row: 2;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+}
+
+@media (max-width: 720px) {
+  .financial-accounts .account-summary-cards {
+    grid-template-columns: 1fr;
+  }
+  .financial-accounts .account-period {
+    align-items: stretch;
+  }
+  .financial-accounts .account-period label,
+  .financial-accounts .account-period input,
+  .financial-accounts .account-period select,
+  .financial-accounts .account-period .secondary {
+    width: 100%;
+  }
 }
 .financial-monthly-table.short-period { margin-right: auto; }
 .financial-monthly-table th,
@@ -3521,9 +3558,17 @@ table thead .table-sort-head {
 .documents-generator { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(280px, 420px) auto; align-items: end; gap: 22px; padding: 24px; }
 .documents-generator h2 { margin: 4px 0 7px; }
 .documents-generator p:not(.tag) { color: #66788c; }
-.documents-generator label { display: grid; gap: 7px; font-weight: 800; color: #344b60; }
-.documents-generator select { min-height: 42px; padding: 9px 11px; border: 1px solid #cbd7e3; border-radius: 8px; background: #fff; }
-.document-actions { display: flex; gap: 9px; }
+.documents-generator label { display: grid; min-width: 0; gap: 7px; font-weight: 800; color: #344b60; }
+.documents-generator select { width: 100%; min-width: 0; min-height: 42px; padding: 9px 11px; border: 1px solid #cbd7e3; border-radius: 8px; background: #fff; box-sizing: border-box; }
+.document-actions { display: flex; min-width: max-content; gap: 12px; }
+.document-actions button { white-space: nowrap; }
+
+@media (max-width: 1200px) {
+  .documents-generator {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .documents-generator > div:first-child { grid-column: 1 / -1; }
+}
 .agreement-workspace-modal { width: min(1480px, 97vw); height: min(94vh, 980px); display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
 .agreement-workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; background: #edf2f6; }
 .agreement-preview-shell { min-width: 0; overflow: auto; padding: 20px; }
@@ -3571,7 +3616,7 @@ table thead .table-sort-head {
 .agreement-template-status span { font-size: .75rem; }
 .document-preview-modal { width: min(980px, 96vw); height: min(92vh, 880px); display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
 .document-preview-modal iframe { width: 100%; height: 100%; border: 0; background: #edf2f6; }
-@media (max-width: 900px) { .student-self-service .limited-content { width: calc(100% - 24px); } .documents-generator, .agreement-workspace, .settlement-variables-body, .student-agreement-card { grid-template-columns: 1fr; } .agreement-variables, .agreement-sign-panel, .settlement-variables { border-left: 0; border-right: 0; border-top: 1px solid #d5e0ea; } .settlement-pdf-preview { min-height: 560px; } }
+@media (max-width: 900px) { .student-self-service .limited-content { width: calc(100% - 24px); } .documents-generator, .agreement-workspace, .settlement-variables-body, .student-agreement-card { grid-template-columns: minmax(0, 1fr); } .documents-generator > *, .documents-generator > div:first-child { grid-column: 1; } .document-actions { min-width: 0; flex-wrap: wrap; } .document-actions button { flex: 1 1 220px; } .agreement-variables, .agreement-sign-panel, .settlement-variables { border-left: 0; border-right: 0; border-top: 1px solid #d5e0ea; } .settlement-pdf-preview { min-height: 560px; } }
 @media (max-width: 1000px) {
   .admin-permission-table { min-width: 1100px; }
   .admin-controls-summary { align-items: flex-start; flex-wrap: wrap; }
