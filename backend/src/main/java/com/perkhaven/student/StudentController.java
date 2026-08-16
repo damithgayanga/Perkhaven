@@ -3,6 +3,8 @@ package com.perkhaven.student;
 import com.perkhaven.accommodation.Room;
 import com.perkhaven.accommodation.RoomRepository;
 import com.perkhaven.billing.InvoiceService;
+import com.perkhaven.billing.InvoiceRepository;
+import com.perkhaven.billing.PaymentRepository;
 import com.perkhaven.common.api.PageResponse;
 import com.perkhaven.common.audit.AuditService;
 import com.perkhaven.common.domain.RecordStatus;
@@ -55,8 +57,14 @@ public class StudentController {
     private final StorageService storage;
     private final AuditService audit;
     private final InvoiceService invoiceService;
-    public StudentController(StudentRepository students, RoomRepository rooms, StorageService storage, AuditService audit, InvoiceService invoiceService) {
+    private final InvoiceRepository invoices;
+    private final PaymentRepository payments;
+    private final StudentRegistrationNumberService registrationNumbers;
+    public StudentController(StudentRepository students, RoomRepository rooms, StorageService storage, AuditService audit,
+                             InvoiceService invoiceService, InvoiceRepository invoices, PaymentRepository payments,
+                             StudentRegistrationNumberService registrationNumbers) {
         this.students = students; this.rooms = rooms; this.storage = storage; this.audit = audit; this.invoiceService = invoiceService;
+        this.invoices = invoices; this.payments = payments; this.registrationNumbers = registrationNumbers;
     }
 
     @GetMapping
@@ -102,8 +110,11 @@ public class StudentController {
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public StudentResponse create(@Valid @RequestBody StudentRequest request) {
-        if (students.findByRegistrationNoIgnoreCase(request.registrationNo()).isPresent()) throw new ConflictException("Registration number already exists.");
-        var student = new Student(request.registrationNo());
+        var registrationNo = request.registrationNo() == null || request.registrationNo().isBlank()
+                ? registrationNumbers.next()
+                : request.registrationNo().trim();
+        if (students.findByRegistrationNoIgnoreCase(registrationNo).isPresent()) throw new ConflictException("Registration number already exists.");
+        var student = new Student(registrationNo);
         apply(student, request);
         var saved = students.save(student);
         invoiceService.createRegistrationInvoices(saved);
@@ -126,7 +137,15 @@ public class StudentController {
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public void delete(@PathVariable String registrationNo) {
-        var student = find(registrationNo); students.delete(student); storage.delete(student.getPhotoKey());
+        var student = find(registrationNo);
+        var studentId = student.getId();
+        var photoKey = student.getPhotoKey();
+        var evidenceKeys = payments.findEvidenceKeysByStudentId(studentId);
+        payments.deleteByStudentId(studentId);
+        invoices.deleteByStudentId(studentId);
+        students.delete(find(registrationNo));
+        evidenceKeys.forEach(storage::delete);
+        storage.delete(photoKey);
         audit.record("DELETE", "STUDENT", registrationNo, null);
     }
 
@@ -168,7 +187,7 @@ public class StudentController {
     private Student find(String registrationNo) { return students.findByRegistrationNoIgnoreCase(registrationNo).orElseThrow(() -> new NotFoundException("Student not found.")); }
 
     public record EmergencyContactRequest(@NotBlank String name, @NotBlank String phone, @NotBlank String relationship, String address) {}
-    public record StudentRequest(@NotBlank String registrationNo, @NotBlank String firstName, String middleNames,
+    public record StudentRequest(String registrationNo, @NotBlank String firstName, String middleNames,
                                  @NotBlank String lastName, LocalDate dateOfBirth,
                                  @NotBlank String idNo, @NotBlank String mobile, String whatsapp, @Email @NotBlank String email,
                                  String university, String currentYear, @NotBlank String address, @NotNull LocalDate registeredDate,

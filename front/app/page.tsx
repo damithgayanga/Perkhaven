@@ -16988,7 +16988,6 @@ function Register({
   const [depositAdjusted, setDepositAdjusted] = useState(false);
   const [registrationError, setRegistrationError] = useState("");
   const next = Math.max(...students.map((s) => s.id), 1000) + 1,
-    reg = `PH-2026-${String(next - 1000).padStart(3, "0")}`,
     selectedRoomRecord = rooms.find((room) => room.roomNo === selectedRoom),
     overlappingResidents = students.filter(
       (student) =>
@@ -17016,7 +17015,7 @@ function Register({
       r = rooms.find((x) => x.roomNo === v("roomNo"));
     const s: Student = {
       id: next,
-      registrationNo: reg,
+      registrationNo: "",
       firstName: v("firstName"),
       middleNames: v("middleNames"),
       lastName: v("lastName"),
@@ -17081,7 +17080,7 @@ function Register({
         <ModalHead
           tag="NEW RESIDENT"
           title="Student registration"
-          text={`Automated ID: ${reg}`}
+          text="The registration number is assigned automatically when saved."
           close={close}
         />
         <p className="form-guidance">

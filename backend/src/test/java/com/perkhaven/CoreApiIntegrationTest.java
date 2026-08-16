@@ -1,6 +1,7 @@
 package com.perkhaven;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -83,7 +84,7 @@ class CoreApiIntegrationTest {
                   "currentYear":"Year 2",
                   "address":"10 Test Road",
                   "registeredDate":"2026-08-13",
-                  "startDate":"2026-08-15",
+                  "startDate":"2026-08-31",
                   "roomNo":"104",
                   "monthlyRent":22500.00,
                   "depositPayable":67500.00,
@@ -164,6 +165,50 @@ class CoreApiIntegrationTest {
                 .andExpect(status().isCreated());
         mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-HISTORY-901").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(4));
+    }
+
+    @Test
+    void backendAssignsSequentialRegistrationNumbersAndAdminCanDeleteStudentWithFinancialRecords() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var firstStudent = """
+                {"firstName":"Sequence","lastName":"One","idNo":"SEQ001","mobile":"+94770000101",
+                 "email":"sequence.one@example.com","address":"Test","registeredDate":"2026-08-13",
+                 "startDate":"2099-08-15","monthlyRent":22500.00,"depositPayable":67500.00,
+                 "status":"ACTIVE","emergencyContacts":[]}
+                """;
+        var secondStudent = firstStudent.replace("One", "Two")
+                .replace("SEQ001", "SEQ002")
+                .replace("+94770000101", "+94770000102")
+                .replace("sequence.one", "sequence.two");
+
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(firstStudent))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.registrationNo").value("PH-STD-00001"));
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(secondStudent))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.registrationNo").value("PH-STD-00002"));
+
+        var invoicesResponse = mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-STD-00001")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(1))
+                .andReturn().getResponse().getContentAsString();
+        var invoiceId = mapper.readTree(invoicesResponse).at("/items/0/id").asLong();
+        var evidence = new MockMultipartFile("evidence", "sequence-payment.pdf", "application/pdf", new byte[]{'%', 'P', 'D', 'F'});
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payments")
+                        .file(evidence).param("invoiceId", String.valueOf(invoiceId)).param("paidAmount", "100.00")
+                        .param("paidDate", "2026-08-13").param("settlementMethod", "Bank Transfer")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        mvc.perform(delete("/api/v1/students/PH-STD-00001").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/students/PH-STD-00001").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-STD-00001")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(0));
     }
 
     private String token(String username, String password) throws Exception {
