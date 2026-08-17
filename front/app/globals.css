@@ -2766,6 +2766,19 @@ mark {
 .formgrid .start-row {
   grid-column-start: 1;
 }
+.medical-condition-choice {
+  grid-column: span 2;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #dce2ea;
+  border-radius: 8px;
+}
+.medical-condition-choice legend { padding: 0 6px; color: #536174; font-size: 9px; font-weight: 800; }
+.medical-condition-choice label { flex-direction: row; align-items: center; }
+.medical-condition-choice input { margin: 0; }
 .autofill {
   grid-column: span 2;
   background: #f1f6fc;
@@ -3064,6 +3077,7 @@ mark {
   color: #205da7;
   box-shadow: 0 1px 5px #1a385b1c;
 }
+.payment-records-table { margin-bottom: 14px; }
 .deposit-profile-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

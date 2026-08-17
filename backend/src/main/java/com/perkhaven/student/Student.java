@@ -45,6 +45,10 @@ public class Student extends AuditedEntity {
     private String currentYear;
     @Column(nullable = false, length = 600)
     private String address;
+    @Column(name = "has_medical_condition", nullable = false)
+    private boolean hasMedicalCondition;
+    @Column(name = "medical_condition_details", length = 2000)
+    private String medicalConditionDetails;
     @Column(name = "registered_date", nullable = false)
     private LocalDate registeredDate;
     @Column(name = "start_date", nullable = false)
@@ -76,6 +80,8 @@ public class Student extends AuditedEntity {
         this.dateOfBirth = data.dateOfBirth(); this.idNo = data.idNo();
         this.mobile = data.mobile(); this.whatsapp = data.whatsapp(); this.email = data.email();
         this.university = data.university(); this.currentYear = data.currentYear(); this.address = data.address();
+        this.hasMedicalCondition = data.hasMedicalCondition();
+        this.medicalConditionDetails = data.hasMedicalCondition() ? data.medicalConditionDetails() : null;
         this.registeredDate = data.registeredDate(); this.startDate = data.startDate(); this.room = room;
         this.monthlyRent = data.monthlyRent(); this.depositPayable = data.depositPayable(); this.status = data.status();
         emergencyContacts.clear();
@@ -101,6 +107,8 @@ public class Student extends AuditedEntity {
     public String getUniversity() { return university; }
     public String getCurrentYear() { return currentYear; }
     public String getAddress() { return address; }
+    public boolean hasMedicalCondition() { return hasMedicalCondition; }
+    public String getMedicalConditionDetails() { return medicalConditionDetails; }
     public LocalDate getRegisteredDate() { return registeredDate; }
     public LocalDate getStartDate() { return startDate; }
     public Room getRoom() { return room; }
@@ -115,7 +123,8 @@ public class Student extends AuditedEntity {
 
     public record StudentData(String firstName, String middleNames, String lastName, LocalDate dateOfBirth,
                               String idNo, String mobile, String whatsapp, String email,
-                              String university, String currentYear, String address, LocalDate registeredDate, LocalDate startDate,
+                              String university, String currentYear, String address, boolean hasMedicalCondition,
+                              String medicalConditionDetails, LocalDate registeredDate, LocalDate startDate,
                               BigDecimal monthlyRent, BigDecimal depositPayable, RecordStatus status,
                               List<EmergencyContactData> emergencyContacts) {}
     public record EmergencyContactData(String name, String phone, String relationship, String address) {}

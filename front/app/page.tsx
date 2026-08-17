@@ -23,6 +23,8 @@ type Student = {
   university: string;
   currentYear: string;
   address: string;
+  hasMedicalCondition?: boolean;
+  medicalConditionDetails?: string;
   emergency1Name: string;
   emergency1Contact: string;
   emergency1Relationship: string;
@@ -435,6 +437,9 @@ const studentFromApi = (value: Record<string, unknown>): Student => ({
   university: String(value.university || ""),
   currentYear: String(value.currentYear || ""),
   roomNo: String(value.roomNo || ""),
+  hasMedicalCondition: Boolean(value.hasMedicalCondition),
+  medicalConditionDetails: String(value.medicalConditionDetails || ""),
+  photoKey: value.photoName ? String(value.photoName) : undefined,
   status: uiStatus(String(value.status || "INACTIVE")),
   ...contactFields((value.emergencyContacts || []) as ApiContact[]),
 });
@@ -2656,6 +2661,7 @@ function StudentSelfService({
   const tabs = [
     "Personal details",
     "Emergency contacts",
+    "Medical condition",
     "Hostel details",
     "Payment details",
     "Invoices",
@@ -2689,7 +2695,7 @@ function StudentSelfService({
             style={
               student.photoKey
                 ? {
-                    backgroundImage: `url("/api/students/photo?registrationNo=${encodeURIComponent(student.registrationNo)}")`,
+                    backgroundImage: `url("/api/v1/students/${encodeURIComponent(student.registrationNo)}/photo?v=${encodeURIComponent(student.photoName || "photo")}")`,
                   }
                 : undefined
             }
@@ -2818,6 +2824,14 @@ function StudentSelfService({
                 />
               </div>
             </>
+          )}
+          {tab === "Medical condition" && (
+            <div className="detailgrid">
+              <Detail title="MEDICAL CONDITION" rows={[
+                ["Special medical condition", student.hasMedicalCondition ? "Yes" : "No"],
+                ["Details", student.hasMedicalCondition ? student.medicalConditionDetails || "Not provided" : "Not applicable"],
+              ]} />
+            </div>
           )}
           {tab === "Hostel details" && (
             <>
@@ -16986,6 +17000,7 @@ function Register({
   const [monthlyRent, setMonthlyRent] = useState("");
   const [depositPayable, setDepositPayable] = useState("");
   const [depositAdjusted, setDepositAdjusted] = useState(false);
+  const [hasMedicalCondition, setHasMedicalCondition] = useState(false);
   const [registrationError, setRegistrationError] = useState("");
   const next = Math.max(...students.map((s) => s.id), 1000) + 1,
     selectedRoomRecord = rooms.find((room) => room.roomNo === selectedRoom),
@@ -17027,6 +17042,8 @@ function Register({
       university: v("university"),
       currentYear: v("currentYear"),
       address: v("address"),
+      hasMedicalCondition,
+      medicalConditionDetails: hasMedicalCondition ? v("medicalConditionDetails") : "",
       emergency1Name: v("emergency1Name"),
       emergency1Contact: phone("emergency1Contact"),
       emergency1Relationship: v("emergency1Relationship"),
@@ -17110,6 +17127,14 @@ function Register({
           <PhoneField prefix="emergency2Contact" label="Contact 2 · phone" required={!managementCreator} />
           <Field name="emergency2Relationship" label="Relationship" required={!managementCreator} />
           <Field name="emergency2Address" label="Contact 2 · address" wide required={!managementCreator} />
+        </FormSection>
+        <FormSection title="Medical condition">
+          <fieldset className="medical-condition-choice">
+            <legend>Does the student have a special medical condition?</legend>
+            <label><input type="radio" name="hasMedicalCondition" checked={!hasMedicalCondition} onChange={() => setHasMedicalCondition(false)} /> No</label>
+            <label><input type="radio" name="hasMedicalCondition" checked={hasMedicalCondition} onChange={() => setHasMedicalCondition(true)} /> Yes</label>
+          </fieldset>
+          {hasMedicalCondition && <label className="wide">Medical condition details<textarea name="medicalConditionDetails" maxLength={2000} required /></label>}
         </FormSection>
         <FormSection title="Hostel allocation">
           <Field
@@ -17248,6 +17273,8 @@ function EditStudent({
         dateOfBirth: value("dateOfBirth") || null, idNo: value("idNo"),
         mobile: phone("mobile"), whatsapp: phone("whatsapp"), email: value("email"),
         university: value("university"), currentYear: value("currentYear"), address: value("address"),
+        hasMedicalCondition: value("hasMedicalCondition") === "yes",
+        medicalConditionDetails: value("medicalConditionDetails"),
         registeredDate: value("registeredDate"), startDate: value("startDate"), roomNo: value("roomNo"),
         monthlyRent: Number(value("monthlyRent")), depositPayable: Number(value("depositPayable")),
         status: student.status.toUpperCase(),
@@ -17381,6 +17408,10 @@ function EditStudent({
             defaultValue={student.emergency2Address}
             wide
           />
+        </FormSection>
+        <FormSection title="Medical condition">
+          <label>Special medical condition<select name="hasMedicalCondition" defaultValue={student.hasMedicalCondition ? "yes" : "no"}><option value="no">No</option><option value="yes">Yes</option></select></label>
+          <label className="wide">Medical condition details<textarea name="medicalConditionDetails" maxLength={2000} defaultValue={student.medicalConditionDetails || ""} /></label>
         </FormSection>
         <FormSection title="Registration and room">
           <Field
@@ -18220,6 +18251,20 @@ async function downloadStudentProfilePdf(student: Student) {
   doc.text("STUDENT PROFILE", 46, 24);
   doc.text(`Generated ${new Date().toLocaleDateString("en-GB")}`, 194, 24, { align: "right" });
 
+  if (student.photoName) {
+    try {
+      const response = await fetch(`/api/v1/students/${encodeURIComponent(student.registrationNo)}/photo`);
+      if (response.ok) {
+        const format = (response.headers.get("content-type") || "").includes("png") ? "PNG" : "JPEG";
+        doc.setDrawColor(205, 216, 227);
+        doc.roundedRect(165, 39, 29, 34, 2, 2, "S");
+        doc.addImage(new Uint8Array(await response.arrayBuffer()), format, 166, 40, 27, 32);
+      }
+    } catch {
+      /* The profile remains downloadable if the photograph cannot be loaded. */
+    }
+  }
+
   doc.setTextColor(18, 42, 66);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(17);
@@ -18227,7 +18272,7 @@ async function downloadStudentProfilePdf(student: Student) {
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.text(`Registration No: ${student.registrationNo}`, 18, 57);
-  doc.text(`Status: ${student.status}`, 192, 57, { align: "right" });
+  doc.text(`Status: ${student.status}`, 157, 57, { align: "right" });
 
   doc.setFontSize(9);
   section("PERSONAL DETAILS", 72);
@@ -18295,16 +18340,14 @@ function Profile({
     if (!photo) return;
     setPhotoBusy(true);
     const form = new FormData();
-    form.set("registrationNo", student.registrationNo);
-    form.set("studentJson", JSON.stringify(student));
-    form.set("photo", photo);
+    form.set("file", photo);
     try {
-      const response = await fetch("/api/students/photo", {
+      const response = await fetch(`/api/v1/students/${encodeURIComponent(student.registrationNo)}/photo`, {
         method: "POST",
         body: form,
       });
       const data = await response.json();
-      if (response.ok && data.student) studentUpdated(data.student);
+      if (response.ok) studentUpdated(studentFromApi(data));
     } finally {
       setPhotoBusy(false);
       event.target.value = "";
@@ -18332,7 +18375,7 @@ function Profile({
             style={
               student.photoKey
                 ? {
-                    backgroundImage: `url("/api/students/photo?registrationNo=${encodeURIComponent(student.registrationNo)}&v=${encodeURIComponent(student.photoName || "photo")}")`,
+                    backgroundImage: `url("/api/v1/students/${encodeURIComponent(student.registrationNo)}/photo?v=${encodeURIComponent(student.photoName || "photo")}")`,
                   }
                 : undefined
             }
@@ -18374,6 +18417,7 @@ function Profile({
         {[
           "Personal details",
           "Emergency contacts",
+          "Medical condition",
           "Payment details",
           "Profile Change History",
         ].map((x) => (
@@ -18482,6 +18526,14 @@ function Profile({
                 ["Address", student.emergency2Address || "—"],
               ]}
             />
+          </div>
+        )}
+        {tab === "Medical condition" && (
+          <div className="detailgrid">
+            <Detail title="MEDICAL CONDITION" rows={[
+              ["Special medical condition", student.hasMedicalCondition ? "Yes" : "No"],
+              ["Details", student.hasMedicalCondition ? student.medicalConditionDetails || "Not provided" : "Not applicable"],
+            ]} />
           </div>
         )}
         {tab === "Payment details" && (
@@ -18874,7 +18926,7 @@ function StudentPaymentProfile({
   payments: Payment[];
   adjustments: MonthlyAdjustment[];
 }) {
-  const [view, setView] = useState<"deposit" | "rent" | "outstanding">(
+  const [view, setView] = useState<"deposit" | "rent" | "outstanding" | "records">(
     "deposit",
   );
   const [printScope, setPrintScope] = useState<
@@ -18977,25 +19029,20 @@ function StudentPaymentProfile({
     (payment.settlementMethod || "Bank Transfer") === "Cash"
       ? Boolean(payment.cashVerified)
       : Boolean(payment.receiptEmailStatus && !payment.receiptEmailStatus.toLowerCase().includes("pending"));
+  type PaymentRecordRow = { invoice: StudentInvoice; payment: Payment | null; payable: number | null };
+  const recordRows: PaymentRecordRow[] = [...invoiceEntries]
+    .filter((invoice) => printScope !== "deposit" || invoice.invoiceType === "Deposit")
+    .filter((invoice) => printScope !== "period" || ((!printFrom || invoice.dueDate >= printFrom) && (!printTo || invoice.dueDate <= printTo)))
+    .filter((invoice) => printScope !== "outstanding" || (invoice.status !== "Paid" && invoice.status !== "Cancelled"))
+    .sort((left, right) => left.dueDate.localeCompare(right.dueDate) || left.invoiceNo.localeCompare(right.invoiceNo))
+    .flatMap<PaymentRecordRow>((invoice) => {
+      const invoicePayments = [...deposits, ...rentReceipts]
+        .filter((payment) => payment.invoiceNo === invoice.invoiceNo)
+        .sort((left, right) => left.paidDate.localeCompare(right.paidDate) || transactionIdFor(left).localeCompare(transactionIdFor(right)));
+      if (!invoicePayments.length) return [{ invoice, payment: null, payable: invoice.amount }];
+      return invoicePayments.map((payment, index) => ({ invoice, payment, payable: index === 0 ? invoice.amount : null }));
+    });
   const downloadPaymentLog = async () => {
-    const selected = [...deposits, ...rentReceipts]
-      .filter(() => printScope !== "outstanding")
-      .filter(
-        (payment) =>
-          printScope !== "deposit" ||
-          canonicalPaymentType(payment.type) === "Deposit",
-      )
-      .filter(
-        (payment) =>
-          printScope !== "period" ||
-          ((!printFrom || payment.paidDate >= printFrom) &&
-            (!printTo || payment.paidDate <= printTo)),
-      )
-      .sort(
-        (a, b) =>
-          a.paidDate.localeCompare(b.paidDate) ||
-          transactionIdFor(a).localeCompare(transactionIdFor(b)),
-      );
     const { jsPDF } = await import("jspdf");
     const pdf = new jsPDF({
       orientation: "landscape",
@@ -19034,7 +19081,7 @@ function StudentPaymentProfile({
         : printScope === "outstanding"
           ? "Outstanding room payments"
           : printScope === "period"
-            ? `Payment dates ${printFrom ? fmtDate(printFrom) : "Beginning"} to ${printTo ? fmtDate(printTo) : "Present"}`
+            ? `Invoice due dates ${printFrom ? fmtDate(printFrom) : "Beginning"} to ${printTo ? fmtDate(printTo) : "Present"}`
             : "All payments";
     pdf.text(
       `Selection: ${scopeLabel}  |  Generated: ${fmtDate(new Date().toISOString().slice(0, 10))}`,
@@ -19069,22 +19116,21 @@ function StudentPaymentProfile({
       y += 7;
     };
     drawHeader();
-    selected.forEach((payment) => {
+    recordRows.forEach(({ invoice, payment, payable }) => {
       if (y > 194) {
         pdf.addPage("a4", "landscape");
         y = 18;
         drawHeader();
       }
-      const type = canonicalPaymentType(payment.type);
       const values = [
-        transactionIdFor(payment),
-        payment.invoiceNo || "—",
-        type,
-        type === "Deposit" ? "—" : fmtMonth(payment.month),
-        fmtDate(paymentDueDate(payment)),
-        fmtDate(payment.paidDate),
-        amountOnly.format(payment.payableAmount),
-        amountOnly.format(payment.paidAmount),
+        payment ? transactionIdFor(payment) : "—",
+        invoice.invoiceNo,
+        invoice.invoiceType,
+        invoice.invoiceType === "Deposit" ? "—" : fmtMonth(invoice.month),
+        fmtDate(invoice.dueDate),
+        payment ? fmtDate(payment.paidDate) : "—",
+        payable == null ? "Included Above" : amountOnly.format(payable),
+        payment ? amountOnly.format(payment.paidAmount) : "—",
       ];
       let x = 16;
       values.forEach((value, index) => {
@@ -19095,50 +19141,14 @@ function StudentPaymentProfile({
       pdf.line(14, y + 2, 283, y + 2);
       y += 7;
     });
-    if (printScope === "outstanding")
-      outstandingRows.forEach((row) => {
-        if (y > 194) {
-          pdf.addPage("a4", "landscape");
-          y = 18;
-          drawHeader();
-        }
-        const [year, month] = row.month.split("-").map(Number),
-          dueDate = new Date(Date.UTC(year, month, 0))
-            .toISOString()
-            .slice(0, 10);
-        const invoice = invoiceEntries.find(
-          (entry) => entry.invoiceType === "Rent" && entry.month === row.month,
-        );
-        const values = [
-          "—",
-          invoice?.invoiceNo || "—",
-          "Outstanding",
-          fmtMonth(row.month),
-          fmtDate(dueDate),
-          "—",
-          amountOnly.format(row.payable),
-          amountOnly.format(row.outstanding),
-        ];
-        let x = 16;
-        values.forEach((value, index) => {
-          pdf.text(String(value), x, y);
-          x += widths[index];
-        });
-        pdf.setDrawColor(218, 226, 234);
-        pdf.line(14, y + 2, 283, y + 2);
-        y += 7;
-      });
-    if (
-      (!selected.length && printScope !== "outstanding") ||
-      (printScope === "outstanding" && !outstandingRows.length)
-    ) {
+    if (!recordRows.length) {
       pdf.text("No payments match the selected filter.", 16, y);
       y += 7;
     }
     const total =
       printScope === "outstanding"
-        ? totalOutstanding
-        : selected.reduce((sum, payment) => sum + payment.paidAmount, 0);
+        ? recordRows.reduce((sum, row) => sum + (row.payable == null ? 0 : Math.max(0, row.invoice.amount - (row.invoice.paidAmount || 0))), 0)
+        : recordRows.reduce((sum, row) => sum + (row.payment?.paidAmount || 0), 0);
     y += 4;
     pdf.setFont("helvetica", "bold");
     pdf.text(
@@ -19209,8 +19219,14 @@ function StudentPaymentProfile({
         >
           Outstanding Room Payments
         </button>
+        <button
+          className={view === "records" ? "active" : ""}
+          onClick={() => setView("records")}
+        >
+          Records & PDF
+        </button>
       </div>
-      <div className="payment-log-export">
+      {view === "records" && <><div className="payment-log-export">
         <div>
           <small>PRINT PAYMENT LOG</small>
           <b>Download approved payments as PDF</b>
@@ -19260,6 +19276,24 @@ function StudentPaymentProfile({
           ↓ Download PDF
         </button>
       </div>
+      <div className="panel tablewrap payment-records-table">
+        <table>
+          <thead><tr><th>INVOICE NO.</th><th>TYPE</th><th>DUE DATE</th><th>TRANSACTION ID</th><th>PAYMENT DATE</th><th>PAYABLE<small>(LKR)</small></th><th>PAID<small>(LKR)</small></th><th>OUTSTANDING<small>(LKR)</small></th></tr></thead>
+          <tbody>
+            {recordRows.map(({ invoice, payment, payable }, index) => <tr key={`${invoice.id}-${payment?.id || "outstanding"}-${index}`}>
+              <td><b className="transaction-id">{invoice.invoiceNo}</b></td>
+              <td>{invoice.invoiceType}</td>
+              <td>{fmtDate(invoice.dueDate)}</td>
+              <td>{payment ? transactionIdFor(payment) : "—"}</td>
+              <td>{payment ? fmtDate(payment.paidDate) : "—"}</td>
+              <td>{payable == null ? "Included Above" : amountOnly.format(payable)}</td>
+              <td>{payment ? amountOnly.format(payment.paidAmount) : "—"}</td>
+              <td>{amountOnly.format(Math.max(0, invoice.amount - (invoice.paidAmount || 0)))}</td>
+            </tr>)}
+            {!recordRows.length && <tr><td colSpan={8}>No invoice or payment records match this filter.</td></tr>}
+          </tbody>
+        </table>
+      </div></>}
       <div className="panel tablewrap">
         {view === "deposit" && (
           <>

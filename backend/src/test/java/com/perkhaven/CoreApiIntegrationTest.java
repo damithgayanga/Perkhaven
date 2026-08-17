@@ -83,6 +83,8 @@ class CoreApiIntegrationTest {
                   "university":"Test University",
                   "currentYear":"Year 2",
                   "address":"10 Test Road",
+                  "hasMedicalCondition":true,
+                  "medicalConditionDetails":"Carries an asthma inhaler",
                   "registeredDate":"2026-08-13",
                   "startDate":"2026-08-31",
                   "roomNo":"104",
@@ -96,7 +98,9 @@ class CoreApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content(student))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.middleNames").value("Nimali Devi"))
-                .andExpect(jsonPath("$.dateOfBirth").value("2003-04-15"));
+                .andExpect(jsonPath("$.dateOfBirth").value("2003-04-15"))
+                .andExpect(jsonPath("$.hasMedicalCondition").value(true))
+                .andExpect(jsonPath("$.medicalConditionDetails").value("Carries an asthma inhaler"));
 
         var response = mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-TEST-900")
                         .header("Authorization", "Bearer " + token))

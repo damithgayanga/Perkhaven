@@ -180,7 +180,8 @@ public class StudentController {
                 .map(c -> new Student.EmergencyContactData(c.name(), c.phone(), c.relationship(), c.address())).toList();
         student.update(new Student.StudentData(request.firstName(), request.middleNames(), request.lastName(), request.dateOfBirth(),
                 request.idNo(), request.mobile(), request.whatsapp(), request.email(),
-                request.university(), request.currentYear(), request.address(), request.registeredDate(), request.startDate(), request.monthlyRent(),
+                request.university(), request.currentYear(), request.address(), request.hasMedicalCondition(),
+                request.medicalConditionDetails(), request.registeredDate(), request.startDate(), request.monthlyRent(),
                 request.depositPayable(), request.status(), contacts), room);
     }
 
@@ -190,7 +191,8 @@ public class StudentController {
     public record StudentRequest(String registrationNo, @NotBlank String firstName, String middleNames,
                                  @NotBlank String lastName, LocalDate dateOfBirth,
                                  @NotBlank String idNo, @NotBlank String mobile, String whatsapp, @Email @NotBlank String email,
-                                 String university, String currentYear, @NotBlank String address, @NotNull LocalDate registeredDate,
+                                 String university, String currentYear, @NotBlank String address, boolean hasMedicalCondition,
+                                 @Size(max = 2000) String medicalConditionDetails, @NotNull LocalDate registeredDate,
                                  @NotNull LocalDate startDate, String roomNo, @NotNull @DecimalMin("0.00") BigDecimal monthlyRent,
                                  @NotNull @DecimalMin("0.00") BigDecimal depositPayable, @NotNull RecordStatus status,
                                  @Size(max = 2) List<@Valid EmergencyContactRequest> emergencyContacts) {}
@@ -200,13 +202,15 @@ public class StudentController {
     public record StudentResponse(Long id, long version, Instant createdAt, Instant updatedAt, String registrationNo,
                                   String firstName, String middleNames, String lastName, LocalDate dateOfBirth,
                                   String idNo, String mobile, String whatsapp, String email,
-                                  String university, String currentYear, String address, LocalDate registeredDate, LocalDate startDate,
+                                  String university, String currentYear, String address, boolean hasMedicalCondition,
+                                  String medicalConditionDetails, LocalDate registeredDate, LocalDate startDate,
                                   String roomNo, BigDecimal monthlyRent, BigDecimal depositPayable, RecordStatus status,
                                   String photoName, Long photoSize, List<EmergencyContactResponse> emergencyContacts) {
         static StudentResponse from(Student student) { return new StudentResponse(student.getId(), student.getVersion(), student.getCreatedAt(), student.getUpdatedAt(),
                 student.getRegistrationNo(), student.getFirstName(), student.getMiddleNames(), student.getLastName(), student.getDateOfBirth(),
                 student.getIdNo(), student.getMobile(), student.getWhatsapp(), student.getEmail(),
-                student.getUniversity(), student.getCurrentYear(), student.getAddress(), student.getRegisteredDate(), student.getStartDate(),
+                student.getUniversity(), student.getCurrentYear(), student.getAddress(), student.hasMedicalCondition(),
+                student.getMedicalConditionDetails(), student.getRegisteredDate(), student.getStartDate(),
                 student.getRoom() == null ? null : student.getRoom().getRoomNo(), student.getMonthlyRent(), student.getDepositPayable(), student.getStatus(),
                 student.getPhotoName(), student.getPhotoSize(), student.getEmergencyContacts().stream().map(EmergencyContactResponse::from).toList()); }
     }
