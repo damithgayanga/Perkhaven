@@ -5133,7 +5133,7 @@ function Overview({
   const [bankSummary, setBankSummary] = useState({ total: 0, outstanding: 0 });
   useEffect(() => {
     const loadBankSummary = () =>
-      fetch("/api/bank-reconciliation")
+      fetch("/api/v1/bank-reconciliation")
         .then((response) => response.json())
         .then((result) => {
           const bankRows = (result.bankTransactions || []) as BankTransaction[];
@@ -6704,7 +6704,7 @@ function ActionList(props: ActionListProps) {
     [bankSources, setBankSources] = useState<BankSource[]>([]),
     [reviewingExpense, setReviewingExpense] = useState<Expense | null>(null);
   useEffect(() => {
-    fetch("/api/bank-reconciliation")
+    fetch("/api/v1/bank-reconciliation")
       .then((response) => response.json())
       .then((result) => setBankSources(result.sources || []))
       .catch(() => setBankSources([]));
@@ -7612,7 +7612,7 @@ function ActionListLegacy({
       (student.noticeApprovalStatus || "Pending") === "Pending",
   );
   useEffect(() => {
-    fetch("/api/bank-reconciliation")
+    fetch("/api/v1/bank-reconciliation")
       .then((response) => response.json())
       .then((result) => setBankSources(result.sources || []))
       .catch(() => setBankSources([]));
@@ -8494,7 +8494,7 @@ function PaymentLedger({
     verification: "All",
   });
   useEffect(() => {
-    fetch("/api/bank-reconciliation")
+    fetch("/api/v1/bank-reconciliation")
       .then((response) => response.json())
       .then((result) => result.sources && setBankSources(result.sources))
       .catch(() => {});
@@ -12434,7 +12434,7 @@ function BankReconciliationHeaderSummary() {
   });
   useEffect(() => {
     const loadSummary = () =>
-      fetch("/api/bank-reconciliation")
+      fetch("/api/v1/bank-reconciliation")
         .then((response) => response.json())
         .then((result) => {
           const bankRows = (result.bankTransactions || []) as BankTransaction[];
@@ -12513,7 +12513,7 @@ function BankReconciliation() {
     direction: "asc" | "desc";
   }>({ key: "transactionDate", direction: "desc" });
   const load = async () => {
-    const response = await fetch("/api/bank-reconciliation");
+    const response = await fetch("/api/v1/bank-reconciliation");
     const result = await response.json();
     if (response.ok) {
       setBankRows(result.bankTransactions || []);
@@ -12523,7 +12523,7 @@ function BankReconciliation() {
     }
   };
   useEffect(() => {
-    fetch("/api/bank-reconciliation")
+    fetch("/api/v1/bank-reconciliation")
       .then((response) => response.json())
       .then((result) => {
         if (result.bankTransactions) setBankRows(result.bankTransactions);
@@ -12545,7 +12545,7 @@ function BankReconciliation() {
     const form = new FormData();
     form.set("file", file);
     try {
-      const response = await fetch("/api/bank-reconciliation", {
+      const response = await fetch("/api/v1/bank-reconciliation", {
         method: "POST",
         body: form,
       });
@@ -12625,7 +12625,7 @@ function BankReconciliation() {
     )
       return;
     setError("");
-    const response = await fetch(`/api/bank-reconciliation?id=${row.id}`, {
+    const response = await fetch(`/api/v1/bank-reconciliation?id=${row.id}`, {
       method: "DELETE",
     });
     const result = await response.json();
@@ -12682,8 +12682,8 @@ function BankReconciliation() {
               <th>RECONCILED AMOUNT<small>(LKR)</small></th>
               <th>DIFFERENCE (LKR)</th>
               <th>TRANSACTION IDS</th>
-              <th>RECONCILIATION</th>
-              <th>ADMIN ACTIONS</th>
+              <th>RECONCILIATION STATUS</th>
+              <th>ADMIN CONTROLS</th>
             </tr>
           </thead>
           <tbody>
@@ -12754,24 +12754,24 @@ function BankReconciliation() {
                     </div>
                   </td>
                   <td className="reconciliation-cell">
-                    <button
-                      className="review-button"
-                      onClick={() => setReconciling(row)}
-                    >
-                      {full ? "Edit Reconciliation" : "Reconcile"}
-                    </button>
                     <span
                       className={`bank-status ${full ? "verified" : reconciled ? "partial" : "unverified"}`}
                     >
                       {full
-                        ? "Reconciled"
+                        ? "Fully Reconciled"
                         : reconciled
                           ? "Partially Reconciled"
-                          : "Unreconciled"}
+                          : "Not Reconciled"}
                     </span>
                   </td>
                   <td>
                     <div className="admin-row-actions">
+                      <button
+                        className="review-button"
+                        onClick={() => setReconciling(row)}
+                      >
+                        Reconcile
+                      </button>
                       <button
                         className="review-button"
                         onClick={() => setEditing(row)}
@@ -12864,7 +12864,7 @@ function BankTransactionEditModal({
     setSaving(true);
     setError("");
     try {
-      const response = await fetch("/api/bank-reconciliation", {
+      const response = await fetch("/api/v1/bank-reconciliation", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: bank.id, ...form }),
@@ -13044,7 +13044,7 @@ function BankReconcileModal({
         reconciledAmount: selected[keyFor(source)],
       }));
     try {
-      const response = await fetch("/api/bank-reconciliation", {
+      const response = await fetch("/api/v1/bank-reconciliation", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -14025,7 +14025,7 @@ function ExpensesView({
         (result) => result.deposits && setPettyCashDeposits(result.deposits),
       )
       .catch(() => {});
-    fetch("/api/bank-reconciliation")
+    fetch("/api/v1/bank-reconciliation")
       .then((response) => response.json())
       .then((result) => result.sources && setBankSources(result.sources))
       .catch(() => {});

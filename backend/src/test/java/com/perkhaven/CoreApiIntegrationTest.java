@@ -19,6 +19,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.mock.web.MockMultipartFile;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.io.ByteArrayOutputStream;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:perkhaven-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
@@ -213,6 +215,62 @@ class CoreApiIntegrationTest {
         mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-STD-00001")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(0));
+    }
+
+    @Test
+    void bankSpreadsheetImportIsIdempotentAndPaymentCannotBeReconciledTwice() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var student = """
+                {"registrationNo":"PH-BANK-950","firstName":"Bank","lastName":"Test","idNo":"BANK950",
+                 "mobile":"+94770000950","email":"bank.test@example.com","address":"Test",
+                 "registeredDate":"2026-08-18","startDate":"2099-08-18","monthlyRent":1000.00,
+                 "depositPayable":1000.00,"status":"ACTIVE","emergencyContacts":[]}
+                """;
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(student)).andExpect(status().isCreated());
+        var invoiceResponse = mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-BANK-950")
+                        .header("Authorization", "Bearer " + token)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var invoiceId = mapper.readTree(invoiceResponse).at("/items/0/id").asLong();
+        var evidence = new MockMultipartFile("evidence", "bank.pdf", "application/pdf", new byte[]{'%', 'P', 'D', 'F'});
+        var paymentResponse = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payments")
+                        .file(evidence).param("invoiceId", String.valueOf(invoiceId)).param("paidAmount", "500.00")
+                        .param("paidDate", "2026-08-18").param("settlementMethod", "Bank Transfer")
+                        .header("Authorization", "Bearer " + token)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var paymentId = mapper.readTree(paymentResponse).get("id").asLong();
+
+        byte[] workbookBytes;
+        try (var workbook = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
+            var sheet = workbook.createSheet("Sheet1");
+            var header = sheet.createRow(2);
+            var headers = new String[]{"DATE", "REMARKS", "CHEQUE NO", "BRANCH CODE", "BRANCH NAME", "CURRENCY", "AMOUNT", "DR / CR", "ACCOUNT BALANCE"};
+            for (int index = 0; index < headers.length; index++) header.createCell(index).setCellValue(headers[index]);
+            var row = sheet.createRow(3);
+            row.createCell(0).setCellValue("18-08-2026"); row.createCell(1).setCellValue("Student transfer");
+            row.createCell(2).setCellValue("N/A"); row.createCell(3).setCellValue("335"); row.createCell(4).setCellValue("Nugegoda City");
+            row.createCell(5).setCellValue("LKR"); row.createCell(6).setCellValue(500); row.createCell(7).setCellValue("Cr"); row.createCell(8).setCellValue(500);
+            workbook.write(output); workbookBytes = output.toByteArray();
+        }
+        var importFile = new MockMultipartFile("file", "reconciliation.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", workbookBytes);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/bank-reconciliation")
+                        .file(importFile).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.imported").value(1)).andExpect(jsonPath("$.duplicates").value(0));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/bank-reconciliation")
+                        .file(importFile).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.imported").value(0)).andExpect(jsonPath("$.duplicates").value(1));
+
+        var register = mvc.perform(get("/api/v1/bank-reconciliation").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.bankTransactions.length()").value(1))
+                .andReturn().getResponse().getContentAsString();
+        var bankTransactionId = mapper.readTree(register).at("/bankTransactions/0/bankTransactionId").asText();
+        mvc.perform(put("/api/v1/bank-reconciliation").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"bankTransactionId\":\"" + bankTransactionId + "\",\"selections\":[{\"sourceType\":\"Payment\",\"recordId\":" + paymentId + ",\"reconciledAmount\":500.00}]}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/bank-reconciliation").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.links.length()").value(1))
+                .andExpect(jsonPath("$.links[0].sourceTransactionId").isNotEmpty());
     }
 
     private String token(String username, String password) throws Exception {
