@@ -3,6 +3,10 @@ package com.perkhaven.reconciliation;
 import com.perkhaven.billing.Payment;
 import com.perkhaven.billing.PaymentRepository;
 import com.perkhaven.common.audit.AuditService;
+import com.perkhaven.expense.Expense;
+import com.perkhaven.expense.ExpenseRepository;
+import com.perkhaven.expense.PettyCashDeposit;
+import com.perkhaven.expense.PettyCashDepositRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -33,14 +37,16 @@ public class BankReconciliationController {
     private final BankTransactionRepository banks;
     private final ReconciliationLinkRepository links;
     private final PaymentRepository payments;
+    private final ExpenseRepository expenses;
+    private final PettyCashDepositRepository pettyCashDeposits;
     private final BankSpreadsheetImporter importer;
     private final BankReconciliationService service;
     private final AuditService audit;
 
     public BankReconciliationController(BankTransactionRepository banks, ReconciliationLinkRepository links,
-                                        PaymentRepository payments, BankSpreadsheetImporter importer,
+                                        PaymentRepository payments, ExpenseRepository expenses, PettyCashDepositRepository pettyCashDeposits, BankSpreadsheetImporter importer,
                                         BankReconciliationService service, AuditService audit) {
-        this.banks = banks; this.links = links; this.payments = payments; this.importer = importer; this.service = service; this.audit = audit;
+        this.banks = banks; this.links = links; this.payments = payments; this.expenses = expenses; this.pettyCashDeposits = pettyCashDeposits; this.importer = importer; this.service = service; this.audit = audit;
     }
 
     @GetMapping
@@ -49,7 +55,10 @@ public class BankReconciliationController {
     public RegisterResponse list() {
         var linkRows = links.findAllByOrderByIdAsc();
         var linkResponses = linkRows.stream().map(LinkResponse::from).toList();
-        var sources = payments.findAllByOrderByPaidDateDescIdDesc().stream().map(payment -> SourceResponse.from(payment, linkRows)).toList();
+        var sources = new java.util.ArrayList<SourceResponse>();
+        sources.addAll(payments.findAllByOrderByPaidDateDescIdDesc().stream().map(payment -> SourceResponse.from(payment, linkRows)).toList());
+        sources.addAll(expenses.findAllByOrderByTransactionDateDescIdDesc().stream().filter(v -> "Approved".equals(v.getApprovalStatus())).map(v -> SourceResponse.from(v, linkRows)).toList());
+        sources.addAll(pettyCashDeposits.findAllByOrderByTransactionDateDescIdDesc().stream().filter(v -> "Approved".equals(v.getApprovalStatus())).map(v -> SourceResponse.from(v, linkRows)).toList());
         return new RegisterResponse(banks.findAllByOrderByTransactionDateDescIdDesc().stream().map(BankResponse::from).toList(), linkResponses, sources);
     }
 
@@ -111,6 +120,15 @@ public class BankReconciliationController {
                     payment.getPaidAmount(), link.map(value -> value.getBankTransaction().getBankTransactionId()).orElse(""),
                     link.map(ReconciliationLink::getReconciledAmount).orElse(BigDecimal.ZERO));
         }
+        static SourceResponse from(Expense value, List<ReconciliationLink> links) {
+            var link = links.stream().filter(v -> v.getSourceType().equals("Expense") && v.getSourceRecordId().equals(value.getId())).findFirst();
+            return linked("Expense", value.getId(), value.getTransactionId(), value.getTransactionDate(), value.getCategory().getName() + " · " + value.getPersonPaidName(), value.getAmount(), link);
+        }
+        static SourceResponse from(PettyCashDeposit value, List<ReconciliationLink> links) {
+            var link = links.stream().filter(v -> v.getSourceType().equals("Petty Cash Deposit") && v.getSourceRecordId().equals(value.getId())).findFirst();
+            return linked("Petty Cash Deposit", value.getId(), value.getTransactionId(), value.getTransactionDate(), "Petty Cash Deposit", value.getAmount(), link);
+        }
+        private static SourceResponse linked(String type,Long id,String transaction,LocalDate date,String description,BigDecimal amount,java.util.Optional<ReconciliationLink> link){return new SourceResponse(type,id,transaction,date,description,amount,link.map(v->v.getBankTransaction().getBankTransactionId()).orElse(""),link.map(ReconciliationLink::getReconciledAmount).orElse(BigDecimal.ZERO));}
     }
     public record ReconcileRequest(@NotBlank String bankTransactionId, @Valid List<BankReconciliationService.Selection> selections) {}
     public record EditRequest(@NotNull Long id, @NotNull LocalDate transactionDate, String remarks, String chequeNo,

@@ -2045,11 +2045,11 @@ function WardenPortal({
     [pettyDeposits, setPettyDeposits] = useState<PettyCashDeposit[]>([]),
     [approvedPettyExpenses, setApprovedPettyExpenses] = useState<Expense[]>([]);
   useEffect(() => {
-    fetch("/api/petty-cash")
+    fetch("/api/v1/petty-cash")
       .then((response) => response.json())
       .then((result) => result.deposits && setPettyDeposits(result.deposits))
       .catch(() => {});
-    fetch("/api/expenses")
+    fetch("/api/v1/expenses")
       .then((response) => response.json())
       .then(
         (result) =>
@@ -2079,7 +2079,7 @@ function WardenPortal({
       amount: deposit.amount,
       person: "N/A",
       evidence: deposit.evidenceName,
-      href: `/api/petty-cash/evidence?transactionId=${encodeURIComponent(deposit.transactionId)}`,
+      href: `/api/v1/petty-cash/evidence?transactionId=${encodeURIComponent(deposit.transactionId)}`,
       kind: "Deposit",
       status: deposit.approvalStatus,
     })),
@@ -2091,7 +2091,7 @@ function WardenPortal({
       amount: -expense.amount,
       person: expense.personPaidName,
       evidence: expense.evidenceName,
-      href: `/api/expenses/evidence?transactionId=${encodeURIComponent(expense.transactionId)}`,
+      href: `/api/v1/expenses/evidence?transactionId=${encodeURIComponent(expense.transactionId)}`,
       kind: "Expense",
       status:
         expense.approvalStatus === "Approved"
@@ -14019,7 +14019,7 @@ function ExpensesView({
     }
   };
   useEffect(() => {
-    fetch("/api/petty-cash")
+    fetch("/api/v1/petty-cash")
       .then((response) => response.json())
       .then(
         (result) => result.deposits && setPettyCashDeposits(result.deposits),
@@ -14058,7 +14058,7 @@ function ExpensesView({
       setCategoryError("Enter a sub-category name before adding the expense category.");
       return;
     }
-    const response = await fetch("/api/expenses/categories", {
+    const response = await fetch("/api/v1/expenses/categories", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -14073,7 +14073,7 @@ function ExpensesView({
     setNewCategory("");
   };
   const toggleCategory = async (category: ExpenseCategory) => {
-    const response = await fetch("/api/expenses/categories", {
+    const response = await fetch("/api/v1/expenses/categories", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: category.id, active: !category.active }),
@@ -14090,7 +14090,7 @@ function ExpensesView({
     );
     if (mainCategory === null) return;
     setCategoryError("");
-    const response = await fetch("/api/expenses/categories", {
+    const response = await fetch("/api/v1/expenses/categories", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: category.id, name, mainCategory }),
@@ -14102,7 +14102,7 @@ function ExpensesView({
   const deleteCategory = async (category: ExpenseCategory) => {
     if (!window.confirm(`Delete ${category.name}?`)) return;
     setCategoryError("");
-    const response = await fetch(`/api/expenses/categories?id=${category.id}`, { method: "DELETE" });
+    const response = await fetch(`/api/v1/expenses/categories?id=${category.id}`, { method: "DELETE" });
     const result = await response.json();
     if (!response.ok) return setCategoryError(result.error || "Unable to delete category");
     categoryDeleted(category.id);
@@ -14246,7 +14246,7 @@ function ExpensesView({
       !window.confirm(`Delete ${expense.transactionId}? This cannot be undone.`)
     )
       return;
-    const response = await fetch(`/api/expenses?id=${expense.id}`, {
+    const response = await fetch(`/api/v1/expenses?id=${expense.id}`, {
       method: "DELETE",
     });
     const result = await response.json();
@@ -14551,7 +14551,7 @@ function ExpensesView({
                       <td>
                         <a
                           className="evidence-link"
-                          href={`/api/expenses/evidence?transactionId=${encodeURIComponent(expense.transactionId)}`}
+                          href={`/api/v1/expenses/evidence?transactionId=${encodeURIComponent(expense.transactionId)}`}
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -14713,7 +14713,7 @@ function ExpensesView({
                         {row.kind === "deposit" ? (
                           <a
                             className="evidence-link"
-                            href={`/api/petty-cash/evidence?transactionId=${encodeURIComponent(row.transaction)}`}
+                            href={`/api/v1/petty-cash/evidence?transactionId=${encodeURIComponent(row.transaction)}`}
                             target="_blank"
                             rel="noreferrer"
                           >
@@ -14722,7 +14722,7 @@ function ExpensesView({
                         ) : (
                           <a
                             className="evidence-link"
-                            href={`/api/expenses/evidence?transactionId=${encodeURIComponent(row.transaction)}`}
+                            href={`/api/v1/expenses/evidence?transactionId=${encodeURIComponent(row.transaction)}`}
                             target="_blank"
                             rel="noreferrer"
                           >
@@ -15006,7 +15006,7 @@ function ExpenseEditModal({
     setSaving(true);
     setError("");
     try {
-      const response = await fetch("/api/expenses", {
+      const response = await fetch("/api/v1/expenses", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -15135,7 +15135,7 @@ function PettyCashDepositModal({
     setSaving(true);
     const form = new FormData(event.currentTarget);
     try {
-      const response = await fetch("/api/petty-cash", {
+      const response = await fetch("/api/v1/petty-cash", {
         method: "POST",
         body: form,
       });
@@ -15220,7 +15220,7 @@ function PettyCashDepositApproval({
   const [error, setError] = useState("");
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const response = await fetch("/api/petty-cash", {
+    const response = await fetch("/api/v1/petty-cash", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -15257,7 +15257,7 @@ function PettyCashDepositApproval({
             Evidence
             <a
               className="evidence-link evidence-review"
-              href={`/api/petty-cash/evidence?transactionId=${encodeURIComponent(deposit.transactionId)}`}
+              href={`/api/v1/petty-cash/evidence?transactionId=${encodeURIComponent(deposit.transactionId)}`}
               target="_blank"
               rel="noreferrer"
             >
@@ -15361,7 +15361,7 @@ function AddExpense({
         }),
       );
     }
-    const response = await fetch("/api/expenses", {
+    const response = await fetch("/api/v1/expenses", {
       method: "POST",
       body: form,
     });
@@ -15579,7 +15579,7 @@ function ExpenseApproval({
     approvalStatus: "More Details Requested" | "Approved" | "Disapproved",
   ) => {
     setError("");
-    const response = await fetch("/api/expenses", {
+    const response = await fetch("/api/v1/expenses", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({

@@ -1,0 +1,9 @@
+package com.perkhaven.expense;
+import com.perkhaven.common.domain.AuditedEntity; import jakarta.persistence.*; import java.math.BigDecimal; import java.time.*;
+@Entity @Table(name="petty_cash_deposits") public class PettyCashDeposit extends AuditedEntity {
+ @Column(name="transaction_id",nullable=false,unique=true) private String transactionId; @Column(name="transaction_date",nullable=false) private LocalDate transactionDate; @Column(nullable=false,precision=14,scale=2) private BigDecimal amount;
+ @Column(name="evidence_key",nullable=false) private String evidenceKey; @Column(name="evidence_name",nullable=false) private String evidenceName; @Column(name="evidence_content_type",nullable=false) private String evidenceContentType; @Column(name="approval_status",nullable=false) private String approvalStatus="Pending"; @Column(name="approval_note") private String approvalNote; @Column(name="approved_at") private Instant approvedAt;
+ protected PettyCashDeposit(){} public PettyCashDeposit(String tx,LocalDate date,BigDecimal amount,String key,String name,String content){transactionId=tx;transactionDate=date;this.amount=amount;evidenceKey=key;evidenceName=name;evidenceContentType=content;}
+ public void review(String status,String note){approvalStatus=status;approvalNote=note;approvedAt="Approved".equals(status)?Instant.now():null;}
+ public String getTransactionId(){return transactionId;} public LocalDate getTransactionDate(){return transactionDate;} public BigDecimal getAmount(){return amount;} public String getEvidenceKey(){return evidenceKey;} public String getEvidenceName(){return evidenceName;} public String getEvidenceContentType(){return evidenceContentType;} public String getApprovalStatus(){return approvalStatus;} public String getApprovalNote(){return approvalNote;} public Instant getApprovedAt(){return approvedAt;}
+}

@@ -2,6 +2,8 @@ package com.perkhaven.reconciliation;
 
 import com.perkhaven.billing.PaymentRepository;
 import com.perkhaven.common.sequence.NumberSequenceRepository;
+import com.perkhaven.expense.ExpenseRepository;
+import com.perkhaven.expense.PettyCashDepositRepository;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -20,11 +22,15 @@ public class BankReconciliationService {
     private final BankTransactionRepository banks;
     private final ReconciliationLinkRepository links;
     private final PaymentRepository payments;
+    private final ExpenseRepository expenses;
+    private final PettyCashDepositRepository pettyCashDeposits;
     private final NumberSequenceRepository sequences;
 
     public BankReconciliationService(BankTransactionRepository banks, ReconciliationLinkRepository links,
-                                     PaymentRepository payments, NumberSequenceRepository sequences) {
-        this.banks = banks; this.links = links; this.payments = payments; this.sequences = sequences;
+                                     PaymentRepository payments, ExpenseRepository expenses,
+                                     PettyCashDepositRepository pettyCashDeposits, NumberSequenceRepository sequences) {
+        this.banks = banks; this.links = links; this.payments = payments; this.expenses = expenses;
+        this.pettyCashDeposits = pettyCashDeposits; this.sequences = sequences;
     }
 
     @Transactional
@@ -63,9 +69,12 @@ public class BankReconciliationService {
     }
 
     private Source resolve(String type, Long id) {
-        if (!"Payment".equals(type)) throw new IllegalArgumentException(type + " reconciliation will be available when that ledger is migrated to Spring Boot.");
-        var payment = payments.findById(id).orElseThrow(() -> new IllegalArgumentException("Payment transaction not found."));
-        return new Source(payment.getTransactionId(), payment.getPaidAmount());
+        return switch (type) {
+            case "Payment" -> payments.findById(id).map(v -> new Source(v.getTransactionId(), v.getPaidAmount())).orElseThrow(() -> new IllegalArgumentException("Payment transaction not found."));
+            case "Expense" -> expenses.findById(id).filter(v -> "Approved".equals(v.getApprovalStatus())).map(v -> new Source(v.getTransactionId(), v.getAmount())).orElseThrow(() -> new IllegalArgumentException("Approved expense not found."));
+            case "Petty Cash Deposit" -> pettyCashDeposits.findById(id).filter(v -> "Approved".equals(v.getApprovalStatus())).map(v -> new Source(v.getTransactionId(), v.getAmount())).orElseThrow(() -> new IllegalArgumentException("Approved petty cash deposit not found."));
+            default -> throw new IllegalArgumentException("Unsupported reconciliation source type.");
+        };
     }
     private boolean compatible(BankTransaction bank, String type) {
         return bank.getDrCr().equalsIgnoreCase("Cr") ? type.equals("Payment") : type.equals("Expense") || type.equals("Petty Cash Deposit");

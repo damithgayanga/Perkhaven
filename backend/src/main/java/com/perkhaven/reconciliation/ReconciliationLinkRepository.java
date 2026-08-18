@@ -8,5 +8,6 @@ public interface ReconciliationLinkRepository extends JpaRepository<Reconciliati
     List<ReconciliationLink> findAllByOrderByIdAsc();
     List<ReconciliationLink> findByBankTransactionId(Long bankTransactionId);
     void deleteByBankTransactionId(Long bankTransactionId);
+    void deleteBySourceTypeAndSourceRecordId(String sourceType, Long sourceRecordId);
     Optional<ReconciliationLink> findBySourceTypeAndSourceRecordId(String sourceType, Long sourceRecordId);
 }
