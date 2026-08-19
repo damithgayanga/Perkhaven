@@ -384,9 +384,9 @@ type MonthlyAdjustment = {
 };
 type Page =
   | "Overview"
-  | "Students"
+  | "Residents"
   | "Payments"
-  | "Rooms"
+  | "Hostel Rooms"
   | "Staff"
   | "Expenses"
   | "Other Income"
@@ -773,13 +773,13 @@ export default function Home() {
     if (!currentUser) return;
     if (currentUser.role === "Student") {
       void fetch("/api/v1/students/me").then(async (response) => {
-        if (!response.ok) throw new Error("No student profile is linked to this email address");
+        if (!response.ok) throw new Error("No resident profile is linked to this email address");
         return studentFromApi(await response.json());
       }).then(async (student) => {
         setStudents([student]);
         const response = await fetch(`/api/v1/invoices?registrationNo=${encodeURIComponent(student.registrationNo)}&size=100`);
         if (response.ok) setStudentInvoices(((await response.json()) as ApiPage<StudentInvoice>).items);
-      }).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load student profile"));
+      }).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load resident profile"));
       return;
     }
     const page = <T,>(path: string) =>
@@ -909,8 +909,8 @@ export default function Home() {
             [
               "Overview",
               "Action List",
-              "Students",
-              "Rooms",
+              "Residents",
+              "Hostel Rooms",
               "Payments",
               "Expenses",
               "Staff",
@@ -928,9 +928,9 @@ export default function Home() {
             >
               <i>{["⌂", "✓", "♙", "▦", "▤", "◈", "♧", "＋", "⇄", "Σ", "▣", "⚙"][i]}</i>
               <span>
-                {x === "Students"
+                {x === "Residents"
                   ? "Registers"
-                  : x === "Rooms"
+                  : x === "Hostel Rooms"
                     ? "Occupancy"
                     : x === "Staff"
                       ? "Staff Payroll"
@@ -994,9 +994,9 @@ export default function Home() {
           <div>
             <p>
               PERKHAVEN /{" "}
-              {(page === "Students"
+              {(page === "Residents"
                 ? "Registers"
-                : page === "Rooms"
+                : page === "Hostel Rooms"
                   ? "Occupancy"
                   : page === "Staff"
                     ? "Staff Payroll"
@@ -1012,9 +1012,9 @@ export default function Home() {
             <h1>
               {page === "Overview"
                 ? "Good morning, Admin"
-                : page === "Students"
+                : page === "Residents"
                   ? "Registers"
-                  : page === "Rooms"
+                  : page === "Hostel Rooms"
                     ? "Occupancy"
                     : page === "Staff"
                       ? "Staff Payroll"
@@ -1116,7 +1116,7 @@ export default function Home() {
             updatePermissions={setStaffPermissions}
           />
         )}{" "}
-        {page === "Students" && (
+        {page === "Residents" && (
           <RegistersView
             students={students}
             staff={staffMembers}
@@ -1266,7 +1266,7 @@ export default function Home() {
             addPayment={() => setPaymentForm(true)}
           />
         )}{" "}
-        {page === "Rooms" && (
+        {page === "Hostel Rooms" && (
           <RoomView
             canManage={currentUser.role === "Admin"}
             students={currentResidents}
@@ -1280,7 +1280,7 @@ export default function Home() {
                   item.roomNo === room.roomNo ? room : item,
                 ),
               );
-              setToast(`Room ${room.roomNo} price updated`);
+              setToast(`hostel room ${room.roomNo} price updated`);
             }}
             roomAdded={(room) => setRooms((current) => [...current, room].sort((a, b) => a.roomNo.localeCompare(b.roomNo)))}
             roomRemoved={(roomNo) => setRooms((current) => current.filter((room) => room.roomNo !== roomNo))}
@@ -1288,7 +1288,7 @@ export default function Home() {
               setShops((current) =>
                 current.map((item) => (item.id === shop.id ? shop : item)),
               );
-              setToast(`${shop.shopNo} rent updated`);
+              setToast(`${shop.shopNo} monthly accommodation fee updated`);
             }}
             shopAdded={(shop) => setShops((current) => [...current, shop].sort((a, b) => a.shopNo.localeCompare(b.shopNo)))}
             shopRemoved={(shopNo) => setShops((current) => current.filter((shop) => shop.shopNo !== shopNo))}
@@ -1564,7 +1564,7 @@ export default function Home() {
               ),
             );
             setProfile(updated);
-            setToast("Student profile updated");
+            setToast("Resident profile updated");
           }}
         />
       )}
@@ -1860,7 +1860,7 @@ function LimitedPortal({
                   <b>{student.email || user.email}</b>
                 </span>
                 <span>
-                  <small>Room</small>
+                  <small>Hostel Room</small>
                   <b>{student.roomNo}</b>
                 </span>
                 <span>
@@ -2022,12 +2022,12 @@ function WardenPortal({
   permissions: Partial<Record<StaffPermissionKey, boolean>>;
   onLogout: () => void;
 }) {
-  type StaffTab = "My Profile" | "Enter Payment" | "View Payments" | "Room Payment Summary" | "Shop Payment Summary" | "Enter Expense" | "View Expenses" | "Petty Cash";
+  type StaffTab = "My Profile" | "Enter Payment" | "View Payments" | "Hostel Room Payment Summary" | "Shop Payment Summary" | "Enter Expense" | "View Expenses" | "Petty Cash";
   const availableTabs = [
       permissions.ownProfile && "My Profile",
       permissions.enterPayments && "Enter Payment",
       (permissions.viewPaymentsOwn || permissions.viewPaymentsAll) && "View Payments",
-      permissions.roomPaymentSummary && "Room Payment Summary",
+      permissions.roomPaymentSummary && "Hostel Room Payment Summary",
       permissions.shopPaymentSummary && "Shop Payment Summary",
       permissions.enterExpenses && "Enter Expense",
       permissions.viewExpensesOwn && "View Expenses",
@@ -2144,7 +2144,7 @@ function WardenPortal({
                 ? "Enter payment"
                 : tab === "Enter Expense"
                   ? "Enter expense"
-                  : "Add deposit"}
+                  : "Add petty cash deposit"}
             </b>
             <span>New entry</span>
           </button>
@@ -2173,7 +2173,7 @@ function WardenPortal({
           />
         )}
         {tab === "View Payments" && <WardenPaymentsTable rows={permissions.viewPaymentsAll ? payments : submittedPayments} all={Boolean(permissions.viewPaymentsAll)} />}
-        {tab === "Room Payment Summary" && <StaffPaymentSummary title="Room payment summary" rows={roomSummary} />}
+        {tab === "Hostel Room Payment Summary" && <StaffPaymentSummary title="Hostel Room payment summary" rows={roomSummary} />}
         {tab === "Shop Payment Summary" && <StaffPaymentSummary title="Shop payment summary" rows={shopSummary} />}
         {tab === "View Expenses" && <WardenExpensesTable rows={submittedExpenses} />}
         {tab === "Petty Cash" && (
@@ -2221,7 +2221,7 @@ function WardenPortal({
 }
 
 function StaffPaymentSummary({ title, rows }: { title: string; rows: Array<{ reference: string; name: string; room: string; payable: number; paid: number; outstanding: number }> }) {
-  return <section className="panel limited-submissions"><p className="tag">VIEW ONLY</p><h2>{title}</h2><div className="tablewrap"><table><thead><tr><th>REFERENCE</th><th>NAME</th><th>ROOM / SHOP</th><th>PAYABLE<small>(LKR)</small></th><th>PAID<small>(LKR)</small></th><th>OUTSTANDING<small>(LKR)</small></th></tr></thead><tbody>{rows.map((row) => <tr key={row.reference}><td>{row.reference}</td><td>{row.name}</td><td>{row.room}</td><td>{amountOnly.format(row.payable)}</td><td>{amountOnly.format(row.paid)}</td><td>{amountOnly.format(row.outstanding)}</td></tr>)}{!rows.length && <tr><td colSpan={6}>No records available.</td></tr>}</tbody></table></div></section>;
+  return <section className="panel limited-submissions"><p className="tag">VIEW ONLY</p><h2>{title}</h2><div className="tablewrap"><table><thead><tr><th>REFERENCE</th><th>NAME</th><th>HOSTEL ROOM / SHOP</th><th>PAYABLE<small>(LKR)</small></th><th>PAID<small>(LKR)</small></th><th>OUTSTANDING<small>(LKR)</small></th></tr></thead><tbody>{rows.map((row) => <tr key={row.reference}><td>{row.reference}</td><td>{row.name}</td><td>{row.room}</td><td>{amountOnly.format(row.payable)}</td><td>{amountOnly.format(row.paid)}</td><td>{amountOnly.format(row.outstanding)}</td></tr>)}{!rows.length && <tr><td colSpan={6}>No records available.</td></tr>}</tbody></table></div></section>;
 }
 
 function WardenPaymentsTable({ rows, all = false }: { rows: Payment[]; all?: boolean }) {
@@ -2253,7 +2253,7 @@ function WardenPaymentsTable({ rows, all = false }: { rows: Payment[]; all?: boo
               <th>TYPE</th>
               <th>REGISTRATION</th>
               <th>NAME</th>
-              <th>ROOM</th>
+              <th>HOSTEL ROOM</th>
               <th>MONTH</th>
               <th>PAYABLE<small>(LKR)</small></th>
               <th>PAID<small>(LKR)</small></th>
@@ -2380,7 +2380,8 @@ function WardenPettyCashTable({
           <p className="tag">PETTY CASH LOG</p>
           <h2>Petty cash transactions</h2>
           <p>
-            You may add deposits and view the log. Editing, deleting and
+
+            You may add security deposits and view the log. Editing, deleting and
             approval are restricted.
           </p>
         </div>
@@ -2594,9 +2595,10 @@ function StudentSelfService({
         </header>
         <section className="limited-content">
           <section className="panel">
-            <h2>Student profile unavailable</h2>
+            <h2>Resident profile unavailable</h2>
             <p>
-              Your login has not yet been linked to a student registration
+
+              Your login has not yet been linked to a resident registration
               record.
             </p>
           </section>
@@ -2685,7 +2687,7 @@ function StudentSelfService({
           <span className="brand-logo" />
           <span>
             <b>THE PERK HAVEN</b>
-            <small>STUDENT PORTAL</small>
+            <small>RESIDENT PORTAL</small>
           </span>
         </div>
         <div>
@@ -2703,7 +2705,7 @@ function StudentSelfService({
             style={
               student.photoKey
                 ? {
-                    backgroundImage: `url("/api/v1/students/${encodeURIComponent(student.registrationNo)}/photo?v=${encodeURIComponent(student.photoName || "photo")}")`,
+                    backgroundImage: `url("/api/v1/residents/${encodeURIComponent(student.registrationNo)}/photo?v=${encodeURIComponent(student.photoName || "photo")}")`,
                   }
                 : undefined
             }
@@ -2717,11 +2719,11 @@ function StudentSelfService({
             </h1>
             <div className="student-hero-facts">
               <span>
-                <small>ROOM</small>
+                <small>HOSTEL ROOM</small>
                 <b>{student.roomNo}</b>
               </span>
               <span>
-                <small>MONTHLY RENT</small>
+                <small>MONTHLY ACCOMMODATION FEE</small>
                 <b>{cash.format(student.monthlyRent)}</b>
               </span>
             </div>
@@ -2737,10 +2739,12 @@ function StudentSelfService({
                 : ""}
             </button>
             <button onClick={() => setGivingNotice(true)}>
-              Submit/Amend Vacating Notice
+
+              Submit/Amend Check-Out Notice
             </button>
             <button onClick={() => setRequestingRoom(true)}>
-              Request Room Change
+
+              Request Hostel Room Change
               {roomTransferRequests.some((entry) => entry.status === "Pending")
                 ? " •"
                 : ""}
@@ -2847,8 +2851,8 @@ function StudentSelfService({
                 <Detail
                   title="RESIDENCY"
                   rows={[
-                    ["Registered date", fmtDate(student.registeredDate)],
-                    ["Start date", fmtDate(student.startDate)],
+                    ["Registration date", fmtDate(student.registeredDate)],
+                    ["Accommodation start date", fmtDate(student.startDate)],
                     [
                       "Notice submitted",
                       student.noticeToVacateDate
@@ -2856,7 +2860,7 @@ function StudentSelfService({
                         : "Not provided",
                     ],
                     [
-                      "Intended vacating date",
+                      "Intended check-out date",
                       student.intendedVacateDate
                         ? fmtDate(student.intendedVacateDate)
                         : "Not provided",
@@ -2876,25 +2880,25 @@ function StudentSelfService({
                   ]}
                 />
                 <Detail
-                  title="ROOM & CHARGES"
+                  title="HOSTEL ROOM & CHARGES"
                   rows={[
-                    ["Room", student.roomNo],
-                    ["Monthly rent", cash.format(student.monthlyRent)],
+                    ["Hostel Room", student.roomNo],
+                    ["Monthly accommodation fee", cash.format(student.monthlyRent)],
                     [
-                      "Original deposit amount",
+                      "Original security deposit amount",
                       cash.format(
                         student.originalDepositPayable ||
                           student.depositPayable,
                       ),
                     ],
                     [
-                      "Revised deposit amount",
+                      "Revised security deposit amount",
                       cash.format(
                         student.revisedDepositPayable || student.depositPayable,
                       ),
                     ],
                     [
-                      "Current deposit payable",
+                      "Current security deposit payable",
                       cash.format(student.depositPayable),
                     ],
                   ]}
@@ -2904,7 +2908,7 @@ function StudentSelfService({
                 <table>
                   <thead>
                     <tr>
-                      <th>ROOM CHANGE REQUEST</th>
+                      <th>HOSTEL ROOM CHANGE REQUEST</th>
                       <th>FROM</th>
                       <th>TO</th>
                       <th>REQUESTED</th>
@@ -2961,7 +2965,8 @@ function StudentSelfService({
                     {!roomTransferRequests.length && (
                       <tr>
                         <td colSpan={8}>
-                          No room-change requests have been submitted.
+
+                          No hostel room-change requests have been submitted.
                         </td>
                       </tr>
                     )}
@@ -3043,7 +3048,7 @@ function StudentSelfService({
         <div className="backdrop">
           <section className="modal student-action-modal">
             <ModalHead
-              tag="STUDENT PAYMENTS"
+              tag="RESIDENT PAYMENTS"
               title="Make a payment"
               text="Upload your payment slip for management verification."
               close={() => setMakingPayment(false)}
@@ -3073,7 +3078,7 @@ function StudentSelfService({
             studentUpdated(updated);
             setGivingNotice(false);
             setMessage(
-              `Notice received. Your intended vacating date is ${fmtDate(updated.intendedVacateDate || "")}.`,
+              `Notice received. Your intended check-out date is ${fmtDate(updated.intendedVacateDate || "")}.`,
             );
           }}
         />
@@ -3112,7 +3117,7 @@ function StudentSelfService({
           <form onSubmit={submit} className="profile-request-form">
             <header>
               <div>
-                <p className="tag">STUDENT PROFILE</p>
+                <p className="tag">RESIDENT PROFILE</p>
                 <h2>Request personnel detail changes</h2>
                 <p>
                   Your current profile remains unchanged until an authorised
@@ -3248,7 +3253,7 @@ function StudentRoomTransferRequest({
     const result = await response.json();
     setSaving(false);
     if (!response.ok)
-      return setError(result.error || "Unable to submit room-change request.");
+      return setError(result.error || "Unable to submit hostel room-change request.");
     saved(result.request);
   };
   return (
@@ -3258,9 +3263,9 @@ function StudentRoomTransferRequest({
         onSubmit={submit}
       >
         <ModalHead
-          tag="STUDENT PORTAL"
-          title="Request Room Change"
-          text={`${student.registrationNo} · Current room ${student.roomNo}`}
+          tag="RESIDENT PORTAL"
+          title="Request Hostel Room Change"
+          text={`${student.registrationNo} · Current hostel room ${student.roomNo}`}
           close={close}
         />
         <div className="vacating-notice-body">
@@ -3268,7 +3273,8 @@ function StudentRoomTransferRequest({
             <div className="notice-rule">
               <b>Request awaiting approval</b>
               <p>
-                You already have a room-change request pending with management.
+
+                You already have a hostel room-change request pending with management.
               </p>
             </div>
           ) : (
@@ -3276,18 +3282,20 @@ function StudentRoomTransferRequest({
               <div className="notice-rule">
                 <b>Management approval is required</b>
                 <p>
-                  Your room and deposit will not change until management
+
+                  Your hostel room and security deposit will not change until management
                   approves the request and confirms the effective transfer date.
                 </p>
               </div>
               <label>
-                Requested room
+
+                Requested hostel room
                 <select
                   value={roomNo}
                   onChange={(event) => setRoomNo(event.target.value)}
                   required
                 >
-                  <option value="">Select a room</option>
+                  <option value="">Select a hostel room</option>
                   {available.map((room) => {
                     const availability = roomAvailability(room);
                     return (
@@ -3308,7 +3316,7 @@ function StudentRoomTransferRequest({
                 <>
                   <div className="notice-date-summary room-change-summary">
                     <span>
-                      <small>ROOM STATUS</small>
+                      <small>HOSTEL ROOM STATUS</small>
                       <b>
                         {selectedAvailability?.vacant
                           ? "Vacant"
@@ -3318,11 +3326,11 @@ function StudentRoomTransferRequest({
                       </b>
                     </span>
                     <span>
-                      <small>INTENDED START DATE</small>
+                      <small>INTENDED ACCOMMODATION START DATE</small>
                       <b>{fmtDate(intendedStartDate)}</b>
                     </span>
                     <span>
-                      <small>CURRENT DEPOSIT</small>
+                      <small>CURRENT SECURITY DEPOSIT</small>
                       <b>{cash.format(student.depositPayable)}</b>
                     </span>
                     <span>
@@ -3330,16 +3338,17 @@ function StudentRoomTransferRequest({
                       <b>{cash.format(depositBalance)}</b>
                     </span>
                     <span>
-                      <small>ESTIMATED MONTHLY RENT</small>
+                      <small>ESTIMATED MONTHLY ACCOMMODATION FEE</small>
                       <b>{cash.format(selected.price)}</b>
                     </span>
                     <span>
-                      <small>STANDARD DEPOSIT</small>
+                      <small>STANDARD SECURITY DEPOSIT</small>
                       <b>{cash.format(selected.price * 3)}</b>
                     </span>
                   </div>
                   <label>
-                    Intended start date
+
+                    Intended accommodation start date
                     <input
                       type="date"
                       min={today}
@@ -3352,13 +3361,14 @@ function StudentRoomTransferRequest({
                   </label>
                   {!selectedAvailability?.vacant && (
                     <div className="notice-rule">
-                      <b>This room is currently occupied</b>
+                      <b>This hostel room is currently occupied</b>
                       <p>
                         {selectedAvailability?.earliest
                           ? `It is expected to be available from ${fmtDate(selectedAvailability.earliest)}.`
                           : "An availability date has not yet been recorded."}{" "}
+
                         You may request the earliest available date and the
-                        system will notify you when a confirmed vacating date is
+                        system will notify you when a confirmed check-out date is
                         recorded.
                       </p>
                       <label className="choice-line">
@@ -3375,14 +3385,16 @@ function StudentRoomTransferRequest({
                             )
                           }
                         />{" "}
-                        Request this room from its earliest available date
+
+                        Request this hostel room from its earliest available date
                       </label>
                     </div>
                   )}
                 </>
               )}
               <label>
-                Reason for requesting a room change
+
+                Reason for requesting a hostel room change
                 <textarea
                   rows={4}
                   value={reason}
@@ -3457,7 +3469,7 @@ function StudentRoomAvailabilityResponse({
     <div className="backdrop">
       <form className="modal paymentmodal" onSubmit={submit}>
         <ModalHead
-          tag="ROOM AVAILABILITY"
+          tag="HOSTEL ROOM AVAILABILITY"
           title={`${request.requestedRoomNo} is becoming available`}
           text={`${request.requestNo} · Confirm or propose a later transfer date`}
           close={close}
@@ -3466,7 +3478,8 @@ function StudentRoomAvailabilityResponse({
           <div className="notice-rule">
             <b>Confirmed availability</b>
             <p>
-              The room will be available from {fmtDate(minimum)}. Select that
+
+              The hostel room will be available from {fmtDate(minimum)}. Select that
               date to confirm, or choose a later date.
             </p>
           </div>
@@ -3555,8 +3568,8 @@ function StudentVacatingNotice({
         onSubmit={submit}
       >
         <ModalHead
-          tag="STUDENT PORTAL"
-          title={isAmendment ? "Amend Vacating Notice" : "Notice to Vacate"}
+          tag="RESIDENT PORTAL"
+          title={isAmendment ? "Amend Check-Out Notice" : "Notice to Vacate"}
           text={`${student.registrationNo} · ${student.firstName} ${student.lastName}`}
           close={close}
         />
@@ -3565,8 +3578,8 @@ function StudentVacatingNotice({
             <b>Minimum one month notice is required</b>
             <p>
               {isAmendment
-                ? "You may move the intended vacating date earlier or later. It must remain at least one full calendar month after the original notice date."
-                : "Your intended vacating date must be at least one full month after the date this notice is submitted."}
+                ? "You may move the intended check-out date earlier or later. It must remain at least one full calendar month after the original notice date."
+                : "Your intended check-out date must be at least one full month after the date this notice is submitted."}
             </p>
           </div>
           <div className="notice-date-summary">
@@ -3583,7 +3596,7 @@ function StudentVacatingNotice({
           </div>
           {isAmendment && (
             <div className="existing-notice">
-              <b>Current intended vacating date</b>
+              <b>Current intended check-out date</b>
               <p>{fmtDate(student.intendedVacateDate || "")}</p>
               {student.noticeAmendedDate && (
                 <p>Last amended: {fmtDate(student.noticeAmendedDate)}</p>
@@ -3592,7 +3605,7 @@ function StudentVacatingNotice({
           )}
           <label>
             {isAmendment
-              ? "Amend intended vacating date to"
+              ? "Amend intended check-out date to"
               : "Intended date to vacate"}
             <input
               type="date"
@@ -3660,7 +3673,7 @@ async function buildInvoicePdf(invoice: StudentInvoice, student?: Student) {
   const utilityInvoice = invoice.invoiceType === "Shop Electricity" || invoice.invoiceType === "Shop Water";
   pdf.text(
     invoice.invoiceType === "Deposit"
-      ? "HOSTEL DEPOSIT INVOICE"
+      ? "HOSTEL SECURITY DEPOSIT INVOICE"
       : utilityInvoice
         ? `${invoice.invoiceType.toUpperCase()} INVOICE`
         : "MONTHLY HOSTEL INVOICE",
@@ -3680,15 +3693,15 @@ async function buildInvoicePdf(invoice: StudentInvoice, student?: Student) {
     20,
     55,
   );
-  pdf.text(`${utilityInvoice ? "Tenant / business" : "Student"}: ${student ? `${student.firstName} ${student.lastName}` : invoice.studentName}`, 20, 70);
+  pdf.text(`${utilityInvoice ? "Tenant / business" : "Resident"}: ${student ? `${student.firstName} ${student.lastName}` : invoice.studentName}`, 20, 70);
   pdf.text(
-    `Registration: ${student?.registrationNo || invoice.registrationNo}  |  ${utilityInvoice ? "Shop" : "Room"}: ${student?.roomNo || invoice.roomNo}`,
+    `Registration: ${student?.registrationNo || invoice.registrationNo}  |  ${utilityInvoice ? "Shop" : "Hostel Room"}: ${student?.roomNo || invoice.roomNo}`,
     20,
     78,
   );
   pdf.text(
     invoice.invoiceType === "Deposit"
-      ? "Payment category: Deposit"
+      ? "Payment category: Security Deposit"
       : `Corresponding month: ${fmtMonth(invoice.month)}`,
     20,
     94,
@@ -3719,7 +3732,7 @@ async function buildInvoicePdf(invoice: StudentInvoice, student?: Student) {
       invoiceAdjustments.reduce((sum, row) => sum + row.amount, 0);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(10);
-    pdf.text(`Standard monthly rent: LKR ${amountOnly.format(baseAmount)}`, 25, 113);
+    pdf.text(`Standard monthly accommodation fee: LKR ${amountOnly.format(baseAmount)}`, 25, 113);
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(9);
     invoiceAdjustments.forEach((row, index) =>
@@ -3796,7 +3809,7 @@ function InvoicePreviewModal({
     <div className="backdrop">
       <section className="modal invoice-preview-modal">
         <ModalHead
-          tag="STUDENT INVOICE"
+          tag="RESIDENT INVOICE"
           title={invoice.invoiceNo}
           text={`${fmtMonth(invoice.month)} · Due ${fmtDate(invoice.dueDate)}`}
           close={close}
@@ -3872,7 +3885,8 @@ function StudentInvoiceList({
           <p className="tag">INVOICE LEDGER</p>
           <h2>Your invoices</h2>
           <p>
-            The Deposit invoice is issued first. Rent invoices are issued seven
+
+            The Security Deposit invoice is issued first. Accommodation Fee invoices are issued seven
             days before month-end and are due on the last day of the month.
           </p>
         </div>
@@ -4051,8 +4065,9 @@ function StudentEvidencePanel({
           <p className="tag">PAYMENT EVIDENCE</p>
           <h2>Upload your payment slip</h2>
           <p>
+
             Select Full payment to use the complete outstanding balance, or
-            Partial payment to enter the actual amount on a slip. Larger rent
+            Partial payment to enter the actual amount on a slip. Larger monthly accommodation fee
             receipts are allocated to the oldest balances first.
           </p>
         </div>
@@ -4149,7 +4164,7 @@ function StudentEvidencePanel({
       ) : (
         <div className="empty-state">
           {depositPending
-            ? "Your deposit payment evidence is awaiting verification. Rent payment evidence can be submitted after the deposit is fully approved."
+            ? "Your security deposit payment evidence is awaiting verification. Monthly Accommodation Fee payment evidence can be submitted after the security deposit is fully approved."
             : "There is no unpaid invoice available for a new submission."}
         </div>
       )}
@@ -4296,8 +4311,9 @@ function StudentEvidencePanelPaymentModeLegacy({
           <p className="tag">PAYMENT EVIDENCE</p>
           <h2>Upload your payment slip</h2>
           <p>
-            The system selects the Deposit first, then the earliest unpaid rent
-            invoice. Partial and combined rent payments are allocated
+
+            The system selects the Security Deposit first, then the earliest unpaid monthly accommodation fee
+            invoice. Partial and combined accommodation fee payments are allocated
             automatically after approval.
           </p>
         </div>
@@ -4314,7 +4330,7 @@ function StudentEvidencePanelPaymentModeLegacy({
           <div>
             <small>INVOICE TOTAL</small>
             <b>{cash.format(nextInvoice.amount)}</b>
-            <span>Room {student.roomNo}</span>
+            <span>Hostel Room {student.roomNo}</span>
           </div>
           <label>
             Amount paid (LKR)
@@ -4492,7 +4508,7 @@ function StudentEvidencePanelLegacy({
           <div>
             <small>AMOUNT</small>
             <b>{cash.format(nextInvoice.amount)}</b>
-            <span>Room {student.roomNo}</span>
+            <span>Hostel Room {student.roomNo}</span>
           </div>
           <label className="file">
             Payment slip (PDF or photo)
@@ -4685,7 +4701,7 @@ function ProfileRequestAdmin({
   const decide = async (id: number, decision: "Approved" | "Rejected") => {
     if (!canReview)
       return setError(
-        "Only an authorised management account can review student profile changes.",
+        "Only an authorised management account can review resident profile changes.",
       );
     setBusy(id);
     setError("");
@@ -4711,10 +4727,11 @@ function ProfileRequestAdmin({
       <section className="panel request-admin">
         <div className="section-action">
           <div>
-            <p className="tag">STUDENT DATABASE</p>
+            <p className="tag">RESIDENT DATABASE</p>
             <h2>Profile amendment requests</h2>
             <p>
-              Review proposed values before changing the official student
+
+              Review proposed values before changing the official resident
               record.
             </p>
           </div>
@@ -4835,7 +4852,8 @@ function ProfileRequestAdmin({
           })}
           {!requests.length && (
             <div className="empty-state">
-              No student profile amendment requests.
+
+              No resident profile amendment requests.
             </div>
           )}
         </div>
@@ -4847,11 +4865,11 @@ function ProfileRequestAdmin({
 const staffPermissionColumns: { key: StaffPermissionKey; label: string; note: string }[] = [
   { key: "ownProfile", label: "Own profile", note: "Read-only access to their own staff profile" },
   { key: "enterPayments", label: "Payment entry", note: "Add payment entries; no edit, delete or approval" },
-  { key: "roomPaymentSummary", label: "Room payment summary", note: "View-only room payment summary" },
+  { key: "roomPaymentSummary", label: "Hostel Room payment summary", note: "View-only hostel room payment summary" },
   { key: "shopPaymentSummary", label: "Shop payment summary", note: "View-only shop payment summary" },
   { key: "enterExpenses", label: "Expense entry", note: "Add expense entries; no edit, delete or approval" },
   { key: "viewExpensesOwn", label: "View expenses", note: "View only expenses entered by this employee" },
-  { key: "pettyCash", label: "Petty cash", note: "View the petty-cash log and add deposits" },
+  { key: "pettyCash", label: "Petty cash", note: "View the petty-cash log and add security deposits" },
 ];
 
 function AdminControls({
@@ -4901,7 +4919,7 @@ function AdminControls({
       <div className="panel admin-permission-panel">
         <div className="admin-permission-note">
           <b>Default access: none</b>
-          <span>Staff cannot see any system information until an administrator enables a permission below. Student access is not affected.</span>
+          <span>Staff cannot see any system information until an administrator enables a permission below. Resident access is not affected.</span>
         </div>
         <div className="tablewrap">
           <table className="admin-permission-table">
@@ -4953,7 +4971,7 @@ const numberInWords = (raw: number) => {
   const under = (n: number) => `${n >= 100 ? `${small[Math.floor(n / 100)]} Hundred ` : ""}${n % 100 < 20 ? small[n % 100] : `${tens[Math.floor((n % 100) / 10)]}${n % 10 ? ` ${small[n % 10]}` : ""}`}`.trim();
   const parts: string[] = []; let n = value; ([[1_000_000, "Million"], [1_000, "Thousand"]] as Array<[number, string]>).forEach(([unit, label]) => { const count = Math.floor(n / unit); if (count) { parts.push(`${under(count)} ${label}`); n %= unit; } }); if (n) parts.push(under(n)); return `${parts.join(" ")} Rupees Only`;
 };
-const agreementValuesFor = (student: Student, profile: HostelProfile, warden?: Staff): AgreementData => ({ studentName: [student.firstName, student.middleNames, student.lastName].filter(Boolean).join(" "), studentId: student.idNo || "", wardenName: warden ? `${warden.firstName} ${warden.lastName}`.trim() : "Hostel Warden", wardenId: warden?.idNo || "", startDate: student.startDate || "", roomNo: student.roomNo || "", monthlyRent: amountOnly.format(student.monthlyRent || 0), monthlyRentWords: numberInWords(student.monthlyRent || 0), depositAmount: amountOnly.format(student.depositPayable || 0), depositAmountWords: numberInWords(student.depositPayable || 0), occupancyBasis: "As assigned in the room register", agreementDate: student.startDate || new Date().toISOString().slice(0, 10), rentalDuration: "Six months", hostelEmail: profile.email, hostelTelephone: profile.telephone });
+const agreementValuesFor = (student: Student, profile: HostelProfile, warden?: Staff): AgreementData => ({ studentName: [student.firstName, student.middleNames, student.lastName].filter(Boolean).join(" "), studentId: student.idNo || "", wardenName: warden ? `${warden.firstName} ${warden.lastName}`.trim() : "Hostel Warden", wardenId: warden?.idNo || "", startDate: student.startDate || "", roomNo: student.roomNo || "", monthlyRent: amountOnly.format(student.monthlyRent || 0), monthlyRentWords: numberInWords(student.monthlyRent || 0), depositAmount: amountOnly.format(student.depositPayable || 0), depositAmountWords: numberInWords(student.depositPayable || 0), occupancyBasis: "As assigned in the hostel room register", agreementDate: student.startDate || new Date().toISOString().slice(0, 10), rentalDuration: "Six months", hostelEmail: profile.email, hostelTelephone: profile.telephone });
 type AgreementSignature = { name: string; date: string };
 const agreementTemplateData = (data: AgreementData, signature?: AgreementSignature) => ({ "Full Name of the Student": data.studentName, "ID Card No of the Student": data.studentId, "Name of the Warden": data.wardenName, "ID Card of the Warden": data.wardenId, "Start Date of the Student": data.startDate ? fmtDate(data.startDate) : "", "Room No": data.roomNo, "Monthly Rent": data.monthlyRent, "Monthly Rent in words": data.monthlyRentWords, "Deposit Amount": data.depositAmount, "Deposit Amount in Words": data.depositAmountWords, "Hostel Telephone": data.hostelTelephone, "Hostel Email": data.hostelEmail, "Name of the Student": data.studentName, "Student Signature": signature ? `${signature.name} — ${fmtDate(signature.date)}\nSignature of the Resident` : "Signature of the Resident" });
 function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
@@ -4989,7 +5007,7 @@ async function downloadAgreementPdf(data: AgreementData, filename: string, signa
 function AgreementDocumentPreview({ data, signature }: { data: AgreementData; signature?: AgreementSignature }) { const target = useRef<HTMLDivElement>(null); const [error, setError] = useState(""); useEffect(() => { let active = true; buildAgreementBlob(data, signature).then(async (blob) => { if (!active || !target.current) return; target.current.innerHTML = ""; const { renderAsync } = await import("docx-preview"); await renderAsync(blob, target.current, undefined, { inWrapper: true, breakPages: true, ignoreWidth: false, ignoreHeight: false }); if (active) setError(""); }).catch((reason) => active && setError(reason instanceof Error ? reason.message : "Unable to preview agreement.")); return () => { active = false; }; }, [data, signature?.name, signature?.date]); return <div className="agreement-preview-shell">{error && <div className="error-banner">{error}</div>}<div ref={target} className="agreement-docx-preview" /></div>; }
 
 function AgreementSettlementView({ students, staff, payments, invoices, studentUpdated }: { students: Student[]; staff: Staff[]; payments: Payment[]; invoices: StudentInvoice[]; studentUpdated: (student: Student) => void }) {
-  const [section, setSection] = useState<"Agreement" | "Vacating Settlement" | "Vacating Notice">("Agreement");
+  const [section, setSection] = useState<"Agreement" | "Vacating Settlement" | "Check-Out Notice">("Agreement");
   const [registrationNo, setRegistrationNo] = useState("");
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
   const [agreementOpen, setAgreementOpen] = useState(false);
@@ -5040,21 +5058,21 @@ function AgreementSettlementView({ students, staff, payments, invoices, studentU
     doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(19); doc.text("THE PERK HAVEN HOSTEL", 46, 15); doc.setFontSize(9); doc.text(title, 46, 24);
     doc.setTextColor(18, 42, 66); doc.setFontSize(11); doc.setFont("helvetica", "normal");
     const rows: Array<[string, string]> = [
-      ["Student name", fullName], ["Student registration no.", student.registrationNo], ["Room", student.roomNo || "Not assigned"],
-      ["Monthly rent (LKR)", amountOnly.format(student.monthlyRent || 0)], ["Start date", student.startDate ? fmtDate(student.startDate) : "Not provided"], ["Vacating date", vacatingDate ? fmtDate(vacatingDate) : "Not provided"], ["Last payment date", lastPaymentDate ? fmtDate(lastPaymentDate) : "No rent payment recorded"],
+      ["Resident name", fullName], ["Resident registration no.", student.registrationNo], ["Hostel Room", student.roomNo || "Not assigned"],
+      ["Monthly accommodation fee (LKR)", amountOnly.format(student.monthlyRent || 0)], ["Accommodation start date", student.startDate ? fmtDate(student.startDate) : "Not provided"], ["Check-out date", vacatingDate ? fmtDate(vacatingDate) : "Not provided"], ["Last payment date", lastPaymentDate ? fmtDate(lastPaymentDate) : "No accommodation fee payment recorded"],
     ];
     if (activeSettlementData) rows.push(["Settlement agreement date", fmtDate(activeSettlementData.printDate)]);
     if (section === "Agreement") rows.push(["Agreement status", student.contractAgreementStatus || "Not signed"]);
-    if (section === "Vacating Notice") rows.push(["Notice date", student.noticeToVacateDate ? fmtDate(student.noticeToVacateDate) : "Not submitted"], ["Intended vacating date", student.vacatedDate ? fmtDate(student.vacatedDate) : "Not provided"]);
+    if (section === "Check-Out Notice") rows.push(["Notice date", student.noticeToVacateDate ? fmtDate(student.noticeToVacateDate) : "Not submitted"], ["Intended check-out date", student.vacatedDate ? fmtDate(student.vacatedDate) : "Not provided"]);
     rows.forEach(([label, value], index) => { const y = 44 + index * 9; doc.setFont("helvetica", "bold"); doc.text(label, 18, y); doc.setFont("helvetica", "normal"); doc.text(value, 72, y); });
     if (section === "Vacating Settlement") {
       let y = 44 + rows.length * 9 + 6;
-      doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text("Last three rent payments", 18, y); y += 6;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text("Last three accommodation fee payments", 18, y); y += 6;
       const columns = [18, 62, 99, 142, 192];
       doc.setFillColor(237, 243, 249); doc.rect(18, y, 174, 8, "F"); doc.setFontSize(8); ["Invoice no.", "Amount (LKR)", "Corresponding month", "Payment date"].forEach((heading, index) => doc.text(heading, columns[index] + 2, y + 5));
       y += 8; doc.setFont("helvetica", "normal");
       if (recentPayments.length) recentPayments.forEach((payment, index) => { if (index % 2) { doc.setFillColor(248, 250, 252); doc.rect(18, y, 174, 8, "F"); } doc.text(payment.invoiceNo || "—", columns[0] + 2, y + 5); doc.text(amountOnly.format(payment.paidAmount), columns[1] + 2, y + 5); doc.text(payment.month ? fmtMonth(payment.month) : "—", columns[2] + 2, y + 5); doc.text(fmtDate(payment.paidDate), columns[3] + 2, y + 5); y += 8; });
-      else { doc.text("No rent payments recorded for the settlement period.", 20, y + 5); y += 8; }
+      else { doc.text("No accommodation fee payments recorded for the settlement period.", 20, y + 5); y += 8; }
       y += 7; doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.text("Outstanding payment (LKR)", 18, y); doc.text(amountOnly.format(outstanding), 192, y, { align: "right" });
       y += 10; doc.setFontSize(12); doc.text("Settlement Amount", 18, y); y += 5;
       const settlementRows: Array<[string, number]> = [["Deposit", deposit], ["Outstanding payment", outstanding], ["Balance payment", balancePayment]];
@@ -5064,9 +5082,9 @@ function AgreementSettlementView({ students, staff, payments, invoices, studentU
       doc.text(doc.splitTextToSize(settlementStatement, 174), 18, y); y += 14;
       doc.setFont("helvetica", "bold"); doc.text("Bank account details", 18, y); y += 7; doc.setFont("helvetica", "normal");
       [["Bank account number", activeSettlementData?.accountNumber || "Not provided"], ["Account holder's name", activeSettlementData?.accountHolderName || "Not provided"], ["Bank", activeSettlementData?.bankName || "Not provided"], ["Branch", activeSettlementData?.branchName || "Not provided"]].forEach(([label, value]) => { doc.text(label, 18, y); doc.text(value, 70, y); y += 7; });
-      y += 8; doc.line(18, y, 85, y); doc.text("Student signature", 18, y + 6); doc.line(125, y, 192, y); doc.text("Date", 125, y + 6);
+      y += 8; doc.line(18, y, 85, y); doc.text("Resident signature", 18, y + 6); doc.line(125, y, 192, y); doc.text("Date", 125, y + 6);
     }
-    const body = section === "Agreement" ? "This agreement records the accommodation terms accepted between The Perk Haven Hostel and the resident named above. The completed agreement must be reviewed and signed by the relevant parties." : section === "Vacating Settlement" ? "This settlement summarises the resident's account at departure. Management must verify rent, deposits, deductions, damages, keys and other liabilities before confirming final settlement." : "This document records the resident's formal notice of the intended date of departure, subject to the minimum notice period and management verification.";
+    const body = section === "Agreement" ? "This agreement records the accommodation terms accepted between The Perk Haven Hostel and the resident named above. The completed agreement must be reviewed and signed by the relevant parties." : section === "Vacating Settlement" ? "This settlement summarises the resident's account at departure. Management must verify monthly accommodation fee, security deposits, deductions, damages, keys and other liabilities before confirming final settlement." : "This document records the resident's formal notice of the intended date of departure, subject to the minimum notice period and management verification.";
     if (section !== "Vacating Settlement") { doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.text(doc.splitTextToSize(body, 170), 20, 145); doc.line(20, 245, 85, 245); doc.line(125, 245, 190, 245); doc.text("Resident signature", 20, 252); doc.text("For The Perk Haven", 125, 252); }
     const name = `${section.replaceAll(" ", "-")}-${student.registrationNo}.pdf`;
     if (download) return doc.save(name);
@@ -5085,17 +5103,17 @@ function AgreementSettlementView({ students, staff, payments, invoices, studentU
     return () => window.clearTimeout(timer);
   }, [settlementOpen, settlementData, registrationNo]);
   return <section className="documents-admin-page">
-    <div className="section-tabs document-tabs" role="tablist">{(["Agreement", "Vacating Settlement", "Vacating Notice"] as const).map((item) => <button key={item} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</div>
-  <div className="panel documents-generator"><div><p className="tag">DOCUMENT PREPARATION</p><h2>{section}</h2><p>{section === "Agreement" ? "Select a student, review the completed contract and send it for electronic signature." : section === "Vacating Settlement" ? "Select a student, confirm the bank account variables and generate the dated settlement PDF." : "Select a student to complete the standard document automatically."}</p></div><label>Student<select value={registrationNo} onChange={(event) => setRegistrationNo(event.target.value)}><option value="">Select student</option>{students.map((item) => <option key={item.registrationNo} value={item.registrationNo}>{item.registrationNo} · {item.firstName} {item.lastName}</option>)}</select></label><div className="document-actions">{section === "Agreement" ? <button className="primary" disabled={!student || !hostelProfile} onClick={() => { if (!student || !hostelProfile) return; let saved: AgreementData | null = null; try { saved = student.agreementDataJson ? JSON.parse(student.agreementDataJson) : null; } catch {} const warden = staff.find((member) => member.status === "Active" && member.designation.toLowerCase().includes("warden")); setAgreementData(saved || agreementValuesFor(student, hostelProfile, warden)); setAgreementMessage(""); setAgreementOpen(true); }}>Prepare / View Agreement</button> : section === "Vacating Settlement" ? <button className="primary" disabled={!student} onClick={openSettlementVariables}>Prepare / View Settlement</button> : <><button className="secondary" disabled={!student} onClick={() => createDocument(false)}>Preview PDF</button><button className="primary" disabled={!student} onClick={() => createDocument(true)}>Download PDF</button></>}</div></div>
+    <div className="section-tabs document-tabs" role="tablist">{(["Agreement", "Vacating Settlement", "Check-Out Notice"] as const).map((item) => <button key={item} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</div>
+  <div className="panel documents-generator"><div><p className="tag">DOCUMENT PREPARATION</p><h2>{section}</h2><p>{section === "Agreement" ? "Select a resident, review the completed contract and send it for electronic signature." : section === "Vacating Settlement" ? "Select a resident, confirm the bank account variables and generate the dated settlement PDF." : "Select a resident to complete the standard document automatically."}</p></div><label>Resident<select value={registrationNo} onChange={(event) => setRegistrationNo(event.target.value)}><option value="">Select resident</option>{students.map((item) => <option key={item.registrationNo} value={item.registrationNo}>{item.registrationNo} · {item.firstName} {item.lastName}</option>)}</select></label><div className="document-actions">{section === "Agreement" ? <button className="primary" disabled={!student || !hostelProfile} onClick={() => { if (!student || !hostelProfile) return; let saved: AgreementData | null = null; try { saved = student.agreementDataJson ? JSON.parse(student.agreementDataJson) : null; } catch {} const warden = staff.find((member) => member.status === "Active" && member.designation.toLowerCase().includes("warden")); setAgreementData(saved || agreementValuesFor(student, hostelProfile, warden)); setAgreementMessage(""); setAgreementOpen(true); }}>Prepare / View Agreement</button> : section === "Vacating Settlement" ? <button className="primary" disabled={!student} onClick={openSettlementVariables}>Prepare / View Settlement</button> : <><button className="secondary" disabled={!student} onClick={() => createDocument(false)}>Preview PDF</button><button className="primary" disabled={!student} onClick={() => createDocument(true)}>Download PDF</button></>}</div></div>
     {section === "Agreement" && <AgreementLog agreements={agreements} />}
-    {agreementOpen && student && agreementData && <div className="backdrop"><section className="modal agreement-workspace-modal"><ModalHead tag="CONTRACT AGREEMENT" title={`${student.registrationNo} · ${agreementData.studentName}`} text="Review the agreement and confirm the variables before sending it to the student." close={() => setAgreementOpen(false)} /><div className="agreement-workspace"><AgreementDocumentPreview data={agreementData} /><aside className="agreement-variables"><h3>Agreement variables</h3><p>Profile values are pre-filled and can be amended for this contract.</p>{([["studentName", "Student full name", "text"], ["studentId", "Student NIC / ID", "text"], ["wardenName", "Warden full name", "text"], ["wardenId", "Warden NIC / ID", "text"], ["agreementDate", "Agreement date", "date"], ["startDate", "Rental start date", "date"], ["roomNo", "Room number", "text"], ["occupancyBasis", "Occupancy basis", "text"], ["rentalDuration", "Rental duration", "text"], ["monthlyRent", "Monthly rent", "text"], ["monthlyRentWords", "Monthly rent in words", "text"], ["depositAmount", "Deposit amount", "text"], ["depositAmountWords", "Deposit amount in words", "text"]] as Array<[keyof AgreementData, string, string]>).map(([key, label, type]) => <label key={key}>{label}<input type={type} value={agreementData[key]} readOnly={key === "occupancyBasis"} onChange={(event) => setAgreementData({ ...agreementData, [key]: event.target.value })} /></label>)}{agreementMessage && <div className="success-banner">{agreementMessage}</div>}</aside></div><div className="modalactions"><button className="secondary" onClick={() => downloadAgreementPdf(agreementData, `Agreement-${student.registrationNo}.pdf`)}>Save PDF</button><button className="primary" disabled={sendingAgreement} onClick={async () => { setSendingAgreement(true); try { const response = await fetch("/api/v1/agreements", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ registrationNo: student.registrationNo, agreementData }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "Unable to send agreement."); setAgreements((current) => [result.agreement, ...current]); setAgreementMessage(`${result.agreement.agreementNo} ${result.agreement.revisionLabel} was saved and sent to the student for electronic signature.`); } catch (reason) { setAgreementMessage(reason instanceof Error ? reason.message : "Unable to send agreement."); } finally { setSendingAgreement(false); } }}>Save & Send to Student</button></div></section></div>}
-    {settlementOpen && student && settlementData && <div className="backdrop"><section className="modal settlement-variables-modal"><ModalHead tag="VACATING SETTLEMENT" title={`${student.registrationNo} · ${student.firstName} ${student.lastName}`} text="Update the bank details and review the settlement before downloading it." close={() => { settlementPreviewRequest.current += 1; setSettlementPreviewUrl((current) => { if (current) URL.revokeObjectURL(current); return null; }); setSettlementOpen(false); }} /><div className="settlement-variables-body"><aside className="agreement-variables settlement-variables"><h3>Settlement Agreement variables</h3><p>Enter the student’s bank account details for the balance payment.</p>{([["accountHolderName", "Account holder's name", "text"], ["accountNumber", "Bank account number", "text"], ["bankName", "Bank name", "text"], ["branchName", "Bank branch", "text"], ["printDate", "Settlement Agreement date", "date"]] as Array<[keyof SettlementData, string, string]>).map(([key, label, type]) => <label key={key}>{label}<input type={type} value={settlementData[key]} readOnly={key === "printDate"} onChange={(event) => setSettlementData({ ...settlementData, [key]: event.target.value })} /></label>)}</aside><div className="settlement-pdf-preview">{settlementPreviewUrl ? <iframe src={settlementPreviewUrl} title="Vacating Settlement preview" /> : <div className="preview-loading">Preparing settlement preview…</div>}</div></div><div className="modalactions"><button className="primary" onClick={() => void createDocument(true, settlementData)}>Download PDF</button></div></section></div>}
+    {agreementOpen && student && agreementData && <div className="backdrop"><section className="modal agreement-workspace-modal"><ModalHead tag="CONTRACT AGREEMENT" title={`${student.registrationNo} · ${agreementData.studentName}`} text="Review the agreement and confirm the variables before sending it to the resident." close={() => setAgreementOpen(false)} /><div className="agreement-workspace"><AgreementDocumentPreview data={agreementData} /><aside className="agreement-variables"><h3>Agreement variables</h3><p>Profile values are pre-filled and can be amended for this contract.</p>{([["studentName", "Resident full name", "text"], ["studentId", "Resident NIC / ID", "text"], ["wardenName", "Warden full name", "text"], ["wardenId", "Warden NIC / ID", "text"], ["agreementDate", "Agreement date", "date"], ["startDate", "Rental accommodation start date", "date"], ["roomNo", "Hostel Room number", "text"], ["occupancyBasis", "Occupancy basis", "text"], ["rentalDuration", "Rental duration", "text"], ["monthlyRent", "Monthly accommodation fee", "text"], ["monthlyRentWords", "Monthly accommodation fee in words", "text"], ["depositAmount", "Security Deposit amount", "text"], ["depositAmountWords", "Security Deposit amount in words", "text"]] as Array<[keyof AgreementData, string, string]>).map(([key, label, type]) => <label key={key}>{label}<input type={type} value={agreementData[key]} readOnly={key === "occupancyBasis"} onChange={(event) => setAgreementData({ ...agreementData, [key]: event.target.value })} /></label>)}{agreementMessage && <div className="success-banner">{agreementMessage}</div>}</aside></div><div className="modalactions"><button className="secondary" onClick={() => downloadAgreementPdf(agreementData, `Agreement-${student.registrationNo}.pdf`)}>Save PDF</button><button className="primary" disabled={sendingAgreement} onClick={async () => { setSendingAgreement(true); try { const response = await fetch("/api/v1/agreements", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ registrationNo: student.registrationNo, agreementData }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "Unable to send agreement."); setAgreements((current) => [result.agreement, ...current]); setAgreementMessage(`${result.agreement.agreementNo} ${result.agreement.revisionLabel} was saved and sent to the resident for electronic signature.`); } catch (reason) { setAgreementMessage(reason instanceof Error ? reason.message : "Unable to send agreement."); } finally { setSendingAgreement(false); } }}>Save & Send to Resident</button></div></section></div>}
+    {settlementOpen && student && settlementData && <div className="backdrop"><section className="modal settlement-variables-modal"><ModalHead tag="VACATING SETTLEMENT" title={`${student.registrationNo} · ${student.firstName} ${student.lastName}`} text="Update the bank details and review the settlement before downloading it." close={() => { settlementPreviewRequest.current += 1; setSettlementPreviewUrl((current) => { if (current) URL.revokeObjectURL(current); return null; }); setSettlementOpen(false); }} /><div className="settlement-variables-body"><aside className="agreement-variables settlement-variables"><h3>Settlement Agreement variables</h3><p>Enter the resident’s bank account details for the balance payment.</p>{([["accountHolderName", "Account holder's name", "text"], ["accountNumber", "Bank account number", "text"], ["bankName", "Bank name", "text"], ["branchName", "Bank branch", "text"], ["printDate", "Settlement Agreement date", "date"]] as Array<[keyof SettlementData, string, string]>).map(([key, label, type]) => <label key={key}>{label}<input type={type} value={settlementData[key]} readOnly={key === "printDate"} onChange={(event) => setSettlementData({ ...settlementData, [key]: event.target.value })} /></label>)}</aside><div className="settlement-pdf-preview">{settlementPreviewUrl ? <iframe src={settlementPreviewUrl} title="Vacating Settlement preview" /> : <div className="preview-loading">Preparing settlement preview…</div>}</div></div><div className="modalactions"><button className="primary" onClick={() => void createDocument(true, settlementData)}>Download PDF</button></div></section></div>}
     {preview && <div className="backdrop"><div className="modal document-preview-modal"><ModalHead tag="DOCUMENT PREVIEW" title={preview.name} text="Review the completed document before downloading." close={() => { URL.revokeObjectURL(preview.url); setPreview(null); }} /><iframe src={preview.url} title={preview.name} /><div className="modalactions"><a className="button secondary" href={preview.url} download={preview.name}>Download PDF</a></div></div></div>}
   </section>;
 }
 
 function AgreementLog({ agreements }: { agreements: AgreementRecord[] }) {
-  return <div className="panel tablewrap"><div className="table-title"><div><p className="tag">AGREEMENT LOG</p><h3>Issued agreements</h3></div></div><table><thead><tr><th>REFERENCE</th><th>REVISION</th><th>REGISTRATION</th><th>STUDENT</th><th>ROOM</th><th>START DATE</th><th>ISSUED</th><th>SIGNED</th><th>STATUS</th><th>COPY</th></tr></thead><tbody>{agreements.map((entry) => { let data: AgreementData | null = null; try { data = JSON.parse(entry.agreementDataJson); } catch {} return <tr key={entry.id}><td>{entry.agreementNo}</td><td>{entry.revisionLabel}</td><td>{entry.registrationNo}</td><td>{entry.studentName}</td><td>{entry.roomNo || "—"}</td><td>{fmtDate(entry.startDate)}</td><td>{fmtDateTime(entry.issuedAt)}</td><td>{entry.signedAt ? fmtDateTime(entry.signedAt) : "—"}</td><td><span className={`approval-status ${entry.status.toLowerCase()}`}>{entry.status}</span></td><td>{data && <button className="secondary" onClick={() => downloadAgreementPdf(data!, `${entry.agreementNo}-${entry.revisionLabel}.pdf`, entry.signedName && entry.signedAt ? { name: entry.signedName, date: entry.signedAt } : undefined)}>Download PDF</button>}</td></tr>; })}{!agreements.length && <tr><td colSpan={10} className="empty-state">No agreements have been issued.</td></tr>}</tbody></table></div>;
+  return <div className="panel tablewrap"><div className="table-title"><div><p className="tag">AGREEMENT LOG</p><h3>Issued agreements</h3></div></div><table><thead><tr><th>REFERENCE</th><th>REVISION</th><th>REGISTRATION</th><th>RESIDENT</th><th>HOSTEL ROOM</th><th>ACCOMMODATION START DATE</th><th>ISSUED</th><th>SIGNED</th><th>STATUS</th><th>COPY</th></tr></thead><tbody>{agreements.map((entry) => { let data: AgreementData | null = null; try { data = JSON.parse(entry.agreementDataJson); } catch {} return <tr key={entry.id}><td>{entry.agreementNo}</td><td>{entry.revisionLabel}</td><td>{entry.registrationNo}</td><td>{entry.studentName}</td><td>{entry.roomNo || "—"}</td><td>{fmtDate(entry.startDate)}</td><td>{fmtDateTime(entry.issuedAt)}</td><td>{entry.signedAt ? fmtDateTime(entry.signedAt) : "—"}</td><td><span className={`approval-status ${entry.status.toLowerCase()}`}>{entry.status}</span></td><td>{data && <button className="secondary" onClick={() => downloadAgreementPdf(data!, `${entry.agreementNo}-${entry.revisionLabel}.pdf`, entry.signedName && entry.signedAt ? { name: entry.signedName, date: entry.signedAt } : undefined)}>Download PDF</button>}</td></tr>; })}{!agreements.length && <tr><td colSpan={10} className="empty-state">No agreements have been issued.</td></tr>}</tbody></table></div>;
 }
 
 function Overview({
@@ -5293,7 +5311,7 @@ function Overview({
         <Stat
           tone="blue"
           icon="♙"
-          label="Active students"
+          label="Active residents"
           value={`${active}`}
           note="Registered residents"
         />
@@ -5323,7 +5341,7 @@ function Overview({
           icon="✎"
           label="Contract agreements"
           value={`${unsignedAgreementCount} unsigned`}
-          note="Active students requiring signed agreements"
+          note="Active residents requiring signed agreements"
         />
         <Stat
           tone="amber"
@@ -5370,7 +5388,7 @@ function Overview({
       </section>
       <section className="dashboard-chart-grid">
         <DashboardColumnChart title="Income and expenses" subtitle="Operating income vs approved expenses · last 18 months" labels={chartMonths.map(chartLabel)} series={[{ label: "Income", values: monthlyIncome, color: "blue" }, { label: "Expenses", values: monthlyExpenses, color: "red" }]} />
-        <DashboardColumnChart title="Payments from students" subtitle="Monthly payable vs paid · last 18 months" labels={chartMonths.map(chartLabel)} series={[{ label: "Payable", values: studentPayable, color: "blue" }, { label: "Paid", values: studentPaid, color: "green" }]} />
+        <DashboardColumnChart title="Payments from residents" subtitle="Monthly payable vs paid · last 18 months" labels={chartMonths.map(chartLabel)} series={[{ label: "Payable", values: studentPayable, color: "blue" }, { label: "Paid", values: studentPaid, color: "green" }]} />
         <DashboardColumnChart title="Payments from shops" subtitle="Monthly payable vs paid · last 18 months" labels={chartMonths.map(chartLabel)} series={[{ label: "Payable", values: shopPayable, color: "violet" }, { label: "Paid", values: shopPaid, color: "green" }]} />
         <DashboardColumnChart title="Expenses" subtitle="Approved monthly expenses · last 18 months" labels={chartMonths.map(chartLabel)} series={[{ label: "Expenses", values: monthlyExpenses, color: "amber" }]} />
         <DashboardExpenseDonut rows={expenseBreakdown} />
@@ -5387,8 +5405,8 @@ function Overview({
             <thead>
               <tr>
                 <th>INVOICE</th>
-                <th>STUDENT</th>
-                <th>ROOM</th>
+                <th>RESIDENT</th>
+                <th>HOSTEL ROOM</th>
                 <th>TYPE</th>
                 <th>MONTH</th>
                 <th>DUE DATE</th>
@@ -5639,7 +5657,8 @@ function RegistersView({
           className={tab === "students" ? "active" : ""}
           onClick={() => setTab("students")}
         >
-          Student Register
+
+          Resident Register
         </button>
         <button
           className={tab === "shops" ? "active" : ""}
@@ -5660,7 +5679,7 @@ function RegistersView({
           Staff Designations
         </button>
       </div>
-      {tab === "students" && <button className="primary" onClick={addStudent}>＋ Add Student</button>}
+      {tab === "students" && <button className="primary" onClick={addStudent}>＋ Add Resident</button>}
       {tab === "staff" && <button className="primary" onClick={addStaff}>＋ Add staff</button>}
       {tab === "designations" && <button className="primary" onClick={()=>window.dispatchEvent(new Event("add-staff-designation"))}>＋ Add designation</button>}
       {tab === "shops" && <button className="primary" onClick={()=>setRegisteringShop(true)}>＋ Register shop tenant</button>}
@@ -6022,13 +6041,13 @@ function StudentView({
   const deleteStudent = async (student: Student) => {
     if (
       !window.confirm(
-        `Delete ${student.registrationNo} · ${student.firstName} ${student.lastName}? This removes the student from the register.`,
+        `Delete ${student.registrationNo} · ${student.firstName} ${student.lastName}? This removes the resident from the register.`,
       )
     )
       return;
     const response = await fetch(`/api/v1/students/${encodeURIComponent(student.registrationNo)}`, { method: "DELETE" });
     if (!response.ok)
-      return window.alert("Unable to delete student");
+      return window.alert("Unable to delete resident");
     remove(student.registrationNo);
   };
   const today = new Date();
@@ -6084,8 +6103,8 @@ function StudentView({
       <div className="student-register-toolbar">
         <div className="student-register-filters">
           <input value={studentFilters.registration} onChange={(e)=>setStudentFilters(c=>({...c,registration:e.target.value}))} placeholder="Registration no." />
-          <input value={studentFilters.name} onChange={(e)=>setStudentFilters(c=>({...c,name:e.target.value}))} placeholder="Student name" />
-          <input value={studentFilters.room} onChange={(e)=>setStudentFilters(c=>({...c,room:e.target.value}))} placeholder="Room no." />
+          <input value={studentFilters.name} onChange={(e)=>setStudentFilters(c=>({...c,name:e.target.value}))} placeholder="Resident name" />
+          <input value={studentFilters.room} onChange={(e)=>setStudentFilters(c=>({...c,room:e.target.value}))} placeholder="Hostel Room no." />
           <select value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value as "All"|"Active"|"Inactive")}><option>All</option><option>Active</option><option>Inactive</option></select>
           <button className="secondary" onClick={()=>{setStudentFilters({registration:"",name:"",room:""});setStatusFilter("All");}}>Clear filters</button>
         </div>
@@ -6099,9 +6118,9 @@ function StudentView({
               <th>CONTACT</th>
               <th>WHATSAPP</th>
               <th>EMAIL</th>
-              <th>ROOM</th>
-              <th>DEPOSIT</th>
-              <th>ROOM PAYMENTS</th>
+              <th>HOSTEL ROOM</th>
+              <th>SECURITY DEPOSIT</th>
+              <th>HOSTEL ROOM PAYMENTS</th>
               <th>STATUS</th>
               <th>ACTIONS</th>
             </tr>
@@ -6166,8 +6185,8 @@ function StudentView({
               <tr>
                 <td colSpan={10} className="empty-table-row">
                   {statusFilter === "All"
-                    ? "No students found."
-                    : `No ${statusFilter.toLowerCase()} students found.`}
+                    ? "No residents found."
+                    : `No ${statusFilter.toLowerCase()} residents found.`}
                 </td>
               </tr>
             )}
@@ -6268,7 +6287,7 @@ function PaymentView({
   const [adjustmentForm, setAdjustmentForm] = useState(false);
   const [shopAdjustmentForm, setShopAdjustmentForm] = useState(false);
   const [matrixExport, setMatrixExport] = useState<"rooms" | "shops" | null>(null);
-  const [roomExportFilter, setRoomExportFilter] = useState<{ type: "All" | "Student ID" | "Room No."; value: string }>({ type: "All", value: "" });
+  const [roomExportFilter, setRoomExportFilter] = useState<{ type: "All" | "Resident ID" | "Hostel Room No."; value: string }>({ type: "All", value: "" });
   const [roomFilters, setRoomFilters] = useState({ registration: "", name: "", room: "" });
   const [shopFilters, setShopFilters] = useState({ registration: "", name: "", shop: "" });
   const [roomFrom, setRoomFrom] = useState(from), [roomTo, setRoomTo] = useState(to);
@@ -6292,12 +6311,12 @@ function PaymentView({
     const exportTo = kind === "rooms" ? roomTo : shopTo;
     const months = monthRange(exportFrom, exportTo).slice(0, 12);
     const mode = kind === "rooms" ? roomSection : shopSection;
-    const headers = [kind === "rooms" ? "ROOM" : "SHOP", "REGISTRATION", kind === "rooms" ? "NAME" : "TENANT / BUSINESS", ...months.map(fmtMonth)];
+    const headers = [kind === "rooms" ? "HOSTEL ROOM" : "SHOP", "REGISTRATION", kind === "rooms" ? "NAME" : "TENANT / BUSINESS", ...months.map(fmtMonth)];
     const rows = kind === "rooms"
       ? [...students].filter((student) =>
           roomExportFilter.type === "All" ||
-          (roomExportFilter.type === "Student ID" && student.registrationNo.toLowerCase().includes(roomExportFilter.value.toLowerCase())) ||
-          (roomExportFilter.type === "Room No." && student.roomNo.toLowerCase().includes(roomExportFilter.value.toLowerCase())),
+          (roomExportFilter.type === "Resident ID" && student.registrationNo.toLowerCase().includes(roomExportFilter.value.toLowerCase())) ||
+          (roomExportFilter.type === "Hostel Room No." && student.roomNo.toLowerCase().includes(roomExportFilter.value.toLowerCase())),
         ).sort((a, b) => a.roomNo.localeCompare(b.roomNo, undefined, { numeric: true })).map((student) => [
           student.roomNo,
           student.registrationNo,
@@ -6343,7 +6362,7 @@ function PaymentView({
     const identityWidths = [17, 29, 42];
     const monthWidth = (pageWidth - margin * 2 - identityWidths.reduce((sum, width) => sum + width, 0)) / Math.max(12, headers.length - 3);
     const widths = [...identityWidths, ...headers.slice(3).map(() => monthWidth)];
-    const title = `${kind === "rooms" ? "ROOM" : "SHOP"} PAYMENTS — AMOUNT ${mode === "paid" ? "PAID" : "PAYABLE"}`;
+    const title = `${kind === "rooms" ? "HOSTEL ROOM" : "SHOP"} PAYMENTS — AMOUNT ${mode === "paid" ? "PAID" : "PAYABLE"}`;
     const drawHeader = (page: number) => {
       pdf.setFillColor(15, 48, 78); pdf.rect(0, 0, pageWidth, 21, "F");
       pdf.setTextColor(255, 255, 255); pdf.setFont("helvetica", "bold"); pdf.setFontSize(13);
@@ -6383,7 +6402,8 @@ function PaymentView({
           className={section === "rooms" ? "active" : ""}
           onClick={() => setSection("rooms")}
         >
-          Room Payments
+
+          Hostel Room Payments
         </button>
         <button
           className={section === "shops" ? "active" : ""}
@@ -6401,7 +6421,8 @@ function PaymentView({
           className={section === "deposits" ? "active" : ""}
           onClick={() => setSection("deposits")}
         >
-          Deposit Payments
+
+          Security Deposit Payments
         </button>
         <button
           className={section === "invoices" ? "active" : ""}
@@ -6442,7 +6463,7 @@ function PaymentView({
             <div
               className="subtabs"
               role="tablist"
-              aria-label="Room payment views"
+              aria-label="Hostel Room payment views"
             >
               <button
                 className={roomSection === "paid" ? "active" : ""}
@@ -6458,9 +6479,9 @@ function PaymentView({
               </button>
             </div>
             <div className="room-analysis-filters">
-              <input list="room-payment-student-ids" value={roomFilters.registration} onChange={(event) => setRoomFilters((current) => ({ ...current, registration: event.target.value }))} placeholder="Student ID" aria-label="Filter by student ID" />
-              <input list="room-payment-student-names" value={roomFilters.name} onChange={(event) => setRoomFilters((current) => ({ ...current, name: event.target.value }))} placeholder="Student name" aria-label="Filter by student name" />
-              <input list="room-payment-room-nos" value={roomFilters.room} onChange={(event) => setRoomFilters((current) => ({ ...current, room: event.target.value }))} placeholder="Room no." aria-label="Filter by room number" />
+              <input list="room-payment-student-ids" value={roomFilters.registration} onChange={(event) => setRoomFilters((current) => ({ ...current, registration: event.target.value }))} placeholder="Resident ID" aria-label="Filter by resident ID" />
+              <input list="room-payment-student-names" value={roomFilters.name} onChange={(event) => setRoomFilters((current) => ({ ...current, name: event.target.value }))} placeholder="Resident name" aria-label="Filter by resident name" />
+              <input list="room-payment-room-nos" value={roomFilters.room} onChange={(event) => setRoomFilters((current) => ({ ...current, room: event.target.value }))} placeholder="Hostel Room no." aria-label="Filter by hostel room number" />
               <datalist id="room-payment-student-ids">{students.map((student) => <option value={student.registrationNo} key={student.id} />)}</datalist>
               <datalist id="room-payment-student-names">{students.map((student) => <option value={`${student.firstName} ${student.lastName}`.trim()} key={student.id} />)}</datalist>
               <datalist id="room-payment-room-nos">{[...new Set(students.map((student) => student.roomNo).filter(Boolean))].map((room) => <option value={room} key={room} />)}</datalist>
@@ -6636,11 +6657,11 @@ function PaymentView({
                   Export filter
                   <select
                     value={roomExportFilter.type}
-                    onChange={(event) => setRoomExportFilter({ type: event.target.value as "All" | "Student ID" | "Room No.", value: "" })}
+                    onChange={(event) => setRoomExportFilter({ type: event.target.value as "All" | "Resident ID" | "Hostel Room No.", value: "" })}
                   >
                     <option>All</option>
-                    <option>Student ID</option>
-                    <option>Room No.</option>
+                    <option>Resident ID</option>
+                    <option>Hostel Room No.</option>
                   </select>
                 </label>
                 {roomExportFilter.type !== "All" && (
@@ -6654,7 +6675,7 @@ function PaymentView({
                     />
                   </label>
                 )}
-                <p><b>{matrixExportData("rooms").rows.length}</b> student record(s) selected.</p>
+                <p><b>{matrixExportData("rooms").rows.length}</b>  resident record(s) selected.</p>
               </section>
             )}
             <div className="modalactions">
@@ -6716,8 +6737,8 @@ function ActionList(props: ActionListProps) {
     | "Payment Verification"
     | "Expense Approval"
     | "Profile Edit Approval"
-    | "Vacating Notice Approval"
-    | "Room Change Approval"
+    | "Check-Out Notice Approval"
+    | "Hostel Room Change Approval"
   >("Payment Evidence");
   const [filter, setFilter] = useState<ActionFilter>("Pending"),
     [bankSources, setBankSources] = useState<BankSource[]>([]),
@@ -6800,10 +6821,10 @@ function ActionList(props: ActionListProps) {
     "Profile Edit Approval": profileRequests.filter(
       (entry) => profileStatus(entry) === "Pending",
     ).length,
-    "Vacating Notice Approval": students.filter(
+    "Check-Out Notice Approval": students.filter(
       (entry) => entry.noticeToVacateDate && noticeStatus(entry) === "Pending",
     ).length,
-    "Room Change Approval": roomTransferRequests.filter(
+    "Hostel Room Change Approval": roomTransferRequests.filter(
       (entry) => roomTransferStatus(entry) === "Pending",
     ).length,
   };
@@ -6867,7 +6888,7 @@ function ActionList(props: ActionListProps) {
           reviewed={profileReviewed}
         />
       )}
-      {tab === "Vacating Notice Approval" && (
+      {tab === "Check-Out Notice Approval" && (
         <ActionVacatingNotices
           students={visibleNotices}
           reviewer={reviewer}
@@ -6875,7 +6896,7 @@ function ActionList(props: ActionListProps) {
           statusFor={noticeStatus}
         />
       )}
-      {tab === "Room Change Approval" && (
+      {tab === "Hostel Room Change Approval" && (
         <RoomTransferActionList
           entries={visibleRoomTransfers}
           reviewer={reviewer}
@@ -6942,7 +6963,7 @@ function ActionPaymentEvidence({
       <div className="section-heading">
         <div>
           <p className="tag">PAYMENT EVIDENCE</p>
-          <h2>Student payment submissions</h2>
+          <h2>Resident payment submissions</h2>
         </div>
       </div>
       {error && <p className="form-error">⚠ {error}</p>}
@@ -6951,7 +6972,7 @@ function ActionPaymentEvidence({
           <thead>
             <tr>
               <th>SUBMISSION</th>
-              <th>STUDENT</th>
+              <th>RESIDENT</th>
               <th>MONTH</th>
               <th>AMOUNT<small>(LKR)</small></th>
               <th>EVIDENCE</th>
@@ -7068,8 +7089,8 @@ function RoomTransferActionList({
     <section className="panel payment-section">
       <div className="section-heading">
         <div>
-          <p className="tag">ROOM CHANGE APPROVAL</p>
-          <h2>Student room-transfer requests</h2>
+          <p className="tag">HOSTEL ROOM CHANGE APPROVAL</p>
+          <h2>Resident hostel room-transfer requests</h2>
         </div>
       </div>
       <div className="tablewrap">
@@ -7078,9 +7099,9 @@ function RoomTransferActionList({
             <tr>
               <th>Request No.</th>
               <th>Requested</th>
-              <th>Student</th>
-              <th>Current Room</th>
-              <th>Requested Room</th>
+              <th>Resident</th>
+              <th>Current Hostel Room</th>
+              <th>Requested Hostel Room</th>
               <th>Intended Start</th>
               <th>Availability</th>
               <th>Reason</th>
@@ -7142,7 +7163,7 @@ function RoomTransferActionList({
             ))}
             {!entries.length && (
               <tr>
-                <td colSpan={11}>No room-change actions match this filter.</td>
+                <td colSpan={11}>No hostel room-change actions match this filter.</td>
               </tr>
             )}
           </tbody>
@@ -7206,7 +7227,7 @@ function RoomTransferApproval({
     });
     const result = await response.json();
     if (!response.ok) {
-      setError(result.error || "Unable to review room change.");
+      setError(result.error || "Unable to review hostel room change.");
       setBusy(false);
       return;
     }
@@ -7217,7 +7238,7 @@ function RoomTransferApproval({
     <div className="backdrop">
       <div className="modal paymentmodal">
         <ModalHead
-          tag="ROOM CHANGE APPROVAL"
+          tag="HOSTEL ROOM CHANGE APPROVAL"
           title={`Review ${request.requestNo}`}
           text={`${request.studentName} · ${request.currentRoomNo} → ${request.requestedRoomNo}`}
           close={close}
@@ -7225,19 +7246,19 @@ function RoomTransferApproval({
         <div className="vacating-notice-body">
           <div className="notice-date-summary">
             <span>
-              <small>CURRENT DEPOSIT</small>
+              <small>CURRENT SECURITY DEPOSIT</small>
               <b>{cash.format(request.originalDepositAmount)}</b>
             </span>
             <span>
-              <small>STANDARD REVISED DEPOSIT</small>
+              <small>STANDARD REVISED SECURITY DEPOSIT</small>
               <b>{cash.format(request.revisedDepositAmount)}</b>
             </span>
             <span>
-              <small>STUDENT&apos;S INTENDED DATE</small>
+              <small>RESIDENT&apos;S INTENDED DATE</small>
               <b>{fmtDate(request.intendedStartDate)}</b>
             </span>
             <span>
-              <small>ROOM AVAILABILITY</small>
+              <small>HOSTEL ROOM AVAILABILITY</small>
               <b>
                 {request.earliestAvailableDate
                   ? fmtDate(request.earliestAvailableDate)
@@ -7255,7 +7276,8 @@ function RoomTransferApproval({
             />
           </label>
           <label>
-            Revised deposit amount (LKR)
+
+            Revised security deposit amount (LKR)
             <input
               type="number"
               min="0"
@@ -7268,8 +7290,8 @@ function RoomTransferApproval({
             {difference > 0
               ? `${cash.format(difference)} will become immediately payable.`
               : difference < 0
-                ? `${cash.format(Math.abs(difference))} will be applied to the oldest outstanding room rent.`
-                : "No deposit adjustment is required."}
+                ? `${cash.format(Math.abs(difference))} will be applied to the oldest outstanding monthly accommodation fee.`
+                : "No security deposit adjustment is required."}
           </p>
           <label>
             Management note
@@ -7498,8 +7520,8 @@ function ActionVacatingNotices({
     <section className="panel payment-section">
       <div className="section-heading">
         <div>
-          <p className="tag">VACATING NOTICES</p>
-          <h2>Student notice actions</h2>
+          <p className="tag">CHECK-OUT NOTICES</p>
+          <h2>Resident notice actions</h2>
         </div>
       </div>
       {error && <p className="form-error">⚠ {error}</p>}
@@ -7508,7 +7530,7 @@ function ActionVacatingNotices({
           <thead>
             <tr>
               <th>REGISTRATION</th>
-              <th>STUDENT</th>
+              <th>RESIDENT</th>
               <th>INTENDED DATE</th>
               <th>ACTION STATUS</th>
               <th>LOGGED DATE</th>
@@ -7526,7 +7548,7 @@ function ActionVacatingNotices({
                   </td>
                   <td>
                     {student.firstName} {student.lastName}
-                    <small>Room {student.roomNo}</small>
+                    <small>Hostel Room {student.roomNo}</small>
                   </td>
                   <td>
                     <b>{fmtDate(student.intendedVacateDate || "")}</b>
@@ -7614,7 +7636,7 @@ function ActionListLegacy({
     | "Payment Verification"
     | "Expense Approval"
     | "Profile Edit Approval"
-    | "Vacating Notice Approval"
+    | "Check-Out Notice Approval"
   >("Payment Evidence");
   const [reviewingExpense, setReviewingExpense] = useState<Expense | null>(
     null,
@@ -7648,7 +7670,7 @@ function ActionListLegacy({
     "Profile Edit Approval": profileRequests.filter(
       (entry) => entry.status === "Pending",
     ).length,
-    "Vacating Notice Approval": pendingNotices.length,
+    "Check-Out Notice Approval": pendingNotices.length,
   };
   return (
     <div className="content action-list">
@@ -7807,7 +7829,7 @@ function ActionListLegacy({
           reviewed={profileReviewed}
         />
       )}
-      {tab === "Vacating Notice Approval" && (
+      {tab === "Check-Out Notice Approval" && (
         <VacatingNoticeActionList
           students={pendingNotices}
           reviewer={reviewer}
@@ -7867,10 +7889,11 @@ function VacatingNoticeActionList({
     <section className="panel payment-section">
       <div className="section-heading">
         <div>
-          <p className="tag">STUDENT NOTICES</p>
+          <p className="tag">RESIDENT NOTICES</p>
           <h2>Vacating notices awaiting approval</h2>
           <span>
-            Review the notice date and intended vacating date before deciding.
+
+            Review the notice date and intended check-out date before deciding.
           </span>
         </div>
       </div>
@@ -7880,10 +7903,10 @@ function VacatingNoticeActionList({
           <thead>
             <tr>
               <th>REGISTRATION</th>
-              <th>STUDENT</th>
-              <th>ROOM</th>
+              <th>RESIDENT</th>
+              <th>HOSTEL ROOM</th>
               <th>NOTICE DATE</th>
-              <th>INTENDED VACATING DATE</th>
+              <th>INTENDED CHECK-OUT DATE</th>
               <th>NOTE / ACTION</th>
             </tr>
           </thead>
@@ -7935,7 +7958,7 @@ function VacatingNoticeActionList({
             ))}
             {!students.length && (
               <tr>
-                <td colSpan={6}>No vacating notices are awaiting approval.</td>
+                <td colSpan={6}>No check-out notices are awaiting approval.</td>
               </tr>
             )}
           </tbody>
@@ -7984,7 +8007,7 @@ function PaymentEvidenceLedger({
     <section className="panel payment-section">
       <div className="section-heading">
         <div>
-          <p className="tag">STUDENT SUBMISSIONS</p>
+          <p className="tag">RESIDENT SUBMISSIONS</p>
           <h2>Payment Evidence</h2>
           <span>
             Evidence remains here until Admin, Chairman or Managing Director
@@ -8002,7 +8025,7 @@ function PaymentEvidenceLedger({
               <th>INVOICE</th>
               <th>REGISTRATION</th>
               <th>NAME</th>
-              <th>ROOM</th>
+              <th>HOSTEL ROOM</th>
               <th>MONTH</th>
               <th>AMOUNT<small>(LKR)</small></th>
               <th>EVIDENCE</th>
@@ -8087,7 +8110,8 @@ function PaymentEvidenceLedger({
             {!entries.length && (
               <tr>
                 <td colSpan={11}>
-                  No student payment evidence has been submitted.
+
+                  No resident payment evidence has been submitted.
                 </td>
               </tr>
             )}
@@ -8130,7 +8154,7 @@ function InvoiceLedger({
   };
   const exportInvoicesPdf = async () => {
     const { jsPDF } = await import("jspdf"); const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" }); const pageWidth = pdf.internal.pageSize.getWidth(), pageHeight = pdf.internal.pageSize.getHeight(), margin = 8;
-    const headers = ["INVOICE NO.","ISSUED","DUE","TYPE","MONTH","REGISTRATION","NAME","ROOM","AMOUNT","STATUS","REV."]; const widths = [28,19,19,20,20,28,40,15,24,20,14];
+    const headers = ["INVOICE NO.","ISSUED","DUE","TYPE","MONTH","REGISTRATION","NAME","HOSTEL ROOM","AMOUNT","STATUS","REV."]; const widths = [28,19,19,20,20,28,40,15,24,20,14];
     const drawHeader = (page:number) => { pdf.setFillColor(15,48,78); pdf.rect(0,0,pageWidth,22,"F"); pdf.setTextColor(255,255,255); pdf.setFont("helvetica","bold"); pdf.setFontSize(13); pdf.text("THE PERK HAVEN HOSTEL",margin,9); pdf.setFontSize(9); pdf.text("INVOICE LEDGER",margin,16); pdf.setFontSize(7); pdf.text(`Page ${page}`,pageWidth-margin,16,{align:"right"}); let x=margin; pdf.setFillColor(229,237,246); pdf.rect(margin,26,widths.reduce((a,b)=>a+b,0),10,"F"); pdf.setTextColor(15,48,78); pdf.setFontSize(6.2); headers.forEach((h,i)=>{pdf.text(h,x+widths[i]/2,32,{align:"center",maxWidth:widths[i]-2});x+=widths[i];}); return 36; };
     let page=1,y=drawHeader(page); exportRows.forEach((invoice,index)=>{ if(y+8>pageHeight-10){pdf.addPage("a4","landscape");page++;y=drawHeader(page);} if(index%2){pdf.setFillColor(247,249,252);pdf.rect(margin,y,widths.reduce((a,b)=>a+b,0),8,"F");} const values=[invoice.invoiceNo,fmtCompactDate(invoice.issueDate),fmtCompactDate(invoice.dueDate),invoice.invoiceType,invoice.invoiceType==="Deposit"?"—":fmtMonth(invoice.month),invoice.registrationNo,invoice.studentName,invoice.roomNo,`LKR ${invoice.amount.toLocaleString("en-LK")}`,invoice.status,`Rev.${invoiceRevision(invoice)}`]; let x=margin; pdf.setTextColor(20,39,61);pdf.setFont("helvetica","normal");pdf.setFontSize(6.2);values.forEach((v,i)=>{pdf.text(String(v),x+1,y+5,{maxWidth:widths[i]-2});x+=widths[i];});y+=8; }); downloadBlob(pdf.output("blob"),`Perk-Haven-Invoice-Ledger-${new Date().toISOString().slice(0,10)}.pdf`);
   };
@@ -8167,7 +8191,7 @@ function InvoiceLedger({
               <th>MONTH</th>
               <th>REGISTRATION</th>
               <th>NAME</th>
-              <th>ROOM</th>
+              <th>HOSTEL ROOM</th>
               <th>AMOUNT<small>(LKR)</small></th>
               <th>STATUS</th>
               <th>REVISION</th>
@@ -8244,8 +8268,8 @@ function InvoiceLedger({
         <label>Invoice No.<input value={exportFilters.invoice} onChange={(e)=>setExportFilters(c=>({...c,invoice:e.target.value}))}/></label>
         <label>Registration<input value={exportFilters.registration} onChange={(e)=>setExportFilters(c=>({...c,registration:e.target.value}))}/></label>
         <label>Name<input value={exportFilters.name} onChange={(e)=>setExportFilters(c=>({...c,name:e.target.value}))}/></label>
-        <label>Room<input value={exportFilters.room} onChange={(e)=>setExportFilters(c=>({...c,room:e.target.value}))}/></label>
-        <label>Invoice type<select value={exportFilters.type} onChange={(e)=>setExportFilters(c=>({...c,type:e.target.value}))}><option>All</option><option>Deposit</option><option>Rent</option><option>Shop Electricity</option><option>Shop Water</option></select></label>
+        <label>Hostel Room<input value={exportFilters.room} onChange={(e)=>setExportFilters(c=>({...c,room:e.target.value}))}/></label>
+        <label>Invoice type<select value={exportFilters.type} onChange={(e)=>setExportFilters(c=>({...c,type:e.target.value}))}><option>All</option><option value="Deposit">Security Deposit</option><option value="Rent">Monthly Accommodation Fee</option><option>Shop Electricity</option><option>Shop Water</option></select></label>
         <label>Status<select value={exportFilters.status} onChange={(e)=>setExportFilters(c=>({...c,status:e.target.value}))}><option>All</option><option>Issued</option><option>Partially Paid</option><option>Paid</option><option>Cancelled</option></select></label>
         <button className="secondary" onClick={()=>setExportFilters({invoice:"",registration:"",name:"",room:"",type:"All",status:"All"})}>Clear filters</button>
       </section><div className="modalactions"><button onClick={()=>setExportOpen(false)}>Cancel</button><button className="secondary" disabled={!exportRows.length} onClick={()=>void exportInvoicesPdf()}>Download PDF</button><button className="primary" disabled={!exportRows.length} onClick={()=>void exportInvoicesSpreadsheet()}>Export Spreadsheet</button></div></div></div>}
@@ -8342,7 +8366,8 @@ function InvoiceEditModal({
             <input value={fmtMonth(invoice.month)} disabled />
           </label>
           <label>
-            Student
+
+            Resident
             <input
               value={`${invoice.registrationNo} · ${invoice.studentName}`}
               disabled
@@ -8364,7 +8389,7 @@ function InvoiceEditModal({
             <div className="wide invoice-adjustment-editor">
               <div className="invoice-adjustment-summary">
                 <span>
-                  <small>STANDARD MONTHLY RENT</small>
+                  <small>STANDARD MONTHLY ACCOMMODATION FEE</small>
                   <b>{cash.format(baseAmount)}</b>
                 </span>
                 <span>
@@ -8684,7 +8709,7 @@ function PaymentLedger({
       "TYPE",
       "REGISTRATION / SOURCE",
       "NAME",
-      "ROOM / REFERENCE",
+      "HOSTEL ROOM / REFERENCE",
       "MONTH",
       "AMOUNT",
       "BANK/CASH VERIFICATION",
@@ -8760,7 +8785,7 @@ function PaymentLedger({
       { label: "TYPE", width: 21 },
       { label: "REGISTRATION", width: 23 },
       { label: "NAME", width: 32 },
-      { label: "ROOM / REF.", width: 19 },
+      { label: "HOSTEL ROOM / REF.", width: 19 },
       { label: "MONTH", width: 19 },
       { label: "AMOUNT", width: 20 },
       { label: "BANK STATUS", width: 18 },
@@ -8910,9 +8935,10 @@ function PaymentLedger({
           />
         </label>
         <label>
-          Room No.
+
+          Hostel Room No.
           <input
-            aria-label="Filter by room number"
+            aria-label="Filter by hostel room number"
             value={filters.room}
             onChange={(e) => setFilter("room", e.target.value)}
           />
@@ -8924,8 +8950,8 @@ function PaymentLedger({
             onChange={(event) => setFilter("type", event.target.value)}
           >
             <option>All</option>
-            <option>Rent</option>
-            <option>Deposit</option>
+            <option value="Rent">Monthly Accommodation Fee</option>
+            <option value="Deposit">Security Deposit</option>
           </select>
         </label>
         <button
@@ -8955,7 +8981,7 @@ function PaymentLedger({
               <th>{sortHead("type", "TYPE")}</th>
               <th>{sortHead("registration", "REGISTRATION / SOURCE")}</th>
               <th>{sortHead("name", "NAME")}</th>
-              <th>{sortHead("room", "ROOM / REFERENCE")}</th>
+              <th>{sortHead("room", "HOSTEL ROOM / REFERENCE")}</th>
               <th>{sortHead("month", "MONTH")}</th>
               <th>{sortHead("amount", "AMOUNT (LKR)")}</th>
               <th>TRANSACTION TYPE</th>
@@ -9214,7 +9240,8 @@ function PaymentLedger({
                 />
               </label>
               <label>
-                Student / payer name
+
+                Resident / payer name
                 <input
                   value={exportFilters.name}
                   onChange={(event) =>
@@ -9227,7 +9254,8 @@ function PaymentLedger({
                 />
               </label>
               <label>
-                Room / reference
+
+                Hostel Room / reference
                 <input
                   value={exportFilters.room}
                   onChange={(event) =>
@@ -9236,7 +9264,7 @@ function PaymentLedger({
                       room: event.target.value,
                     }))
                   }
-                  placeholder="All rooms"
+                  placeholder="All hostel rooms"
                 />
               </label>
               <label>
@@ -9251,9 +9279,9 @@ function PaymentLedger({
                   }
                 >
                   <option>All</option>
-                  <option>Rent</option>
-                  <option>Deposit</option>
-                  <option>Shop Rent</option>
+                  <option value="Rent">Monthly Accommodation Fee</option>
+                  <option value="Deposit">Security Deposit</option>
+                  <option value="Shop Rent">Shop Monthly Accommodation Fee</option>
                   <option>Shop Electricity</option>
                   <option>Shop Water</option>
                   <option>Other Income</option>
@@ -9451,7 +9479,8 @@ function PaymentEditModal({
             />
           </label>
           <label>
-            Room / reference
+
+            Hostel Room / reference
             <input
               value={reference}
               onChange={(event) => setReference(event.target.value)}
@@ -9851,7 +9880,7 @@ function RoomPaymentMatrix({
           </colgroup>
           <thead>
             <tr>
-              <th>ROOM</th>
+              <th>HOSTEL ROOM</th>
               <th>REGISTRATION</th>
               <th>NAME</th>
               {months.map((month) => (
@@ -9909,7 +9938,7 @@ function RoomPaymentMatrix({
                           ? `Paid ${amountOnly.format(paid)} of ${amountOnly.format(payable)}`
                           : payable > 0
                             ? `Invoice Ledger amount ${amountOnly.format(payable)}`
-                            : "No rent invoice issued for this month"
+                            : "No accommodation fee invoice issued for this month"
                       }
                     >
                       <b>
@@ -10121,7 +10150,7 @@ function ShopPaymentMatrix({
                       title={
                         mode === "paid"
                           ? `Paid ${amountOnly.format(paid)} of ${amountOnly.format(payable)}`
-                          : `Rent ${amountOnly.format(shopRentPayable(tenant, month, adjustments))}; electricity ${amountOnly.format(electricity)}; water ${amountOnly.format(water)}`
+                          : `monthly accommodation fee ${amountOnly.format(shopRentPayable(tenant, month, adjustments))}; electricity ${amountOnly.format(electricity)}; water ${amountOnly.format(water)}`
                       }
                     >
                       {mode === "payable" && adjustment !== 0 ? (
@@ -10132,7 +10161,7 @@ function ShopPaymentMatrix({
                           }
                         >
                           <b>{shortCash(value)}</b>
-                          <small>Rent adj. {adjustmentLabel}</small>
+                          <small>Monthly Accommodation Fee adj. {adjustmentLabel}</small>
                           <em>View details</em>
                           {missing.length > 0 && (
                             <small className="utility-missing">
@@ -10631,21 +10660,21 @@ function DepositView({
     const sheet = XLSX.utils.json_to_sheet(data);
     sheet["!cols"] = [{ wch: 10 }, { wch: 20 }, { wch: 30 }, ...Array(7).fill({ wch: 20 })];
     sheet["!autofilter"] = { ref: `A1:J${Math.max(1, data.length + 1)}` };
-    const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, sheet, "Deposit Payments");
-    XLSX.writeFile(book, `Perk-Haven-Deposit-Payments-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, sheet, "Security Deposit Payments");
+    XLSX.writeFile(book, `Perk-Haven-security deposit-Payments-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
   const exportDepositPdf = async () => {
     const { jsPDF } = await import("jspdf");
     const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth(), pageHeight = pdf.internal.pageSize.getHeight(), margin = 8;
-    const headers = ["ROOM", "STUDENT ID", "NAME", "PAYABLE", "PAID", "DEPOSIT DUE", "STATUS", "RENT DUE", "DEDUCTIONS", "LIABILITY"];
+    const headers = ["HOSTEL ROOM", "RESIDENT ID", "NAME", "PAYABLE", "PAID", "SECURITY DEPOSIT DUE", "STATUS", "MONTHLY ACCOMMODATION FEE DUE", "DEDUCTIONS", "LIABILITY"];
     const widths = [14, 24, 40, 27, 25, 28, 20, 27, 27, 27];
-    const drawHeader = (page: number) => { pdf.setFillColor(15, 48, 78); pdf.rect(0, 0, pageWidth, 22, "F"); pdf.setTextColor(255,255,255); pdf.setFont("helvetica", "bold"); pdf.setFontSize(13); pdf.text("THE PERK HAVEN HOSTEL", margin, 9); pdf.setFontSize(9); pdf.text("DEPOSIT PAYMENT REGISTER", margin, 16); pdf.setFontSize(7); pdf.text(`Page ${page}`, pageWidth - margin, 16, { align: "right" }); let x = margin; pdf.setFillColor(229,237,246); pdf.rect(margin, 26, widths.reduce((a,b)=>a+b,0), 10, "F"); pdf.setTextColor(15,48,78); pdf.setFontSize(6.2); headers.forEach((header,index)=>{pdf.text(header,x+widths[index]/2,32,{align:"center",maxWidth:widths[index]-2});x+=widths[index];}); return 36; };
+    const drawHeader = (page: number) => { pdf.setFillColor(15, 48, 78); pdf.rect(0, 0, pageWidth, 22, "F"); pdf.setTextColor(255,255,255); pdf.setFont("helvetica", "bold"); pdf.setFontSize(13); pdf.text("THE PERK HAVEN HOSTEL", margin, 9); pdf.setFontSize(9); pdf.text("SECURITY DEPOSIT PAYMENT REGISTER", margin, 16); pdf.setFontSize(7); pdf.text(`Page ${page}`, pageWidth - margin, 16, { align: "right" }); let x = margin; pdf.setFillColor(229,237,246); pdf.rect(margin, 26, widths.reduce((a,b)=>a+b,0), 10, "F"); pdf.setTextColor(15,48,78); pdf.setFontSize(6.2); headers.forEach((header,index)=>{pdf.text(header,x+widths[index]/2,32,{align:"center",maxWidth:widths[index]-2});x+=widths[index];}); return 36; };
     let page = 1, y = drawHeader(page);
     filteredDepositExportRows.forEach((row, rowIndex) => { if (y + 8 > pageHeight - 10) { pdf.addPage("a4", "landscape"); page += 1; y = drawHeader(page); } if (rowIndex % 2) { pdf.setFillColor(247,249,252); pdf.rect(margin,y,widths.reduce((a,b)=>a+b,0),8,"F"); } const values = [row.room,row.registration,row.name,row.payable,row.paid,row.outstanding,row.status,row.rentOutstanding,row.deductions,row.liability]; let x=margin; pdf.setTextColor(20,39,61); pdf.setFont("helvetica","normal"); pdf.setFontSize(6.2); values.forEach((value,index)=>{const numeric=index>=3&&index!==6; const text=numeric?`LKR ${Number(value).toLocaleString("en-LK")}`:String(value); pdf.text(text,numeric?x+widths[index]-1:x+1,y+5,numeric?{align:"right",maxWidth:widths[index]-2}:{maxWidth:widths[index]-2});x+=widths[index];}); y+=8; });
     downloadBlob(
       pdf.output("blob"),
-      `Perk-Haven-Deposit-Payments-${new Date().toISOString().slice(0,10)}.pdf`,
+      `Perk-Haven-security deposit-Payments-${new Date().toISOString().slice(0,10)}.pdf`,
     );
   };
   return (
@@ -10654,11 +10683,11 @@ function DepositView({
       {exportOpen && (
         <div className="backdrop">
           <div className="modal compactmodal">
-            <ModalHead tag="DEPOSIT PAYMENTS" title="Print / Export Deposit Payments" text={`${filteredDepositExportRows.length} student record(s) selected.`} close={() => setExportOpen(false)} />
+            <ModalHead tag="SECURITY DEPOSIT PAYMENTS" title="Print / Export Security Deposit Payments" text={`${filteredDepositExportRows.length} resident record(s) selected.`} close={() => setExportOpen(false)} />
             <section className="formgrid three payment-export-filters">
-              <label>Student ID<input value={exportFilters.registration} onChange={(e)=>setExportFilters(c=>({...c,registration:e.target.value}))}/></label>
+              <label>Resident ID<input value={exportFilters.registration} onChange={(e)=>setExportFilters(c=>({...c,registration:e.target.value}))}/></label>
               <label>Name<input value={exportFilters.name} onChange={(e)=>setExportFilters(c=>({...c,name:e.target.value}))}/></label>
-              <label>Room No.<input value={exportFilters.room} onChange={(e)=>setExportFilters(c=>({...c,room:e.target.value}))}/></label>
+              <label>Hostel Room No.<input value={exportFilters.room} onChange={(e)=>setExportFilters(c=>({...c,room:e.target.value}))}/></label>
               <label>Status<select value={exportFilters.status} onChange={(e)=>setExportFilters(c=>({...c,status:e.target.value}))}><option>All</option><option>Active</option><option>Inactive</option></select></label>
               <button className="secondary" onClick={()=>setExportFilters({registration:"",name:"",room:"",status:"All"})}>Clear filters</button>
             </section>
@@ -10671,9 +10700,9 @@ function DepositView({
         </div>
       )}
       <div className="deposit-filter-bar">
-        <input list="deposit-student-ids" value={filters.registration} onChange={(event) => setFilters((current) => ({ ...current, registration: event.target.value }))} placeholder="Student ID" aria-label="Filter deposits by student ID" />
-        <input list="deposit-student-names" value={filters.name} onChange={(event) => setFilters((current) => ({ ...current, name: event.target.value }))} placeholder="Student name" aria-label="Filter deposits by student name" />
-        <input list="deposit-room-nos" value={filters.room} onChange={(event) => setFilters((current) => ({ ...current, room: event.target.value }))} placeholder="Room no." aria-label="Filter deposits by room number" />
+        <input list="deposit-student-ids" value={filters.registration} onChange={(event) => setFilters((current) => ({ ...current, registration: event.target.value }))} placeholder="Resident ID" aria-label="Filter security deposits by resident ID" />
+        <input list="deposit-student-names" value={filters.name} onChange={(event) => setFilters((current) => ({ ...current, name: event.target.value }))} placeholder="Resident name" aria-label="Filter security deposits by resident name" />
+        <input list="deposit-room-nos" value={filters.room} onChange={(event) => setFilters((current) => ({ ...current, room: event.target.value }))} placeholder="Hostel Room no." aria-label="Filter security deposits by hostel room number" />
         <datalist id="deposit-student-ids">{students.map((student) => <option value={student.registrationNo} key={student.id} />)}</datalist>
         <datalist id="deposit-student-names">{students.map((student) => <option value={`${student.firstName} ${student.lastName}`.trim()} key={student.id} />)}</datalist>
         <datalist id="deposit-room-nos">{[...new Set(students.map((student) => student.roomNo).filter(Boolean))].map((room) => <option value={room} key={room} />)}</datalist>
@@ -10683,14 +10712,14 @@ function DepositView({
         <table className="deposit-table">
           <thead>
             <tr>
-              <th>ROOM</th>
+              <th>HOSTEL ROOM</th>
               <th>NAME</th>
-              <th>DEPOSIT PAYABLE<small>(LKR)</small></th>
+              <th>SECURITY DEPOSIT PAYABLE<small>(LKR)</small></th>
               <th>AMOUNT PAID<small>(LKR)</small></th>
-              <th>DEPOSIT OUTSTANDING<small>(LKR)</small></th>
+              <th>SECURITY DEPOSIT OUTSTANDING<small>(LKR)</small></th>
               <th>STATUS</th>
-              <th>RENT OUTSTANDING<small>(LKR)</small></th>
-              <th>DEPOSIT DEDUCTIONS<small>(LKR)</small></th>
+              <th>MONTHLY ACCOMMODATION FEE OUTSTANDING<small>(LKR)</small></th>
+              <th>SECURITY DEPOSIT DEDUCTIONS<small>(LKR)</small></th>
               <th>CURRENT LIABILITY<small>(LKR)</small></th>
             </tr>
           </thead>
@@ -10794,16 +10823,17 @@ function AdjustmentModal({
     <div className="backdrop">
       <form className="modal paymentmodal" onSubmit={submit}>
         <ModalHead
-          tag="MONTHLY RENT"
+          tag="MONTHLY ACCOMMODATION FEE"
           title="Add payable adjustment"
-          text="Increase or reduce the standard monthly room rent."
+          text="Increase or reduce the standard monthly monthly accommodation fee."
           close={close}
         />
         <FormSection title="Adjustment details">
           <label>
-            Student
+
+            Resident
             <select name="registrationNo" required>
-              <option value="">Select student</option>
+              <option value="">Select resident</option>
               {students.map((student) => (
                 <option key={student.id} value={student.registrationNo}>
                   {student.registrationNo} · {student.firstName}{" "}
@@ -10875,9 +10905,9 @@ function ShopAdjustmentModal({
     <div className="backdrop">
       <form className="modal paymentmodal" onSubmit={submit}>
         <ModalHead
-          tag="SHOP RENT"
+          tag="SHOP MONTHLY ACCOMMODATION FEE"
           title="Add payable adjustment"
-          text="Increase or reduce a shop tenant’s monthly rent payable."
+          text="Increase or reduce a shop tenant’s monthly accommodation fee payable."
           close={close}
         />
         <FormSection title="Adjustment details">
@@ -10998,14 +11028,14 @@ function AdjustmentBreakdownModal({
     <div className="backdrop">
       <div className="modal paymentmodal adjustment-breakdown">
         <ModalHead
-          tag="MONTHLY RENT"
+          tag="MONTHLY ACCOMMODATION FEE"
           title={`Adjustment breakdown · ${fmtMonth(month)}`}
-          text={`${student.registrationNo} · ${student.firstName} ${student.lastName} · Room ${student.roomNo}`}
+          text={`${student.registrationNo} · ${student.firstName} ${student.lastName} · hostel room ${student.roomNo}`}
           close={close}
         />
         <section className="adjustment-summary">
           <span>
-            <small>STANDARD RENT</small>
+            <small>STANDARD MONTHLY ACCOMMODATION FEE</small>
             <b>{cash.format(student.monthlyRent)}</b>
           </span>
           <span>
@@ -11184,14 +11214,14 @@ function ShopAdjustmentBreakdownModal({
     <div className="backdrop">
       <div className="modal paymentmodal adjustment-breakdown">
         <ModalHead
-          tag="SHOP RENT"
+          tag="SHOP MONTHLY ACCOMMODATION FEE"
           title={`Adjustment breakdown · ${fmtMonth(month)}`}
           text={`${tenant.registrationNo} · ${tenant.businessName} · ${tenant.shopNo}`}
           close={close}
         />
         <section className="adjustment-summary">
           <span>
-            <small>STANDARD RENT</small>
+            <small>STANDARD MONTHLY ACCOMMODATION FEE</small>
             <b>{cash.format(tenant.monthlyRent)}</b>
           </span>
           <span>
@@ -11370,9 +11400,9 @@ function RoomView({
     }
   };
   const deleteRoom = async (room: Room) => {
-    if (!window.confirm(`Delete room ${room.roomNo}?`)) return;
+    if (!window.confirm(`Delete hostel room ${room.roomNo}?`)) return;
     const response = await fetch(`/api/v1/rooms/${encodeURIComponent(room.roomNo)}`, { method: "DELETE" });
-    if (!response.ok) return window.alert("Unable to delete this room. Remove assigned residents first.");
+    if (!response.ok) return window.alert("Unable to delete this hostel room. Remove assigned residents first.");
     roomRemoved(room.roomNo);
   };
   const deleteShop = async (shop: Shop) => {
@@ -11385,12 +11415,12 @@ function RoomView({
     <div className="content">
       <Title
         tag="OCCUPANCY"
-        title="Room and shop occupancy"
+        title="Hostel Room and shop occupancy"
         text="Monitor occupied and vacant hostel rooms and commercial shops."
       />
       <div className="payment-tabs-row occupancy-actions-row">
-        <div className="payment-tabs" role="tablist" aria-label="Room and shop views">
-          <button className={section === "rooms" ? "active" : ""} onClick={() => setSection("rooms")}>Rooms</button>
+        <div className="payment-tabs" role="tablist" aria-label="Hostel Room and shop views">
+          <button className={section === "rooms" ? "active" : ""} onClick={() => setSection("rooms")}>Hostel Rooms</button>
           <button className={section === "shops" ? "active" : ""} onClick={() => setSection("shops")}>Shops</button>
         </div>
         {canManage && (
@@ -11405,15 +11435,15 @@ function RoomView({
         <form className="panel category-add" onSubmit={createProperty}>
           {section === "rooms" ? (
             <>
-              <Field name="roomNo" label="Room number" required />
-              <Field name="type" label="Room type" required />
+              <Field name="roomNo" label="Hostel Room number" required />
+              <Field name="type" label="Hostel Room type" required />
               <Field name="beds" label="Number of beds" type="number" min="1" required />
               <Field name="price" label="Price per bed (LKR)" type="number" min="0" required />
             </>
           ) : (
             <>
               <Field name="shopNo" label="Shop number" required />
-              <Field name="standardRent" label="Standard rent (LKR)" type="number" min="0" required />
+              <Field name="standardRent" label="Standard monthly accommodation fee (LKR)" type="number" min="0" required />
             </>
           )}
           <button className="primary" disabled={creating}>{creating ? "Saving…" : "Save"}</button>
@@ -11423,7 +11453,7 @@ function RoomView({
       )}
       {section === "rooms" && (
         <>
-          <div className="room-viewbar" aria-label="Room view">
+          <div className="room-viewbar" aria-label="Hostel Room view">
             <button
               className={view === "table" ? "active" : ""}
               onClick={() => setView("table")}
@@ -11434,7 +11464,8 @@ function RoomView({
               className={view === "cards" ? "active" : ""}
               onClick={() => setView("cards")}
             >
-              ▦ Room cards
+
+              ▦ Hostel Room cards
             </button>
           </div>
           {view === "cards" ? (
@@ -11536,8 +11567,8 @@ function ShopRegister({
               <th>BUSINESS / TENANT</th>
               <th>CONTACT</th>
               <th>EMERGENCY CONTACT</th>
-              <th>MONTHLY RENT<small>(LKR)</small></th>
-              <th>START DATE</th>
+              <th>MONTHLY ACCOMMODATION FEE<small>(LKR)</small></th>
+              <th>ACCOMMODATION START DATE</th>
               <th>END DATE</th>
               <th>STATUS</th>
               <th>ACTION</th>
@@ -11744,7 +11775,7 @@ function ShopCard({
       )}
       <div className="roommeta">
         <span>
-          <small>STANDARD MONTHLY RENT</small>
+          <small>STANDARD MONTHLY ACCOMMODATION FEE</small>
           {editing ? (
             <span className="price-editor">
               <input
@@ -11761,7 +11792,7 @@ function ShopCard({
               <b>
                 {shop.standardRent ? cash.format(shop.standardRent) : "Not set"}
               </b>
-              <button onClick={() => setEditing(true)}>Edit rent</button>
+              <button onClick={() => setEditing(true)}>Edit monthly accommodation fee</button>
             </span>
           )}
         </span>
@@ -11865,18 +11896,19 @@ function ShopTenantModal({
           <Field name="address" label="Address" required />
           <Field
             name="registeredDate"
-            label="Registered date"
+            label="Registration date"
             type="date"
             required
           />
           <Field
             name="startDate"
-            label="Agreement start date"
+            label="Agreement accommodation start date"
             type="date"
             required
           />
           <label>
-            Monthly rent (LKR)
+
+            Monthly accommodation fee (LKR)
             <input
               type="number"
               min="0"
@@ -11889,7 +11921,8 @@ function ShopTenantModal({
             />
           </label>
           <label>
-            Deposit payable (LKR)
+
+            Security Deposit payable (LKR)
             <input
               type="number"
               min="0"
@@ -12024,14 +12057,14 @@ function ShopTenantEditModal({
           <Field name="address" label="Address" defaultValue={tenant.address} />
           <Field
             name="registeredDate"
-            label="Registered date"
+            label="Registration date"
             type="date"
             defaultValue={tenant.registeredDate}
             required
           />
           <Field
             name="startDate"
-            label="Agreement start date"
+            label="Agreement accommodation start date"
             type="date"
             defaultValue={tenant.startDate}
             required
@@ -12044,7 +12077,7 @@ function ShopTenantEditModal({
           />
           <Field
             name="monthlyRent"
-            label="Monthly rent (LKR)"
+            label="Monthly accommodation fee (LKR)"
             type="number"
             min="0"
             defaultValue={tenant.monthlyRent}
@@ -12052,7 +12085,7 @@ function ShopTenantEditModal({
           />
           <Field
             name="depositPayable"
-            label="Deposit payable (LKR)"
+            label="Security Deposit payable (LKR)"
             type="number"
             min="0"
             defaultValue={tenant.depositPayable}
@@ -12272,7 +12305,7 @@ function RoomBedTable({
         <table className="bed-table">
           <thead>
             <tr>
-              <th>Room</th>
+              <th>Hostel Room</th>
               <th>Bed 1</th>
               <th>Bed 2</th>
               <th>Bed 3</th>
@@ -12320,7 +12353,7 @@ function RoomBedTable({
                   })}
                   <td className="bed-price-cell">
                     {editingRoom === room.roomNo ? (
-                      <div className="bed-price-edit"><input aria-label={`Price for room ${room.roomNo}`} type="number" min="0" value={price} onChange={(event)=>setPrice(event.target.value)} /><span><button onClick={()=>void savePrice(room)}>Save</button><button onClick={()=>setEditingRoom(null)}>Cancel</button></span></div>
+                      <div className="bed-price-edit"><input aria-label={`Price for hostel room ${room.roomNo}`} type="number" min="0" value={price} onChange={(event)=>setPrice(event.target.value)} /><span><button onClick={()=>void savePrice(room)}>Save</button><button onClick={()=>setEditingRoom(null)}>Cancel</button></span></div>
                     ) : (
                       <div><b>{amountOnly.format(room.price)}</b><button onClick={()=>{setPrice(String(room.price));setEditingRoom(room.roomNo);}}>Edit price</button></div>
                     )}
@@ -12366,7 +12399,7 @@ function RoomCard({
     <article className="room">
       <div className="roomtop">
         <div>
-          <small>ROOM</small>
+          <small>HOSTEL ROOM</small>
           <b>{room.roomNo}</b>
         </div>
         <span className={occupants.length === room.beds ? "full" : ""}>
@@ -12392,7 +12425,7 @@ function RoomCard({
           {editing ? (
             <span>
               <input
-                aria-label={`Price for room ${room.roomNo}`}
+                aria-label={`Price for hostel room ${room.roomNo}`}
                 type="number"
                 min="0"
                 value={price}
@@ -12439,7 +12472,7 @@ function RoomCard({
           <p>No active residents assigned.</p>
         )}
       </div>
-      {onDelete && !occupants.length && <button className="review-button danger" onClick={() => onDelete(room)}>Delete room</button>}
+      {onDelete && !occupants.length && <button className="review-button danger" onClick={() => onDelete(room)}>Delete hostel room</button>}
     </article>
   );
 }
@@ -13358,14 +13391,14 @@ function FinancialAccounts({
   const incomeGroups = [
     {
       key: "income-room",
-      label: "Room Rent",
+      label: "Monthly Accommodation Fee",
       rows: incomePayments.filter(
         (payment) => canonicalPaymentType(payment.type) === "Rent",
       ),
     },
     {
       key: "income-shop",
-      label: "Shop Rent",
+      label: "Shop Monthly Accommodation Fee",
       rows: incomePayments.filter((payment) => payment.type === "Shop Rent"),
     },
     {
@@ -13525,7 +13558,7 @@ function FinancialAccounts({
         <article className="panel income">
           <small>TOTAL INCOME</small>
           <b>{cash.format(totalIncome)}</b>
-          <span>Room Rent, Shop Rent and Other Income</span>
+          <span>Monthly Accommodation Fee, Shop Monthly Accommodation Fee and Other Income</span>
         </article>
         <article className="panel expense">
           <small>TOTAL EXPENSES</small>
@@ -13802,7 +13835,7 @@ function FinancialMonthlyMatrix({
     <div className="panel financial-matrix-panel">
       <div className="financial-matrix-title">
         <b>{title}</b>
-        <span>Deposits excluded · Approved expenses only</span>
+        <span>Security Deposits excluded · Approved expenses only</span>
       </div>
       <div className="tablewrap">
         <table
@@ -14650,7 +14683,7 @@ function ExpensesView({
             </div>
             <div className="petty-cash-breakdown">
               <span>
-                <small>APPROVED DEPOSITS</small>
+                <small>APPROVED PETTY CASH DEPOSITS</small>
                 <b>
                   {cash.format(
                     approvedPettyDeposits.reduce(
@@ -15181,7 +15214,7 @@ function PettyCashDepositModal({
           text="A PCD-[year]-0001 transaction ID will be generated automatically."
           close={close}
         />
-        <FormSection title="Deposit details">
+        <FormSection title="Petty cash deposit details">
           <Field
             name="transactionDate"
             label="Transaction date"
@@ -15215,7 +15248,7 @@ function PettyCashDepositModal({
         </FormSection>
         <Actions
           close={close}
-          text={saving ? "Recording…" : "Record deposit"}
+          text={saving ? "Recording…" : "Record petty cash deposit"}
           disabled={saving}
         />
       </form>
@@ -15263,7 +15296,7 @@ function PettyCashDepositApproval({
           text="Review the evidence before approving this Petty Cash deposit."
           close={close}
         />
-        <FormSection title="Deposit approval">
+        <FormSection title="Petty cash deposit approval">
           <label>
             Amount
             <input value={cash.format(deposit.amount)} readOnly />
@@ -15305,7 +15338,7 @@ function PettyCashDepositApproval({
           </label>
           {error && <p className="form-error wide">⚠ {error}</p>}
           <div className="approval-entry-note wide">
-            <b>Approved deposits are locked</b>
+            <b>Approved petty cash deposits are locked</b>
             <small>
               After approval, only an authenticated Owner account may change
               this record.
@@ -16732,7 +16765,7 @@ function AddStaff({
             min="0"
             required={!managementCreator}
           />
-          <Field name="startDate" label="Start date" type="date" required={!managementCreator} />
+          <Field name="startDate" label="Accommodation start date" type="date" required={!managementCreator} />
           <Field name="finishDate" label="Finish date" type="date" />
           <label>
             Status
@@ -16956,7 +16989,7 @@ function EditStaff({
             />
             <Field
               name="startDate"
-              label="Start date"
+              label="Accommodation start date"
               type="date"
               defaultValue={member.startDate}
               required
@@ -17040,7 +17073,7 @@ function Register({
     setRegistrationError("");
     if (roomFull)
       return setRegistrationError(
-        `Room ${selectedRoom} is full on ${fmtDate(startDate)}. Review the existing residents' vacated dates.`,
+        `hostel room ${selectedRoom} is full on ${fmtDate(startDate)}. Review the existing residents' check-out dates.`,
       );
     const f = new FormData(e.currentTarget),
       v = (k: string) => String(f.get(k) || ""),
@@ -17091,7 +17124,7 @@ function Register({
       String(s.monthlyRent || ""), String(s.depositPayable || ""),
     ];
     if (!managementCreator && delegatedRequired.some((entry) => !String(entry).trim()))
-      return setRegistrationError("Delegated users must complete every student detail before saving. Only the vacating date may remain blank.");
+      return setRegistrationError("Delegated users must complete every resident detail before saving. Only the check-out date may remain blank.");
     const response = await fetch("/api/v1/students", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -17106,7 +17139,7 @@ function Register({
     });
     const result = await response.json();
     if (!response.ok)
-      return setRegistrationError(result.detail || "Unable to register student");
+      return setRegistrationError(result.detail || "Unable to register resident");
     save(studentFromApi(result));
     window.dispatchEvent(new Event("invoices-changed"));
   };
@@ -17115,14 +17148,14 @@ function Register({
       <form className="modal" onSubmit={submit}>
         <ModalHead
           tag="NEW RESIDENT"
-          title="Student registration"
+          title="Resident registration"
           text="The registration number is assigned automatically when saved."
           close={close}
         />
         <p className="form-guidance">
           {managementCreator
-            ? "Management may save an incomplete student record and complete it later through Edit."
-            : "All student details are mandatory when registration is delegated. Only the vacating date may remain blank."}
+            ? "Management may save an incomplete resident record and complete it later through Edit."
+            : "All resident details are mandatory when registration is delegated. Only the check-out date may remain blank."}
         </p>
         <FormSection title="Personal details">
           <Field name="firstName" label="First name" required />
@@ -17149,7 +17182,7 @@ function Register({
         </FormSection>
         <FormSection title="Medical condition">
           <fieldset className="medical-condition-choice">
-            <legend>Does the student have a special medical condition?</legend>
+            <legend>Does the resident have a special medical condition?</legend>
             <label><input type="radio" name="hasMedicalCondition" checked={!hasMedicalCondition} onChange={() => setHasMedicalCondition(false)} /> No</label>
             <label><input type="radio" name="hasMedicalCondition" checked={hasMedicalCondition} onChange={() => setHasMedicalCondition(true)} /> Yes</label>
           </fieldset>
@@ -17158,13 +17191,14 @@ function Register({
         <FormSection title="Hostel allocation">
           <Field
             name="registeredDate"
-            label="Registered date"
+            label="Registration date"
             type="date"
             defaultValue={new Date().toISOString().slice(0, 10)}
             required={!managementCreator}
           />
           <label>
-            Start date
+
+            Accommodation start date
             <input
               name="startDate"
               type="date"
@@ -17174,7 +17208,8 @@ function Register({
             />
           </label>
           <label>
-            Room no.
+
+            Hostel Room no.
             <select
               name="roomNo"
               value={selectedRoom}
@@ -17190,7 +17225,7 @@ function Register({
               }}
               required={!managementCreator}
             >
-              <option value="">Select room</option>
+              <option value="">Select hostel room</option>
               {rooms.map((room) => (
                 <option key={room.roomNo} value={room.roomNo}>
                   {room.roomNo} · {room.type} · {cash.format(room.price)}
@@ -17199,7 +17234,8 @@ function Register({
             </select>
           </label>
           <label>
-            Monthly rent (LKR)
+
+            Monthly accommodation fee (LKR)
             <input
               name="monthlyRent"
               type="number"
@@ -17218,7 +17254,8 @@ function Register({
             />
           </label>
           <label>
-            Deposit payable (LKR)
+
+            Security Deposit payable (LKR)
             <input
               name="depositPayable"
               type="number"
@@ -17231,7 +17268,8 @@ function Register({
               required
             />
             <small>
-              Defaults to three months’ rent. Adjust here when required.
+
+              Defaults to three months’ monthly accommodation fee. Adjust here when required.
             </small>
           </label>
           <div className="capacity-check available">
@@ -17251,7 +17289,7 @@ function Register({
               </b>
               <small>
                 {roomFull
-                  ? "No bed is available for this start date."
+                  ? "No bed is available for this accommodation start date."
                   : `${selectedRoomRecord.beds - overlappingResidents.length} bed space(s) available.`}
               </small>
             </div>
@@ -17260,7 +17298,7 @@ function Register({
             <p className="form-error">⚠ {registrationError}</p>
           )}
         </FormSection>
-        <Actions close={close} text="Register student" disabled={roomFull} />
+        <Actions close={close} text="Register resident" disabled={roomFull} />
       </form>
     </div>
   );
@@ -17305,15 +17343,15 @@ function EditStudent({
     });
     const result = await response.json();
     if (!response.ok)
-      return setError(result.detail || "Unable to update student");
+      return setError(result.detail || "Unable to update resident");
     save(studentFromApi(result));
   };
   return (
     <div className="backdrop">
       <form className="modal" onSubmit={submit}>
         <ModalHead
-          tag="STUDENT DATABASE"
-          title="Edit student details"
+          tag="RESIDENT DATABASE"
+          title="Edit resident details"
           text={student.registrationNo}
           close={close}
         />
@@ -17432,23 +17470,24 @@ function EditStudent({
           <label>Special medical condition<select name="hasMedicalCondition" defaultValue={student.hasMedicalCondition ? "yes" : "no"}><option value="no">No</option><option value="yes">Yes</option></select></label>
           <label className="wide">Medical condition details<textarea name="medicalConditionDetails" maxLength={2000} defaultValue={student.medicalConditionDetails || ""} /></label>
         </FormSection>
-        <FormSection title="Registration and room">
+        <FormSection title="Registration and hostel room">
           <Field
             name="registeredDate"
-            label="Registered date"
+            label="Registration date"
             type="date"
             defaultValue={student.registeredDate}
             required
           />
           <Field
             name="startDate"
-            label="Start date"
+            label="Accommodation start date"
             type="date"
             defaultValue={student.startDate}
             required
           />
           <label>
-            Room
+
+            Hostel Room
             <select name="roomNo" defaultValue={student.roomNo} required>
               {rooms.map((room) => (
                 <option key={room.roomNo}>{room.roomNo}</option>
@@ -17457,7 +17496,7 @@ function EditStudent({
           </label>
           <Field
             name="monthlyRent"
-            label="Monthly rent (LKR)"
+            label="Monthly accommodation fee (LKR)"
             type="number"
             min="0"
             defaultValue={student.monthlyRent}
@@ -17465,7 +17504,7 @@ function EditStudent({
           />
           <Field
             name="depositPayable"
-            label="Deposit payable (LKR)"
+            label="Security Deposit payable (LKR)"
             type="number"
             min="0"
             defaultValue={student.depositPayable}
@@ -17473,7 +17512,7 @@ function EditStudent({
           />
           {error && <p className="form-error">⚠ {error}</p>}
         </FormSection>
-        <Actions close={close} text="Save student details" />
+        <Actions close={close} text="Save resident details" />
       </form>
     </div>
   );
@@ -17619,7 +17658,7 @@ function AddPayment({
     setError("");
     if (rentLocked)
       return setError(
-        "Deposit should be Settled before entering Room Payments",
+        "Security Deposit should be Settled before entering Hostel Room Payments",
       );
     if (overLimit)
       return setError(
@@ -17627,7 +17666,7 @@ function AddPayment({
           ? `This payment exceeds the remaining ${cash.format(remaining)} payable for ${fmtMonth(month)}.`
           : shopIncome
             ? `This payment exceeds the remaining ${cash.format(shopRemaining)} ${type.toLowerCase()} payable for ${fmtMonth(month)}.`
-            : `This payment exceeds the remaining deposit balance of ${cash.format(remaining)}.`,
+            : `This payment exceeds the remaining security deposit balance of ${cash.format(remaining)}.`,
       );
     const form = new FormData(e.currentTarget);
     const evidence = form.get("evidence");
@@ -17652,7 +17691,7 @@ function AddPayment({
       form.set("month", month);
       form.set("payableAmount", amount);
     } else if (s) {
-      if (!oldestInvoice) { setSaving(false); return setError("No outstanding invoice is available for this student."); }
+      if (!oldestInvoice) { setSaving(false); return setError("No outstanding invoice is available for this resident."); }
       form.set("invoiceId", String(oldestInvoice.id));
       form.set("registrationNo", s.registrationNo);
       form.set("studentName", `${s.firstName} ${s.lastName}`);
@@ -17725,7 +17764,7 @@ function AddPayment({
         <ModalHead
           tag="PAYMENT DATABASE"
           title="Record a payment"
-          text="Transaction IDs are automatic. Deposits are recorded without a corresponding month."
+          text="Transaction IDs are automatic. Security Deposits are recorded without a corresponding month."
           close={close}
         />
         <FormSection title="Payment details">
@@ -17753,11 +17792,12 @@ function AddPayment({
                 value="Rent"
                 disabled={Boolean(s && depositOutstanding > 0)}
               >
-                Room Rent
-                {s && depositOutstanding > 0 ? " — deposit required first" : ""}
+
+                Monthly Accommodation Fee
+                {s && depositOutstanding > 0 ? " — security deposit required first" : ""}
               </option>
-              <option value="Deposit">Deposit</option>
-              <option value="Shop Rent">Shop Rent</option>
+              <option value="Deposit">Security Deposit</option>
+              <option value="Shop Rent">Shop Monthly Accommodation Fee</option>
               <option value="Shop Electricity">Shop Electricity</option>
               <option value="Shop Water">Shop Water</option>
               <option value="Other Income">Other Income</option>
@@ -17765,7 +17805,8 @@ function AddPayment({
           </label>
           {!externalIncome && (
             <label>
-              Student registration no.
+
+              Resident registration no.
               <select
                 value={reg}
                 onChange={(event) => {
@@ -17808,7 +17849,8 @@ function AddPayment({
                   {s.firstName} {s.lastName}
                 </b>
                 <small>
-                  Room {s.roomNo} · {cash.format(s.monthlyRent)} rent
+
+                  Hostel Room {s.roomNo} · {cash.format(s.monthlyRent)}  monthly accommodation fee
                 </small>
               </span>
             </div>
@@ -17816,7 +17858,7 @@ function AddPayment({
           {!externalIncome && s && (
             <div className="wide invoice-adjustment-editor">
               <div className="invoice-adjustment-heading"><b>Outstanding invoices - oldest first</b><small>Payments are allocated only to the first invoice until it is fully settled.</small></div>
-              {dueInvoices.map((invoice, index) => <div className="invoice-adjustment-row" key={invoice.id}><span><b>{index + 1}. {invoice.invoiceNo}</b><small>{invoice.invoiceType === "Deposit" ? "Deposit" : fmtMonth(invoice.month)} · due {fmtDate(invoice.dueDate)}</small></span><b>{cash.format(Math.max(0, invoice.amount - (invoice.paidAmount || 0)))}</b></div>)}
+              {dueInvoices.map((invoice, index) => <div className="invoice-adjustment-row" key={invoice.id}><span><b>{index + 1}. {invoice.invoiceNo}</b><small>{invoice.invoiceType === "Deposit" ? "Security Deposit" : fmtMonth(invoice.month)} · due {fmtDate(invoice.dueDate)}</small></span><b>{cash.format(Math.max(0, invoice.amount - (invoice.paidAmount || 0)))}</b></div>)}
               {!dueInvoices.length && <small>No outstanding invoices are available. Generate the required invoice first.</small>}
             </div>
           )}
@@ -17849,7 +17891,7 @@ function AddPayment({
                 <b>{shopTenant.businessName}</b>
                 <small>
                   {shopTenant.registrationNo} · {shopTenant.shopNo} ·{" "}
-                  {cash.format(shopTenant.monthlyRent)} monthly rent
+                  {cash.format(shopTenant.monthlyRent)}  monthly accommodation fee
                 </small>
               </span>
             </div>
@@ -17878,9 +17920,10 @@ function AddPayment({
           )}
           {s && depositOutstanding > 0 && (
             <div className="payment-prerequisite">
-              <b>Deposit should be Settled before entering Room Payments</b>
+              <b>Security Deposit should be Settled before entering Hostel Room Payments</b>
               <span>
-                Outstanding deposit: {cash.format(depositOutstanding)}
+
+                Outstanding security deposit: {cash.format(depositOutstanding)}
               </span>
             </div>
           )}
@@ -17916,13 +17959,13 @@ function AddPayment({
             >
               <span>
                 <small>
-                  {type === "Rent" ? "MONTHLY PAYABLE" : "DEPOSIT PAYABLE"}
+                  {type === "Rent" ? "MONTHLY PAYABLE" : "SECURITY DEPOSIT PAYABLE"}
                 </small>
                 <b>{cash.format(payable)}</b>
               </span>
               <span>
                 <small>
-                  {type === "Rent" ? "ALREADY PAID" : "DEPOSIT PAID"}
+                  {type === "Rent" ? "ALREADY PAID" : "SECURITY DEPOSIT PAID"}
                 </small>
                 <b>{cash.format(alreadyPaid)}</b>
               </span>
@@ -18267,7 +18310,7 @@ async function downloadStudentProfilePdf(student: Student) {
   doc.text("THE PERK HAVEN", 46, 16);
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
-  doc.text("STUDENT PROFILE", 46, 24);
+  doc.text("RESIDENT PROFILE", 46, 24);
   doc.text(`Generated ${new Date().toLocaleDateString("en-GB")}`, 194, 24, { align: "right" });
 
   if (student.photoName) {
@@ -18320,8 +18363,8 @@ async function downloadStudentProfilePdf(student: Student) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(110, 125, 143);
-  doc.text("The Perk Haven Hostel · Student profile record", 105, 290, { align: "center" });
-  doc.save(`Perk-Haven-Student-Profile-${student.registrationNo}.pdf`);
+  doc.text("The Perk Haven Hostel · Resident profile record", 105, 290, { align: "center" });
+  doc.save(`Perk-Haven-resident-Profile-${student.registrationNo}.pdf`);
 }
 
 function Profile({
@@ -18375,7 +18418,7 @@ function Profile({
   return (
     <div className="profile">
       <header>
-        <button onClick={close}>← Back to students</button>
+        <button onClick={close}>← Back to residents</button>
         <div>
           <button onClick={() => void downloadStudentProfilePdf(student)}>
             ⇩ Download profile PDF
@@ -18394,7 +18437,7 @@ function Profile({
             style={
               student.photoKey
                 ? {
-                    backgroundImage: `url("/api/v1/students/${encodeURIComponent(student.registrationNo)}/photo?v=${encodeURIComponent(student.photoName || "photo")}")`,
+                    backgroundImage: `url("/api/v1/residents/${encodeURIComponent(student.registrationNo)}/photo?v=${encodeURIComponent(student.photoName || "photo")}")`,
                   }
                 : undefined
             }
@@ -18427,7 +18470,7 @@ function Profile({
           </span>
         </div>
         <div>
-          <small>ROOM</small>
+          <small>HOSTEL ROOM</small>
           <b>{student.roomNo}</b>
           <span>{cash.format(student.monthlyRent)} / month</span>
         </div>
@@ -18481,7 +18524,7 @@ function Profile({
               title="HOSTEL"
               rows={[
                 ["Registered", fmtDate(student.registeredDate)],
-                ["Start date", fmtDate(student.startDate)],
+                ["Accommodation start date", fmtDate(student.startDate)],
                 [
                   "Notice to vacate",
                   student.noticeToVacateDate
@@ -18500,8 +18543,8 @@ function Profile({
                       student.contractAgreementStatus || "Not signed",
                     ],
                 [
-                  "Previous room",
-                  latestTransfer?.currentRoomNo || "No previous room",
+                  "Previous hostel room",
+                  latestTransfer?.currentRoomNo || "No previous hostel room",
                 ],
                 [
                   "Transfer date",
@@ -18509,10 +18552,10 @@ function Profile({
                     ? fmtDate(latestTransfer.transferDate)
                     : "Not applicable",
                 ],
-                ["Room", student.roomNo],
-                ["Rent", cash.format(student.monthlyRent)],
+                ["Hostel Room", student.roomNo],
+                ["Monthly Accommodation Fee", cash.format(student.monthlyRent)],
                 [
-                  "Previous deposit",
+                  "Previous security deposit",
                   latestTransfer
                     ? cash.format(latestTransfer.originalDepositAmount)
                     : cash.format(
@@ -18520,7 +18563,7 @@ function Profile({
                           student.depositPayable,
                       ),
                 ],
-                ["Current deposit", cash.format(student.depositPayable)],
+                ["Current security deposit", cash.format(student.depositPayable)],
               ]}
             />
           </div>
@@ -18567,8 +18610,8 @@ function Profile({
             <ProfileRequestHistory requests={profileRequests} />
             <div className="section-heading history-section-heading">
               <div>
-                <p className="tag">ROOM HISTORY</p>
-                <h2>Room and deposit changes</h2>
+                <p className="tag">HOSTEL ROOM HISTORY</p>
+                <h2>Hostel Room and security deposit changes</h2>
               </div>
             </div>
             <div className="tablewrap">
@@ -18576,11 +18619,11 @@ function Profile({
                 <thead>
                   <tr>
                     <th>REQUEST</th>
-                    <th>PREVIOUS ROOM</th>
-                    <th>NEW ROOM</th>
+                    <th>PREVIOUS HOSTEL ROOM</th>
+                    <th>NEW HOSTEL ROOM</th>
                     <th>TRANSFER DATE</th>
-                    <th>PREVIOUS DEPOSIT<small>(LKR)</small></th>
-                    <th>CURRENT DEPOSIT<small>(LKR)</small></th>
+                    <th>PREVIOUS SECURITY DEPOSIT<small>(LKR)</small></th>
+                    <th>CURRENT SECURITY DEPOSIT<small>(LKR)</small></th>
                     <th>STATUS</th>
                   </tr>
                 </thead>
@@ -18611,7 +18654,7 @@ function Profile({
                   ))}
                   {!roomTransferRequests.length && (
                     <tr>
-                      <td colSpan={7}>No room changes have been recorded.</td>
+                      <td colSpan={7}>No hostel room changes have been recorded.</td>
                     </tr>
                   )}
                 </tbody>
@@ -18780,7 +18823,7 @@ function StaffProfile({
               rows={[
                 ["Designation", member.designation],
                 ["Monthly salary", cash.format(member.monthlySalary)],
-                ["Start date", fmtDate(member.startDate)],
+                ["Accommodation start date", fmtDate(member.startDate)],
                 ["Finish date", member.finishDate ? fmtDate(member.finishDate) : "Not provided"],
                 ["Status", member.status],
               ]}
@@ -19086,19 +19129,19 @@ function StudentPaymentProfile({
     pdf.setFontSize(17);
     pdf.text("THE PERK HAVEN HOSTEL", 42, 16);
     pdf.setFontSize(11);
-    pdf.text("STUDENT PAYMENT LOG", 42, 23);
+    pdf.text("RESIDENT PAYMENT LOG", 42, 23);
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(9);
     pdf.text(
-      `${student.firstName} ${student.lastName}  |  ${student.registrationNo}  |  Room ${student.roomNo}`,
+      `${student.firstName} ${student.lastName}  |  ${student.registrationNo}  |  hostel room ${student.roomNo}`,
       14,
       35,
     );
     const scopeLabel =
       printScope === "deposit"
-        ? "Deposit payments"
+        ? "Security Deposit payments"
         : printScope === "outstanding"
-          ? "Outstanding room payments"
+          ? "Outstanding hostel room payments"
           : printScope === "period"
             ? `Invoice due dates ${printFrom ? fmtDate(printFrom) : "Beginning"} to ${printTo ? fmtDate(printTo) : "Present"}`
             : "All payments";
@@ -19200,17 +19243,17 @@ function StudentPaymentProfile({
     <section className="student-payment-profile">
       <div className="profile-payment-stats">
         <article>
-          <small>DEPOSIT PAYABLE</small>
+          <small>SECURITY DEPOSIT PAYABLE</small>
           <b>{cash.format(depositPayable)}</b>
-          <span>Set when the student was registered</span>
+          <span>Set when the resident was registered</span>
         </article>
         <article>
-          <small>TOTAL ROOM PAYMENTS</small>
+          <small>TOTAL HOSTEL ROOM PAYMENTS</small>
           <b>{cash.format(totalRent)}</b>
           <span>{rentReceipts.length} transaction(s)</span>
         </article>
         <article className={totalOutstanding ? "attention" : "clear"}>
-          <small>OUTSTANDING ROOM PAYMENTS</small>
+          <small>OUTSTANDING HOSTEL ROOM PAYMENTS</small>
           <b>{cash.format(totalOutstanding)}</b>
           <span>Through {fmtMonth(lastCompletedMonth)}</span>
         </article>
@@ -19218,25 +19261,28 @@ function StudentPaymentProfile({
       <div
         className="profile-payment-tabs"
         role="tablist"
-        aria-label="Student payment details"
+        aria-label="Resident payment details"
       >
         <button
           className={view === "deposit" ? "active" : ""}
           onClick={() => setView("deposit")}
         >
-          Deposit
+
+          Security Deposit
         </button>
         <button
           className={view === "rent" ? "active" : ""}
           onClick={() => setView("rent")}
         >
-          Room Payments
+
+          Hostel Room Payments
         </button>
         <button
           className={view === "outstanding" ? "active" : ""}
           onClick={() => setView("outstanding")}
         >
-          Outstanding Room Payments
+
+          Outstanding Hostel Room Payments
         </button>
         <button
           className={view === "records" ? "active" : ""}
@@ -19266,7 +19312,7 @@ function StudentPaymentProfile({
           >
             <option value="all">All payments</option>
             <option value="period">Particular period</option>
-            <option value="deposit">Deposit only</option>
+            <option value="deposit">Security Deposit only</option>
             <option value="outstanding">Outstanding payments</option>
           </select>
         </label>
@@ -19318,11 +19364,11 @@ function StudentPaymentProfile({
           <>
             <div className="deposit-profile-summary">
               <span>
-                <small>DEPOSIT PAYABLE</small>
+                <small>SECURITY DEPOSIT PAYABLE</small>
                 <b>{cash.format(depositPayable)}</b>
               </span>
               <span>
-                <small>DEPOSIT PAID</small>
+                <small>SECURITY DEPOSIT PAID</small>
                 <b>{cash.format(totalDeposit)}</b>
               </span>
               <span className={depositOutstanding ? "attention" : "clear"}>
@@ -19382,7 +19428,7 @@ function StudentPaymentProfile({
                 ))}
                 {!deposits.length && (
                   <tr>
-                    <td colSpan={8}>No deposit payments recorded.</td>
+                    <td colSpan={8}>No security deposit payments recorded.</td>
                   </tr>
                 )}
               </tbody>
@@ -19476,7 +19522,7 @@ function StudentPaymentProfile({
                     <td>
                       <b className="transaction-id">{entry.invoiceNo}</b>
                     </td>
-                    <td>{entry.month ? fmtMonth(entry.month) : "Deposit"}</td>
+                    <td>{entry.month ? fmtMonth(entry.month) : "Security Deposit"}</td>
                     <td>{amountOnly.format(entry.amount)}</td>
                     <td>—</td>
                     <td>{fmtDate(dueDate)}</td>
@@ -19504,7 +19550,8 @@ function StudentPaymentProfile({
               {!rentReceipts.length && !awaitingEvidence.length && (
                 <tr>
                   <td colSpan={10}>
-                    No room payments or submitted evidence recorded.
+
+                    No hostel room payments or submitted evidence recorded.
                   </td>
                 </tr>
               )}
@@ -19547,7 +19594,8 @@ function StudentPaymentProfile({
               {!outstandingRows.length && (
                 <tr>
                   <td colSpan={5} className="green">
-                    No outstanding room payments.
+
+                    No outstanding hostel room payments.
                   </td>
                 </tr>
               )}
@@ -19601,7 +19649,7 @@ function StayDatesModal({
     <div className="backdrop">
       <form className="modal paymentmodal" onSubmit={submit}>
         <ModalHead
-          tag="STUDENT PROFILE"
+          tag="RESIDENT PROFILE"
           title="Update stay dates"
           text={`${student.registrationNo} · ${student.firstName} ${student.lastName}`}
           close={close}
