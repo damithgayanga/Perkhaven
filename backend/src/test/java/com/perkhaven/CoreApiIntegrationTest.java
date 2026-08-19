@@ -35,6 +35,10 @@ class CoreApiIntegrationTest {
     @Test
     void adminCanReadCoreRegistersAndOpenApi() throws Exception {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        mvc.perform(get("/api/v1/hostel-profile").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.telephone").value("+94 11 234 5678"))
+                .andExpect(jsonPath("$.email").value("hello@perkhaven.example"));
         mvc.perform(get("/api/v1/students").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(3));
         mvc.perform(get("/api/v1/rooms").header("Authorization", "Bearer " + token))
