@@ -53,11 +53,18 @@ class CoreApiIntegrationTest {
         mvc.perform(post("/api/v1/checkout-settlements").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"registrationNo":"PH-2026-001","checkoutDate":"2026-12-31","settlementData":{"printDate":"2026-08-19","accountNumber":"123456","accountHolderName":"Demo Resident","bankName":"Demo Bank","branchName":"Pitipana"}}
+                                {"registrationNo":"PH-2026-001","checkoutDate":"2026-12-31","settlementData":{"printDate":"2026-08-19","accountNumber":"123456","accountHolderName":"Demo Resident","bankName":"Demo Bank","branchName":"Pitipana"},"pdfBase64":"JVBERi0="}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.settlement.settlementNo").value("PH-CS-00001"))
                 .andExpect(jsonPath("$.settlement.checkoutDate").value("2026-12-31"));
+
+        mvc.perform(get("/api/v1/checkout-settlements/1/pdf").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    if (!MediaType.APPLICATION_PDF_VALUE.equals(result.getResponse().getContentType()))
+                        throw new AssertionError("Expected PDF content type");
+                });
 
         mvc.perform(get("/api/v1/checkout-settlements").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())

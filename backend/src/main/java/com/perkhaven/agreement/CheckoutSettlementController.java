@@ -12,6 +12,11 @@ import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
+import java.util.Base64;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,12 +61,33 @@ public class CheckoutSettlementController {
                 .orElseThrow(() -> new NotFoundException("Resident not found."));
         var sequence = sequences.findForUpdate("CHECKOUT_SETTLEMENT").orElseThrow();
         var number = "PH-CS-%05d".formatted(sequence.takeNextValue());
-        var settlement = settlements.save(new CheckoutSettlement(number, student, request.settlementData().toString(), request.checkoutDate()));
+        byte[] pdf;
+        try {
+            pdf = Base64.getDecoder().decode(request.pdfBase64());
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("The check-out settlement PDF is invalid.");
+        }
+        if (pdf.length < 5 || pdf[0] != '%' || pdf[1] != 'P' || pdf[2] != 'D' || pdf[3] != 'F')
+            throw new IllegalArgumentException("A valid check-out settlement PDF is required.");
+        var settlement = settlements.save(new CheckoutSettlement(number, student, request.settlementData().toString(), request.checkoutDate(), pdf));
         audit.record("ISSUE", "CHECKOUT_SETTLEMENT", number, student.getRegistrationNo());
         return Map.of("settlement", Response.from(settlement));
     }
 
-    public record Request(@NotBlank String registrationNo, LocalDate checkoutDate, @NotNull JsonNode settlementData) {}
+    @GetMapping("/{id}/pdf")
+    @PreAuthorize("isAuthenticated()")
+    @Transactional(readOnly = true)
+    public ResponseEntity<byte[]> pdf(@org.springframework.web.bind.annotation.PathVariable long id, Authentication principal) {
+        var settlement = settlements.findById(id).orElseThrow(() -> new NotFoundException("Check-out settlement not found."));
+        if (!authorization.canAccessStudent(settlement.getStudent().getRegistrationNo(), principal))
+            throw new AccessDeniedException("This check-out settlement belongs to another resident.");
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + settlement.getSettlementNo() + ".pdf\"")
+                .body(settlement.getPdfData());
+    }
+
+    public record Request(@NotBlank String registrationNo, LocalDate checkoutDate, @NotNull JsonNode settlementData,
+            @NotBlank String pdfBase64) {}
 
     public record Response(Long id, String settlementNo, String registrationNo, String residentName,
             String roomNo, LocalDate checkoutDate, String settlementDataJson, Instant issuedAt) {
