@@ -48,6 +48,23 @@ class CoreApiIntegrationTest {
     }
 
     @Test
+    void adminCanIssueAndListCheckoutSettlements() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        mvc.perform(post("/api/v1/checkout-settlements").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"registrationNo":"PH-2026-001","checkoutDate":"2026-12-31","settlementData":{"printDate":"2026-08-19","accountNumber":"123456","accountHolderName":"Demo Resident","bankName":"Demo Bank","branchName":"Pitipana"}}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.settlement.settlementNo").value("PH-CS-00001"))
+                .andExpect(jsonPath("$.settlement.checkoutDate").value("2026-12-31"));
+
+        mvc.perform(get("/api/v1/checkout-settlements").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.settlements[0].registrationNo").value("PH-2026-001"));
+    }
+
+    @Test
     void studentCanReadOwnRecordButNotAnotherStudent() throws Exception {
         var token = token("student@perkhaven.demo", "PerkStudent#2026");
         mvc.perform(get("/api/v1/students/PH-2026-001").header("Authorization", "Bearer " + token))
