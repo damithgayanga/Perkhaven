@@ -3635,3 +3635,35 @@ table thead .table-sort-head {
   .admin-permission-table { min-width: 1100px; }
   .admin-controls-summary { align-items: flex-start; flex-wrap: wrap; }
 }
+
+/* Shared register-table rules: stable columns, centered headings/content,
+   left-aligned identifiers and names, and wrapped cell content. */
+table {
+  table-layout: fixed;
+}
+table th {
+  text-align: center !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+table td {
+  text-align: center;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  vertical-align: middle;
+}
+table tbody td:first-child,
+table td:has(> .student-name-link),
+table td.analysis-name,
+table td.col-ledger-name {
+  text-align: left;
+}
+table td.amount-cell,
+table td.col-ledger-amount,
+table td[class*="money"],
+table td[class*="amount"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

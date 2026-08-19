@@ -492,21 +492,21 @@ const fmtMonth = (m: string) =>
       : "Deposit",
   fmtDate = (d: string) =>
     d
-      ? new Date(`${d}T00:00:00`).toLocaleDateString("en-LK", {
+      ? new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", {
           day: "2-digit",
           month: "short",
           year: "numeric",
-        })
+        }).replaceAll(" ", "-")
       : "—",
   fmtDateTime = (value: string) =>
     value
-      ? new Date(value).toLocaleString("en-LK", {
+      ? new Date(value).toLocaleString("en-GB", {
           day: "2-digit",
           month: "short",
           year: "numeric",
           hour: "2-digit",
           minute: "2-digit",
-        })
+        }).replace(/^([0-9]{2}) ([A-Za-z]{3}) ([0-9]{4}),/, "$1-$2-$3")
       : "—",
   fmtCompactDate = (value: string) => {
     const [year, month, day] = value.slice(0, 10).split("-");
@@ -525,7 +525,7 @@ const fmtMonth = (m: string) =>
       "Dec",
     ];
     return year && month && day
-      ? `${Number(day)}-${months[Number(month) - 1]}-${year}`
+      ? `${day.padStart(2, "0")}-${months[Number(month) - 1]}-${year}`
       : value || "—";
   };
 const downloadBlob = (blob: Blob, filename: string) => {
