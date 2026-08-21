@@ -4999,13 +4999,153 @@ function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
   }
   if (path.startsWith("word/footer")) {
     const footerText = textNodes.map((node) => node.textContent || "");
-    footerText.forEach((value, index) => { if (value.startsWith("Variable 11")) textNodes[index].textContent = data.hostelTelephone; if (value.startsWith("Variable 12")) textNodes[index].textContent = data.hostelEmail; if (value === "Page " && footerText.slice(index, index + 4).join("") === "Page 2 of 2") textNodes.slice(index, index + 4).forEach((node) => { node.textContent = ""; }); });
+    footerText.forEach((value, index) => {
+      if (value.startsWith("Variable 11")) textNodes[index].textContent = data.hostelTelephone;
+      if (value.startsWith("Variable 12")) textNodes[index].textContent = data.hostelEmail;
+      if (value === " of Page ") textNodes.slice(Math.max(0, index - 1), index + 2).forEach((node) => { node.textContent = ""; });
+    });
     return new XMLSerializer().serializeToString(parsed);
   }
   return xml;
 }
 async function buildAgreementBlob(data: AgreementData, signature?: AgreementSignature) { const [{ default: PizZip }, { default: Docxtemplater }] = await Promise.all([import("pizzip"), import("docxtemplater")]); const template = await fetch("/Agreement-Template.docx").then((response) => response.arrayBuffer()); const zip = new PizZip(template); ["word/document.xml", "word/footer1.xml", "word/footer2.xml"].forEach((path) => { const file = zip.file(path); if (file) zip.file(path, normalizeAgreementXml(file.asText(), path, data)); }); const document = new Docxtemplater(zip, { delimiters: { start: "[", end: "]" }, paragraphLoop: true, linebreaks: true }); document.render(agreementTemplateData(data, signature)); return document.getZip().generate({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }); }
-async function downloadAgreementPdf(data: AgreementData, filename: string, signature?: AgreementSignature) { const blob = await buildAgreementBlob(data, signature); const host = document.createElement("div"); host.style.cssText = "position:fixed;left:-10000px;top:0;width:850px;background:white;z-index:-1"; document.body.appendChild(host); try { const [{ renderAsync }, { default: html2canvas }, { jsPDF }] = await Promise.all([import("docx-preview"), import("html2canvas"), import("jspdf")]); await renderAsync(blob, host, undefined, { inWrapper: true, breakPages: true, ignoreWidth: false, ignoreHeight: false }); const pages = Array.from(host.querySelectorAll<HTMLElement>("section.docx")); const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" }); for (let index = 0; index < pages.length; index += 1) { const canvas = await html2canvas(pages[index], { scale: 1.7, backgroundColor: "#ffffff", useCORS: true }); const ratio = Math.min(210 / canvas.width, 297 / canvas.height); const width = canvas.width * ratio, height = canvas.height * ratio; if (index) pdf.addPage(); pdf.addImage(canvas.toDataURL("image/jpeg", .92), "JPEG", (210 - width) / 2, 0, width, height); } pdf.save(filename); } finally { host.remove(); } }
+async function downloadAgreementPdf(data: AgreementData, filename: string, signature?: AgreementSignature) {
+  const blob = await buildAgreementBlob(data, signature);
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:-10000px;top:0;width:850px;background:white;z-index:-1";
+  document.body.appendChild(host);
+  try {
+    const [{ renderAsync }, { default: html2canvas }, { jsPDF }] = await Promise.all([import("docx-preview"), import("html2canvas"), import("jspdf")]);
+    await renderAsync(blob, host, undefined, { inWrapper: true, breakPages: true, ignoreWidth: false, ignoreHeight: false });
+    await Promise.all(Array.from(host.querySelectorAll("img")).map((image) => image.complete ? Promise.resolve() : new Promise<void>((resolve) => { image.addEventListener("load", () => resolve(), { once: true }); image.addEventListener("error", () => resolve(), { once: true }); })));
+    const exportStyle = document.createElement("style");
+    exportStyle.textContent = ".docx, .docx * { hyphens: none !important; -webkit-hyphens: none !important; }";
+    host.appendChild(exportStyle);
+    const sections = Array.from(host.querySelectorAll<HTMLElement>("section.docx"));
+    if (!sections.length) throw new Error("The agreement did not contain any printable pages.");
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+    const logoBlob = await fetch("/perkhaven-logo.png").then((response) => response.blob());
+    const logoImage = `data:image/png;base64,${await blobBase64(logoBlob)}`;
+    let outputPage = 0;
+
+    for (const [sectionIndex, section] of sections.entries()) {
+      const article = section.querySelector<HTMLElement>(":scope > article");
+      if (!article) continue;
+      const numbering = new Map<string, { major: number; minor: number }>();
+      article.querySelectorAll<HTMLParagraphElement>("p").forEach((paragraph) => {
+        const numberClass = Array.from(paragraph.classList).find((name) => /-num-(5|6)-(0|1)$/.test(name));
+        const match = numberClass?.match(/-num-(5|6)-(0|1)$/);
+        if (!match) return;
+        const [, numberId, rawLevel] = match;
+        const level = Number(rawLevel);
+        const paragraphStyle = getComputedStyle(paragraph);
+        paragraph.style.marginLeft = paragraphStyle.marginLeft;
+        paragraph.style.paddingLeft = paragraphStyle.paddingLeft;
+        paragraph.style.textIndent = paragraphStyle.textIndent;
+        paragraph.style.textAlign = paragraphStyle.textAlign;
+        paragraph.classList.remove(numberClass!);
+        const counter = numbering.get(numberId) || { major: 0, minor: 0 };
+        let label = "";
+        if (level === 0) {
+          counter.major += 1;
+          counter.minor = 0;
+          label = numberId === "5" ? `${counter.major}.0` : `${counter.major}.`;
+        } else {
+          counter.minor += 1;
+          label = `${counter.major}.${counter.minor}.`;
+        }
+        numbering.set(numberId, counter);
+        const marker = document.createElement("span");
+        marker.textContent = `${label}\u00a0`;
+        paragraph.prepend(marker);
+        paragraph.classList.add("agreement-number-materialized");
+      });
+      const sectionRect = section.getBoundingClientRect();
+      const articleRect = article.getBoundingClientRect();
+      const computed = getComputedStyle(section);
+      const leftPadding = Number.parseFloat(computed.paddingLeft) || 0;
+      const rightPadding = Number.parseFloat(computed.paddingRight) || 0;
+      const topPadding = Number.parseFloat(computed.paddingTop) || 0;
+      const bottomPadding = Number.parseFloat(computed.paddingBottom) || 0;
+      const pageHeight = sectionRect.width * 297 / 210;
+      const bodyPageHeight = (pageHeight - topPadding - bottomPadding) * .9;
+      const contentWidth = sectionRect.width - leftPadding - rightPadding;
+      const bodyCanvas = await html2canvas(article, { scale: 1.35, backgroundColor: "#ffffff", useCORS: true });
+      const boundaries = Array.from(article.querySelectorAll<HTMLElement>("p, table, h1, h2, h3, h4, h5, h6"))
+        .map((child) => child.getBoundingClientRect().bottom - articleRect.top)
+        .filter((value) => value > 0)
+        .sort((a, b) => a - b);
+      const ranges: Array<[number, number]> = [];
+      let start = 0;
+      while (start < articleRect.height - 0.5) {
+        const limit = Math.min(articleRect.height, start + bodyPageHeight);
+        const safeEnd = boundaries.filter((value) => value > start + 0.5 && value <= limit + 0.5).at(-1);
+        const end = safeEnd || limit;
+        ranges.push([start, Math.max(start + 1, end)]);
+        start = end;
+      }
+
+      const scaleY = bodyCanvas.height / articleRect.height;
+      for (const [rangeIndex, [rangeStart, rangeEnd]] of ranges.entries()) {
+        if (outputPage) pdf.addPage("a4", "portrait");
+        pdf.addImage(logoImage, "PNG", 31, 6.5, 22, 22, "agreement-logo", "FAST");
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(17);
+        pdf.setTextColor(58, 107, 31);
+        pdf.text("THE PERK HAVEN", 60, 16.5);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(7);
+        pdf.text("P I T I P A N A   ·   H O M A G A M A", 60, 22.5);
+        const sourceY = Math.max(0, Math.floor(rangeStart * scaleY));
+        const sourceHeight = Math.min(bodyCanvas.height - sourceY, Math.ceil((rangeEnd - rangeStart) * scaleY));
+        const pageBody = document.createElement("canvas");
+        pageBody.width = bodyCanvas.width;
+        pageBody.height = Math.max(1, sourceHeight);
+        const pageContext = pageBody.getContext("2d");
+        if (pageContext) {
+          pageContext.fillStyle = "#ffffff";
+          pageContext.fillRect(0, 0, pageBody.width, pageBody.height);
+          pageContext.drawImage(bodyCanvas, 0, sourceY, bodyCanvas.width, sourceHeight, 0, 0, bodyCanvas.width, sourceHeight);
+        }
+        const renderedHeight = (rangeEnd - rangeStart) * (210 - (leftPadding + rightPadding) * 210 / sectionRect.width) / contentWidth;
+        pdf.addImage(pageBody.toDataURL("image/jpeg", .9), "JPEG", leftPadding * 210 / sectionRect.width, topPadding * 297 / pageHeight, contentWidth * 210 / sectionRect.width, renderedHeight, undefined, "FAST");
+        if (sectionIndex === 0 && rangeIndex === ranges.length - 1) {
+          const signatureTop = Math.min(220, Math.max(175, topPadding * 297 / pageHeight + renderedHeight + 30));
+          pdf.setTextColor(0, 0, 0);
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(8);
+          pdf.text("Signature of the Proprietor's Representative", 31, signatureTop);
+          pdf.text("Signature of the Resident", 116, signatureTop);
+          pdf.setLineWidth(.2);
+          pdf.line(31, signatureTop + 12, 94, signatureTop + 12);
+          pdf.line(116, signatureTop + 12, 179, signatureTop + 12);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(7);
+          pdf.text(["Mahesh Tishantha (NIC 792272428V)", "on behalf of", "Mrs. Warnakulasooriya Nadeesha Joanne", "Kumari Fernando", "Date: __________________"], 31, signatureTop + 18);
+          const residentSignature = signature ? `${signature.name} (electronically signed)` : data.studentName || "Variable 1";
+          const residentDate = signature ? fmtDate(signature.date) : "__________________";
+          pdf.text([residentSignature, `NIC: ${data.studentId || "Variable 2"}`, `Date: ${residentDate}`], 116, signatureTop + 18);
+        }
+        outputPage += 1;
+      }
+    }
+    const totalPages = pdf.getNumberOfPages();
+    for (let page = 1; page <= totalPages; page += 1) {
+      pdf.setPage(page);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(6.5);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(`Telephone: ${data.hostelTelephone || "—"}`, 31, 286.5);
+      pdf.text(`${page} of Page ${totalPages}`, 105, 286.5, { align: "center" });
+      pdf.text(`Email: ${data.hostelEmail || "—"}`, 179, 286.5, { align: "right" });
+      pdf.setLineWidth(.35);
+      pdf.line(31, 292, 179, 292);
+    }
+    pdf.save(filename);
+  } finally {
+    host.remove();
+  }
+}
 function AgreementDocumentPreview({ data, signature }: { data: AgreementData; signature?: AgreementSignature }) { const target = useRef<HTMLDivElement>(null); const [error, setError] = useState(""); useEffect(() => { let active = true; buildAgreementBlob(data, signature).then(async (blob) => { if (!active || !target.current) return; target.current.innerHTML = ""; const { renderAsync } = await import("docx-preview"); await renderAsync(blob, target.current, undefined, { inWrapper: true, breakPages: true, ignoreWidth: false, ignoreHeight: false }); if (active) setError(""); }).catch((reason) => active && setError(reason instanceof Error ? reason.message : "Unable to preview agreement.")); return () => { active = false; }; }, [data, signature?.name, signature?.date]); return <div className="agreement-preview-shell">{error && <div className="error-banner">{error}</div>}<div ref={target} className="agreement-docx-preview" /></div>; }
 
 function AgreementSettlementView({ students, staff, payments, invoices, studentUpdated }: { students: Student[]; staff: Staff[]; payments: Payment[]; invoices: StudentInvoice[]; studentUpdated: (student: Student) => void }) {
