@@ -27,7 +27,8 @@ jobs:
       - name: Test and package backend
         run: ./gradlew clean test bootJar --no-daemon
       - name: Build production container
-        run: docker build --tag perkhaven-backend:pr .
+        working-directory: ${{ github.workspace }}
+        run: docker build --file backend/Dockerfile --tag perkhaven-backend:pr .
 
   frontend:
     runs-on: ubuntu-latest
