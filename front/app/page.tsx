@@ -4985,14 +4985,42 @@ function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
     const clauseIndex = values.findIndex((value, index) => value === "Clause" && values.slice(index + 1, index + 5).includes("0"));
     if (clauseIndex >= 0) { const zero = textNodes.slice(clauseIndex + 1, clauseIndex + 5).find((node) => node.textContent === "0"); if (zero) zero.textContent = "1.0"; }
     textNodes.forEach((node, index) => {
+      const replacements: Record<string, string> = {
+        "Variable 1": data.studentName,
+        "Variable 2": data.studentId,
+        "Variable 3": data.wardenName,
+        "Variable 4": data.wardenId,
+        "Variable 5": data.startDate ? fmtDate(data.startDate) : "",
+        "Variable 6": data.roomNo,
+        "Variable 7": data.monthlyRent,
+        "Variable 8": data.monthlyRentWords,
+        "Variable 9": data.depositAmount,
+        "Variable 10": data.depositAmountWords,
+        "NIC Variable 2": data.studentId,
+      };
+      const replacement = replacements[node.textContent || ""];
+      if (replacement !== undefined) node.textContent = replacement;
       if (node.textContent === "Monthly Rent in words") node.textContent = "[Monthly Rent in words]";
-      if (node.textContent === "Deposit Amount in Words") node.textContent = "[Deposit Amount in Words";
+      if (node.textContent === "Deposit Amount in Words") node.textContent = "[Deposit Amount in Words]";
       if (node.textContent === "Signature of the Resident") node.textContent = "[Student Signature]";
       if (textNodes[index - 1]?.textContent !== "[" && (node.textContent || "").trim().toLowerCase().startsWith("id ") && textNodes.slice(index, index + 6).map((item) => item.textContent || "").join("").toLowerCase().includes("id card no of the student")) {
         node.textContent = "[ID Card No of the Student]";
         textNodes.slice(index + 1, index + 6).forEach((item) => { if ((item.textContent || "").toLowerCase().includes("card") || ["No", " of the Student"].includes(item.textContent || "")) item.textContent = ""; });
       }
     });
+    const wardenLabel = textNodes.findIndex((node) => (node.textContent || "").includes("Hostel Warden/Representative:"));
+    if (wardenLabel >= 0) {
+      const value = textNodes[wardenLabel + 1];
+      if (value && !(value.textContent || "").trim()) value.textContent = data.wardenName;
+    }
+    const dateLabels = textNodes.reduce<number[]>((indexes, node, index) => {
+      if ((node.textContent || "").trim() === "Date:") indexes.push(index);
+      return indexes;
+    }, []);
+    const finalDateLabel = dateLabels.at(-1);
+    if (finalDateLabel !== undefined && textNodes[finalDateLabel + 1]) {
+      textNodes[finalDateLabel + 1].textContent = data.agreementDate ? fmtDate(data.agreementDate) : "";
+    }
     Array.from(parsed.getElementsByTagNameNS("http://schemas.openxmlformats.org/wordprocessingml/2006/main", "highlight")).forEach((node) => node.parentNode?.removeChild(node));
     const normalized = new XMLSerializer().serializeToString(parsed).replace(">single/<", single ? ">single<" : "><").replace(">sharing<", single ? "><" : ">sharing<").replace("haring basis shall be SLRS", single ? "ingle basis shall be SLRS" : "haring basis shall be SLRS");
     return normalized;
