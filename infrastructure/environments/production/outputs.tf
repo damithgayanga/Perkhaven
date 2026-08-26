@@ -75,3 +75,7 @@ output "database_secret_arn" {
 output "database_identifier" {
   value = aws_db_instance.postgres.identifier
 }
+
+output "database_secret_rotation_rule_name" {
+  value = var.enable_database_secret_rotation_redeploy ? aws_cloudwatch_event_rule.database_secret_rotation[0].name : null
+}

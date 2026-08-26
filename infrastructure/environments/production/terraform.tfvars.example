@@ -13,6 +13,7 @@ backend_image_uri = "890839646565.dkr.ecr.ap-south-1.amazonaws.com/perkhaven-bac
 database_backup_retention_days = 1
 database_deletion_protection = true
 database_skip_final_snapshot = false
+enable_database_secret_rotation_redeploy = true
 
 # Optional first Cognito administrator. Keep this value set after accepting the invitation.
 # initial_admin_email = "admin@example.com"

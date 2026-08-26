@@ -131,6 +131,12 @@ variable "database_skip_final_snapshot" {
   default     = false
 }
 
+variable "enable_database_secret_rotation_redeploy" {
+  description = "Restart the ECS backend after RDS promotes a rotated master password."
+  type        = bool
+  default     = true
+}
+
 variable "initial_admin_email" {
   description = "Email address Cognito should invite and manage as the first production administrator. Keep this repository variable set after creation."
   type        = string
