@@ -5021,6 +5021,18 @@ function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
     if (finalDateLabel !== undefined && textNodes[finalDateLabel + 1]) {
       textNodes[finalDateLabel + 1].textContent = data.agreementDate ? fmtDate(data.agreementDate) : "";
     }
+    const wordNamespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    const pageMargins = parsed.getElementsByTagNameNS(wordNamespace, "pgMar")[0];
+    if (pageMargins) {
+      pageMargins.setAttributeNS(wordNamespace, "w:top", "850");
+      pageMargins.setAttributeNS(wordNamespace, "w:bottom", "567");
+      pageMargins.setAttributeNS(wordNamespace, "w:header", "283");
+      pageMargins.setAttributeNS(wordNamespace, "w:footer", "283");
+    }
+    Array.from(parsed.getElementsByTagNameNS(wordNamespace, "spacing")).forEach((spacing) => {
+      spacing.setAttributeNS(wordNamespace, "w:before", "0");
+      spacing.setAttributeNS(wordNamespace, "w:after", "0");
+    });
     Array.from(parsed.getElementsByTagNameNS("http://schemas.openxmlformats.org/wordprocessingml/2006/main", "highlight")).forEach((node) => node.parentNode?.removeChild(node));
     const normalized = new XMLSerializer().serializeToString(parsed).replace(">single/<", single ? ">single<" : "><").replace(">sharing<", single ? "><" : ">sharing<").replace("haring basis shall be SLRS", single ? "ingle basis shall be SLRS" : "haring basis shall be SLRS");
     return normalized;
