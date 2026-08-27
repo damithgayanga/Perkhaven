@@ -27,7 +27,7 @@ public class BankSpreadsheetImporter {
     private static final List<String> REQUIRED = List.of("DATE", "REMARKS", "CHEQUE NO", "BRANCH CODE", "BRANCH NAME", "CURRENCY", "AMOUNT", "DR / CR", "ACCOUNT BALANCE");
     private final DataFormatter formatter = new DataFormatter(Locale.ENGLISH);
 
-    public List<BankTransaction.Data> read(MultipartFile file) throws IOException {
+    public ReadResult read(MultipartFile file) throws IOException {
         if (file.isEmpty()) throw new IllegalArgumentException("Bank spreadsheet is required.");
         var filename = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase(Locale.ROOT);
         if (filename.endsWith(".csv")) return readCsv(file);
@@ -43,6 +43,7 @@ public class BankSpreadsheetImporter {
             if (header == null) throw new IllegalArgumentException("The spreadsheet does not contain the required bank headers.");
             var headerColumns = new HashMap<>(columns);
             var values = new ArrayList<BankTransaction.Data>();
+            var invalid = new ArrayList<InvalidRow>();
             BigDecimal previousBalance = null;
             for (int index = header.getRowNum() + 1; index <= sheet.getLastRowNum(); index++) {
                 var row = sheet.getRow(index);
@@ -58,14 +59,16 @@ public class BankSpreadsheetImporter {
                             number(row.getCell(headerColumns.get("AMOUNT"))), direction, balance));
                     previousBalance = balance;
                 } catch (RuntimeException exception) {
-                    throw new IllegalArgumentException("Invalid bank spreadsheet row " + (index + 1) + ": " + exception.getMessage(), exception);
+                    var raw = new java.util.LinkedHashMap<String, String>();
+                    for (var entry : headerColumns.entrySet()) raw.put(entry.getKey(), text(row.getCell(entry.getValue())));
+                    invalid.add(new InvalidRow(index + 1, raw, List.of(exception.getMessage() == null ? "Invalid row" : exception.getMessage())));
                 }
             }
-            return values;
+            return new ReadResult(values, invalid);
         }
     }
 
-    private List<BankTransaction.Data> readCsv(MultipartFile file) throws IOException {
+    private ReadResult readCsv(MultipartFile file) throws IOException {
         try (var reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
             var lines = reader.lines().filter(line -> !line.isBlank()).toList();
             if (lines.isEmpty()) throw new IllegalArgumentException("The CSV file is empty.");
@@ -79,18 +82,20 @@ public class BankSpreadsheetImporter {
             var balance = column(index, "ACCOUNT BALANCE", "BALANCE", "RUNNING BALANCE");
             if (date < 0 || amount < 0) throw new IllegalArgumentException("The CSV file must contain DATE and AMOUNT columns.");
             var rows = new ArrayList<BankTransaction.Data>();
+            var invalid = new ArrayList<InvalidRow>();
             for (int lineNo = 1; lineNo < lines.size(); lineNo++) {
                 var cells = splitCsv(lines.get(lineNo));
                 if (cell(cells, date).isBlank()) continue;
                 var rawAmount = number(cell(cells, amount));
                 var rawDirection = direction >= 0 ? cell(cells, direction) : "Cr";
                 if (rawDirection.isBlank()) rawDirection = rawAmount.signum() < 0 ? "Dr" : "Cr";
-                rows.add(new BankTransaction.Data(parseDate(cell(cells, date)), remarks >= 0 ? cell(cells, remarks) : "",
+                try { rows.add(new BankTransaction.Data(parseDate(cell(cells, date)), remarks >= 0 ? cell(cells, remarks) : "",
                         cell(cells, column(index, "CHEQUE NO", "CHEQUE", "REFERENCE")), cell(cells, column(index, "BRANCH CODE")),
                         cell(cells, column(index, "BRANCH NAME")), cell(cells, column(index, "CURRENCY"), "LKR"), rawAmount.abs(), rawDirection,
-                        balance >= 0 && !cell(cells, balance).isBlank() ? number(cell(cells, balance)) : BigDecimal.ZERO));
+                        balance >= 0 && !cell(cells, balance).isBlank() ? number(cell(cells, balance)) : BigDecimal.ZERO)); }
+                catch (RuntimeException exception) { invalid.add(new InvalidRow(lineNo + 1, java.util.Map.of("DATE", cell(cells, date), "AMOUNT", cell(cells, amount), "DR / CR", rawDirection), List.of(exception.getMessage() == null ? "Invalid row" : exception.getMessage()))); }
             }
-            return rows;
+            return new ReadResult(rows, invalid);
         }
     }
 
@@ -125,4 +130,7 @@ public class BankSpreadsheetImporter {
         }
         throw new IllegalArgumentException("date is invalid");
     }
+
+    public record ReadResult(List<BankTransaction.Data> rows, List<InvalidRow> invalidRows) {}
+    public record InvalidRow(int rowNumber, java.util.Map<String, String> values, List<String> errors) {}
 }

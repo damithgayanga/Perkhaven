@@ -318,6 +318,7 @@ type BankTransaction = {
   accountBalance: number;
   importedAt: string;
 };
+type InvalidBankRow = { rowNumber: number; values: Record<string, string>; errors: string[] };
 type BankLink = {
   id: number;
   bankTransactionId: string;
@@ -12768,6 +12769,7 @@ function BankReconciliation() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [invalidRows, setInvalidRows] = useState<InvalidBankRow[]>([]);
   const importInputRef = useRef<HTMLInputElement>(null);
   const [sort, setSort] = useState<{
     key: keyof BankTransaction;
@@ -12816,6 +12818,7 @@ function BankReconciliation() {
       setMessage(
         `${result.imported} new transaction(s) imported · ${result.duplicates} duplicate(s) skipped${result.invalid ? ` · ${result.invalid} invalid row(s) skipped` : ""}`,
       );
+      setInvalidRows((result.invalidRows || []) as InvalidBankRow[]);
       await load();
     } catch (caught) {
       setError(
@@ -12826,6 +12829,28 @@ function BankReconciliation() {
     } finally {
       setUploading(false);
     }
+  };
+  const retryCorrectedRows = async () => {
+    setUploading(true); setError("");
+    try {
+      const rows = invalidRows.map((row) => ({
+        transactionDate: row.values.DATE,
+        remarks: row.values.REMARKS || "",
+        chequeNo: row.values["CHEQUE NO"] || "",
+        branchCode: row.values["BRANCH CODE"] || "",
+        branchName: row.values["BRANCH NAME"] || "",
+        currency: row.values.CURRENCY || "LKR",
+        amount: Number((row.values.AMOUNT || "0").replaceAll(",", "")),
+        drCr: row.values["DR / CR"] || "Cr",
+        accountBalance: Number((row.values["ACCOUNT BALANCE"] || "0").replaceAll(",", "")),
+      }));
+      const response = await fetch("/api/v1/bank-reconciliation/rows", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ rows }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Unable to import corrected rows");
+      setMessage(`${result.imported} corrected row(s) imported · ${result.duplicates} duplicate(s) skipped`);
+      setInvalidRows([]); await load();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to import corrected rows"); }
+    finally { setUploading(false); }
   };
   const linkedAmount = (bankTransactionId: string) =>
     links
@@ -12909,6 +12934,10 @@ function BankReconciliation() {
       />
       {message && <p className="import-message success">✓ {message}</p>}
       {error && <p className="import-message error">⚠ {error}</p>}
+      {invalidRows.length > 0 && <section className="bank-import-errors">
+        <div className="bank-import-errors-head"><div><strong>⚠ {invalidRows.length} imported row(s) need attention</strong><small>Required fields are highlighted. Correct the values below and retry these rows.</small></div><button className="primary" onClick={() => void retryCorrectedRows()} disabled={uploading}>Import corrected rows</button></div>
+        {invalidRows.map((row, index) => <div className="bank-invalid-row" key={row.rowNumber}><b>Spreadsheet row {row.rowNumber}</b><span className="bank-row-errors">{row.errors.join(" · ")}</span>{["DATE","REMARKS","CHEQUE NO","BRANCH CODE","BRANCH NAME","CURRENCY","AMOUNT","DR / CR","ACCOUNT BALANCE"].map((field) => <label key={field}>{field}<input value={row.values[field] || ""} className={!row.values[field] ? "field-invalid" : ""} onChange={e => setInvalidRows(rows => rows.map((item,i) => i === index ? {...item, values: {...item.values, [field]:e.target.value}} : item))} /></label>)}</div>)}
+      </section>}
       <div className="panel tablewrap">
         <table className="bank-reconciliation-table">
           <colgroup>

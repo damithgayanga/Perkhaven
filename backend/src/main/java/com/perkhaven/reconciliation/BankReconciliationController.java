@@ -74,9 +74,18 @@ public class BankReconciliationController {
     public BankReconciliationService.ImportResult upload(@RequestPart("file") MultipartFile file) throws IOException {
         var originalName = file.getOriginalFilename() == null ? "bank-import" : file.getOriginalFilename();
         var stored = storage.store("bank-imports", originalName, file.getContentType() == null ? "application/octet-stream" : file.getContentType(), file.getBytes());
-        var result = service.importRows(importer.read(file), stored.key());
+        var read = importer.read(file);
+        var imported = service.importRows(read.rows(), stored.key());
+        var result = new BankReconciliationService.ImportResult(imported.imported(), imported.duplicates(), read.invalidRows().size(), read.invalidRows());
         audit.record("IMPORT", "BANK_TRANSACTION", file.getOriginalFilename() == null ? "spreadsheet" : file.getOriginalFilename(), result.imported() + " rows imported");
         return result;
+    }
+
+    @PostMapping(path = "/rows", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
+    public BankReconciliationService.ImportResult uploadCorrectedRows(@RequestBody CorrectedRowsRequest request) {
+        var rows = request.rows() == null ? List.<BankTransaction.Data>of() : request.rows();
+        return service.importRows(rows, null);
     }
 
     @GetMapping("/imports/{id}")
@@ -119,6 +128,7 @@ public class BankReconciliationController {
         return Map.of("success", true);
     }
 
+    public record CorrectedRowsRequest(List<BankTransaction.Data> rows) {}
     public record RegisterResponse(List<BankResponse> bankTransactions, List<LinkResponse> links, List<SourceResponse> sources) {}
     public record BankResponse(Long id, String bankTransactionId, LocalDate transactionDate, String remarks, String chequeNo,
                                String branchCode, String branchName, String currency, BigDecimal amount, String drCr,

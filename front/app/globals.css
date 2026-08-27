@@ -1514,6 +1514,15 @@ mark {
 .import-message { margin: 0 0 14px; padding: 11px 14px; border-radius: 8px; font-size: 10px; font-weight: 800; }
 .import-message.success { color: #176e51; background: #e3f3ec; }
 .import-message.error { color: #a3423b; background: #fff0ee; }
+.bank-import-errors { margin: 0 0 14px; padding: 14px; border: 1px solid #e7aa42; border-radius: 10px; background: #fff8e9; color: #744b0b; }
+.bank-import-errors-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.bank-import-errors-head small { display: block; margin-top: 4px; color: #8b6a31; }
+.bank-invalid-row { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; padding: 10px 0; border-top: 1px solid #efd9ad; }
+.bank-invalid-row > b { width: 120px; }
+.bank-row-errors { color: #b33f35; font-weight: 800; width: 100%; }
+.bank-invalid-row label { display: grid; gap: 4px; font-size: 10px; font-weight: 800; }
+.bank-invalid-row input { min-width: 120px; padding: 7px 8px; border: 1px solid #d5a04a; border-radius: 6px; }
+.bank-invalid-row input.field-invalid { border: 2px solid #c23d35; background: #fff0ee; }
 .bank-direction,
 .bank-status,
 .source-type { display: inline-flex; align-items: center; padding: 5px 8px; border-radius: 14px; font-size: 9px; font-weight: 900; white-space: nowrap; }

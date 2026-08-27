@@ -94,7 +94,9 @@ public class BankReconciliationService {
     }
     private String value(String value) { return value == null ? "" : value.trim(); }
     private String money(BigDecimal value) { return value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString(); }
-    public record ImportResult(int imported, int duplicates, int invalid) {}
+    public record ImportResult(int imported, int duplicates, int invalid, List<BankSpreadsheetImporter.InvalidRow> invalidRows) {
+        public ImportResult(int imported, int duplicates, int invalid) { this(imported, duplicates, invalid, List.of()); }
+    }
     public record Selection(@NotBlank String sourceType, @NotNull Long recordId,
                             @NotNull @DecimalMin("0.01") BigDecimal reconciledAmount) {}
     private record Source(String transactionId, BigDecimal amount) {}
