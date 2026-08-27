@@ -34,14 +34,16 @@ public class BankReconciliationService {
     }
 
     @Transactional
-    public ImportResult importRows(List<BankTransaction.Data> rows) {
+    public ImportResult importRows(List<BankTransaction.Data> rows, String sourceFileKey) {
         int imported = 0, duplicates = 0;
         for (var row : rows) {
             var fingerprint = fingerprint(row);
             if (banks.existsBySourceFingerprint(fingerprint)) { duplicates++; continue; }
             var sequence = sequences.findForUpdate("BANK_TRANSACTION").orElseThrow();
             var number = sequence.takeNextValue();
-            banks.save(new BankTransaction("BNK-%04d-%06d".formatted(row.transactionDate().getYear(), number), fingerprint, row));
+            var transaction = new BankTransaction("BNK-%04d-%06d".formatted(row.transactionDate().getYear(), number), fingerprint, row);
+            transaction.setSourceFileKey(sourceFileKey);
+            banks.save(transaction);
             imported++;
         }
         return new ImportResult(imported, duplicates, 0);

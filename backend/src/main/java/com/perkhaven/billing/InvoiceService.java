@@ -5,6 +5,7 @@ import com.perkhaven.common.sequence.NumberSequenceRepository;
 import com.perkhaven.common.error.NotFoundException;
 import com.perkhaven.student.Student;
 import com.perkhaven.student.StudentRepository;
+import com.perkhaven.storage.StorageService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -28,12 +29,13 @@ public class InvoiceService {
     private final NotificationOutboxRepository notifications;
     private final InvoicePdfService pdf;
     private final NumberSequenceRepository sequences;
+    private final StorageService storage;
     private final String hostelTelephone;
     private final String hostelEmail;
-    public InvoiceService(InvoiceRepository invoices, StudentRepository students, NotificationOutboxRepository notifications, InvoicePdfService pdf, NumberSequenceRepository sequences,
+    public InvoiceService(InvoiceRepository invoices, StudentRepository students, NotificationOutboxRepository notifications, InvoicePdfService pdf, NumberSequenceRepository sequences, StorageService storage,
                           @Value("${perkhaven.hostel.telephone}") String hostelTelephone,
                           @Value("${perkhaven.hostel.email}") String hostelEmail) {
-        this.invoices = invoices; this.students = students; this.notifications = notifications; this.pdf = pdf; this.sequences = sequences;
+        this.invoices = invoices; this.students = students; this.notifications = notifications; this.pdf = pdf; this.sequences = sequences; this.storage = storage;
         this.hostelTelephone = hostelTelephone; this.hostelEmail = hostelEmail;
     }
 
@@ -144,8 +146,13 @@ public class InvoiceService {
         var body = "Dear " + student.getFirstName() + ",\n\nAttached is your invoice for " + descriptor +
                 ". The amount due is LKR " + invoice.getAmount().toPlainString() + " and payment is due by " + invoice.getDueDate() +
                 ".\n\nRegards,\nThe Perk Haven Hostel\n" + hostelTelephone + " | " + hostelEmail;
-        notifications.save(new NotificationOutbox(invoice, student.getEmail(), subject, body,
-                invoice.getInvoiceNo() + "-Rev." + String.format("%02d", invoice.getRevisionNumber()) + ".pdf", pdf.create(invoice)));
+        try {
+            var name = invoice.getInvoiceNo() + "-Rev." + String.format("%02d", invoice.getRevisionNumber()) + ".pdf";
+            var stored = storage.store("invoices", name, "application/pdf", pdf.create(invoice));
+            notifications.save(new NotificationOutbox(invoice, student.getEmail(), subject, body, name, stored.key()));
+        } catch (java.io.IOException exception) {
+            throw new IllegalStateException("Unable to store invoice attachment.", exception);
+        }
     }
 
     private String number(Student student, String suffix) {

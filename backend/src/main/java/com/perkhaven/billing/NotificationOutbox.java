@@ -19,14 +19,15 @@ public class NotificationOutbox extends AuditedEntity {
     @Column(nullable = false) private String subject;
     @Column(name = "message_body", nullable = false, length = 4000) private String messageBody;
     @Column(name = "attachment_name", nullable = false) private String attachmentName;
-    @Column(name = "attachment_data", nullable = false) private byte[] attachmentData;
+    @Column(name = "attachment_data") private byte[] attachmentData;
+    @Column(name = "attachment_key") private String attachmentKey;
     @Column(nullable = false, length = 30) private String status = "PENDING";
     @Column(nullable = false) private int attempts;
     @Column(name = "last_error", length = 1000) private String lastError;
     @Column(name = "sent_at") private Instant sentAt;
     protected NotificationOutbox() {}
-    public NotificationOutbox(Invoice invoice, String recipient, String subject, String messageBody, String attachmentName, byte[] attachmentData) {
-        this.invoice = invoice; this.recipient = recipient; this.subject = subject; this.messageBody = messageBody; this.attachmentName = attachmentName; this.attachmentData = attachmentData;
+    public NotificationOutbox(Invoice invoice, String recipient, String subject, String messageBody, String attachmentName, String attachmentKey) {
+        this.invoice = invoice; this.recipient = recipient; this.subject = subject; this.messageBody = messageBody; this.attachmentName = attachmentName; this.attachmentKey = attachmentKey;
     }
     public void delivered(String deliveryStatus) { status = "SENT"; sentAt = Instant.now(); lastError = null; invoice.markEmailStatus(deliveryStatus); }
     public void failed(Exception exception) { attempts++; status = attempts >= 5 ? "FAILED" : "PENDING"; lastError = exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage().substring(0, Math.min(1000, exception.getMessage().length())); invoice.markEmailStatus(status); }
@@ -36,4 +37,5 @@ public class NotificationOutbox extends AuditedEntity {
     public String getMessageBody() { return messageBody; }
     public String getAttachmentName() { return attachmentName; }
     public byte[] getAttachmentData() { return attachmentData; }
+    public String getAttachmentKey() { return attachmentKey; }
 }

@@ -6,6 +6,7 @@ import com.perkhaven.common.error.NotFoundException;
 import com.perkhaven.common.sequence.NumberSequenceRepository;
 import com.perkhaven.security.AuthorizationService;
 import com.perkhaven.student.StudentRepository;
+import com.perkhaven.storage.StorageService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -34,14 +35,16 @@ public class CheckoutSettlementController {
     private final NumberSequenceRepository sequences;
     private final AuditService audit;
     private final AuthorizationService authorization;
+    private final StorageService storage;
 
     public CheckoutSettlementController(CheckoutSettlementRepository settlements, StudentRepository students,
-            NumberSequenceRepository sequences, AuditService audit, AuthorizationService authorization) {
+            NumberSequenceRepository sequences, AuditService audit, AuthorizationService authorization, StorageService storage) {
         this.settlements = settlements;
         this.students = students;
         this.sequences = sequences;
         this.audit = audit;
         this.authorization = authorization;
+        this.storage = storage;
     }
 
     @GetMapping
@@ -69,7 +72,10 @@ public class CheckoutSettlementController {
         }
         if (pdf.length < 5 || pdf[0] != '%' || pdf[1] != 'P' || pdf[2] != 'D' || pdf[3] != 'F')
             throw new IllegalArgumentException("A valid check-out settlement PDF is required.");
-        var settlement = settlements.save(new CheckoutSettlement(number, student, request.settlementData().toString(), request.checkoutDate(), pdf));
+        String pdfKey;
+        try { pdfKey = storage.store("checkout-settlements", number + ".pdf", "application/pdf", pdf).key(); }
+        catch (java.io.IOException exception) { throw new IllegalStateException("Unable to store settlement PDF.", exception); }
+        var settlement = settlements.save(new CheckoutSettlement(number, student, request.settlementData().toString(), request.checkoutDate(), pdfKey));
         audit.record("ISSUE", "CHECKOUT_SETTLEMENT", number, student.getRegistrationNo());
         return Map.of("settlement", Response.from(settlement));
     }
@@ -83,7 +89,12 @@ public class CheckoutSettlementController {
             throw new AccessDeniedException("This check-out settlement belongs to another resident.");
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + settlement.getSettlementNo() + ".pdf\"")
-                .body(settlement.getPdfData());
+                .body(loadPdf(settlement));
+    }
+
+    private byte[] loadPdf(CheckoutSettlement settlement) {
+        try { return settlement.getPdfKey() == null ? settlement.getPdfData() : storage.load(settlement.getPdfKey()).getContentAsByteArray(); }
+        catch (java.io.IOException exception) { throw new IllegalStateException("Unable to read settlement PDF.", exception); }
     }
 
     public record Request(@NotBlank String registrationNo, LocalDate checkoutDate, @NotNull JsonNode settlementData,

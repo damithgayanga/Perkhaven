@@ -3,6 +3,7 @@ package com.perkhaven.reconciliation;
 import com.perkhaven.billing.Payment;
 import com.perkhaven.billing.PaymentRepository;
 import com.perkhaven.common.audit.AuditService;
+import com.perkhaven.storage.StorageService;
 import com.perkhaven.expense.Expense;
 import com.perkhaven.expense.ExpenseRepository;
 import com.perkhaven.expense.PettyCashDeposit;
@@ -17,6 +18,9 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.core.io.Resource;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -24,6 +28,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -42,11 +47,13 @@ public class BankReconciliationController {
     private final BankSpreadsheetImporter importer;
     private final BankReconciliationService service;
     private final AuditService audit;
+    private final StorageService storage;
 
     public BankReconciliationController(BankTransactionRepository banks, ReconciliationLinkRepository links,
                                         PaymentRepository payments, ExpenseRepository expenses, PettyCashDepositRepository pettyCashDeposits, BankSpreadsheetImporter importer,
-                                        BankReconciliationService service, AuditService audit) {
+                                        BankReconciliationService service, AuditService audit, StorageService storage) {
         this.banks = banks; this.links = links; this.payments = payments; this.expenses = expenses; this.pettyCashDeposits = pettyCashDeposits; this.importer = importer; this.service = service; this.audit = audit;
+        this.storage = storage;
     }
 
     @GetMapping
@@ -65,9 +72,21 @@ public class BankReconciliationController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
     public BankReconciliationService.ImportResult upload(@RequestPart("file") MultipartFile file) throws IOException {
-        var result = service.importRows(importer.read(file));
+        var originalName = file.getOriginalFilename() == null ? "bank-import" : file.getOriginalFilename();
+        var stored = storage.store("bank-imports", originalName, file.getContentType() == null ? "application/octet-stream" : file.getContentType(), file.getBytes());
+        var result = service.importRows(importer.read(file), stored.key());
         audit.record("IMPORT", "BANK_TRANSACTION", file.getOriginalFilename() == null ? "spreadsheet" : file.getOriginalFilename(), result.imported() + " rows imported");
         return result;
+    }
+
+    @GetMapping("/imports/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Resource> importFile(@PathVariable long id) {
+        var bank = banks.findById(id).orElseThrow(() -> new IllegalArgumentException("Bank transaction not found."));
+        if (bank.getSourceFileKey() == null) throw new IllegalArgumentException("No source spreadsheet is attached.");
+        var resource = storage.load(bank.getSourceFileKey());
+        return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"bank-import\"").body(resource);
     }
 
     @PutMapping
@@ -103,8 +122,8 @@ public class BankReconciliationController {
     public record RegisterResponse(List<BankResponse> bankTransactions, List<LinkResponse> links, List<SourceResponse> sources) {}
     public record BankResponse(Long id, String bankTransactionId, LocalDate transactionDate, String remarks, String chequeNo,
                                String branchCode, String branchName, String currency, BigDecimal amount, String drCr,
-                               BigDecimal accountBalance, java.time.Instant importedAt) {
-        static BankResponse from(BankTransaction value) { return new BankResponse(value.getId(), value.getBankTransactionId(), value.getTransactionDate(), value.getRemarks(), value.getChequeNo(), value.getBranchCode(), value.getBranchName(), value.getCurrency(), value.getAmount(), value.getDrCr(), value.getAccountBalance(), value.getImportedAt()); }
+                               BigDecimal accountBalance, java.time.Instant importedAt, String sourceFileKey) {
+        static BankResponse from(BankTransaction value) { return new BankResponse(value.getId(), value.getBankTransactionId(), value.getTransactionDate(), value.getRemarks(), value.getChequeNo(), value.getBranchCode(), value.getBranchName(), value.getCurrency(), value.getAmount(), value.getDrCr(), value.getAccountBalance(), value.getImportedAt(), value.getSourceFileKey()); }
     }
     public record LinkResponse(Long id, String bankTransactionId, String sourceType, Long sourceRecordId,
                                String sourceTransactionId, BigDecimal reconciledAmount, java.time.Instant createdAt) {

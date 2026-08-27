@@ -27,20 +27,21 @@ public class CheckoutSettlement extends AuditedEntity {
     @Column(name = "checkout_date")
     private LocalDate checkoutDate;
 
-    @Column(name = "pdf_data", nullable = false)
+    @Column(name = "pdf_data")
     private byte[] pdfData;
+    @Column(name = "pdf_key") private String pdfKey;
 
     @Column(name = "issued_at", nullable = false)
     private Instant issuedAt = Instant.now();
 
     protected CheckoutSettlement() {}
 
-    public CheckoutSettlement(String settlementNo, Student student, String settlementDataJson, LocalDate checkoutDate, byte[] pdfData) {
+    public CheckoutSettlement(String settlementNo, Student student, String settlementDataJson, LocalDate checkoutDate, String pdfKey) {
         this.settlementNo = settlementNo;
         this.student = student;
         this.settlementDataJson = settlementDataJson;
         this.checkoutDate = checkoutDate;
-        this.pdfData = pdfData;
+        this.pdfKey = pdfKey;
     }
 
     public String getSettlementNo() { return settlementNo; }
@@ -48,5 +49,6 @@ public class CheckoutSettlement extends AuditedEntity {
     public String getSettlementDataJson() { return settlementDataJson; }
     public LocalDate getCheckoutDate() { return checkoutDate; }
     public byte[] getPdfData() { return pdfData; }
+    public String getPdfKey() { return pdfKey; }
     public Instant getIssuedAt() { return issuedAt; }
 }

@@ -41,16 +41,27 @@ public class S3StorageService implements StorageService {
             case "application/pdf" -> ".pdf";
             default -> ".jpg";
         };
+        return storeBytes(category, safeName(file.getOriginalFilename()), file.getContentType(), file.getBytes(), extension);
+    }
+
+    @Override
+    public StoredFile store(String category, String originalName, String contentType, byte[] content) throws IOException {
+        if (content == null || content.length == 0) throw new IllegalArgumentException("File is empty.");
+        var extension = contentType != null && contentType.equals("application/pdf") ? ".pdf" : ".bin";
+        return storeBytes(category, safeName(originalName), contentType == null ? "application/octet-stream" : contentType, content, extension);
+    }
+
+    private StoredFile storeBytes(String category, String originalName, String contentType, byte[] content, String extension) {
         var key = category + "/" + UUID.randomUUID() + extension;
         s3.putObject(
                 PutObjectRequest.builder()
                         .bucket(bucket)
                         .key(key)
-                        .contentType(file.getContentType())
-                        .metadata(java.util.Map.of("original-name", safeName(file.getOriginalFilename())))
+                        .contentType(contentType)
+                        .metadata(java.util.Map.of("original-name", originalName))
                         .build(),
-                RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
-        return new StoredFile(key, file.getOriginalFilename(), file.getContentType(), file.getSize(), null);
+                RequestBody.fromBytes(content));
+        return new StoredFile(key, originalName, contentType, content.length, null);
     }
 
     @Override

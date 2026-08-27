@@ -23,11 +23,13 @@ public class BankTransaction extends AuditedEntity {
     @Column(name = "dr_cr", nullable = false, length = 10) private String drCr;
     @Column(name = "account_balance", nullable = false, precision = 14, scale = 2) private BigDecimal accountBalance;
     @Column(name = "imported_at", nullable = false) private Instant importedAt;
+    @Column(name = "source_file_key", length = 500) private String sourceFileKey;
 
     protected BankTransaction() {}
     public BankTransaction(String id, String fingerprint, Data data) {
         bankTransactionId = id; sourceFingerprint = fingerprint; importedAt = Instant.now(); update(data);
     }
+    public void setSourceFileKey(String key) { sourceFileKey = key; }
     public void update(Data data) {
         transactionDate = data.transactionDate(); remarks = clean(data.remarks()); chequeNo = clean(data.chequeNo());
         branchCode = clean(data.branchCode()); branchName = clean(data.branchName()); currency = data.currency().trim().toUpperCase();
@@ -52,6 +54,7 @@ public class BankTransaction extends AuditedEntity {
     public String getDrCr() { return drCr; }
     public BigDecimal getAccountBalance() { return accountBalance; }
     public Instant getImportedAt() { return importedAt; }
+    public String getSourceFileKey() { return sourceFileKey; }
     public record Data(LocalDate transactionDate, String remarks, String chequeNo, String branchCode, String branchName,
                        String currency, BigDecimal amount, String drCr, BigDecimal accountBalance) {}
 }

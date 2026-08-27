@@ -35,6 +35,18 @@ public class LocalStorageService implements StorageService {
     }
 
     @Override
+    public StoredFile store(String category, String originalName, String contentType, byte[] content) throws IOException {
+        if (content == null || content.length == 0) throw new IllegalArgumentException("File is empty.");
+        var dir = root.resolve(category).normalize();
+        Files.createDirectories(dir);
+        var safe = (originalName == null || originalName.isBlank() ? UUID.randomUUID().toString() : originalName).replaceAll("[^a-zA-Z0-9._-]", "_");
+        var path = dir.resolve(UUID.randomUUID() + "-" + safe).normalize();
+        if (!path.startsWith(root)) throw new IllegalArgumentException("Invalid file path.");
+        Files.write(path, content);
+        return new StoredFile(root.relativize(path).toString(), originalName, contentType, content.length, path);
+    }
+
+    @Override
     public Resource load(String key) {
         var path = root.resolve(key).normalize();
         if (!path.startsWith(root) || !Files.isRegularFile(path)) throw new NotFoundException("Stored file not found.");
