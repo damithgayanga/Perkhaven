@@ -5,7 +5,8 @@ import {
   completeSignIn,
   installAuthenticatedFetch,
   signOut,
-  startSignIn,
+  signIn,
+  type PasswordChallenge,
   type AppRole,
   type AuthenticatedUser,
 } from "../lib/auth";
@@ -840,7 +841,7 @@ export default function Home() {
     setPage(destination);
   };
   if (currentUser === undefined) return <ProductionLogin loading />;
-  if (!currentUser) return <ProductionLogin error={authError} />;
+  if (!currentUser) return <ProductionLogin error={authError} onSignedIn={setAuthenticatedUser} />;
   if (!["Admin", "Chairman", "Managing Director"].includes(currentUser.role))
     return (
       <LimitedPortal
@@ -1597,33 +1598,34 @@ export default function Home() {
     </main>
   );
 }
-function ProductionLogin({ loading = false, error = "" }: { loading?: boolean; error?: string }) {
-  const [starting, setStarting] = useState(false);
+function ProductionLogin({ loading = false, error = "", onSignedIn }: { loading?: boolean; error?: string; onSignedIn?: (user: AuthenticatedUser) => void }) {
+  const [username, setUsername] = useState(""), [password, setPassword] = useState(""), [newPassword, setNewPassword] = useState(""), [challenge, setChallenge] = useState<PasswordChallenge>(), [starting, setStarting] = useState(false), [loginError, setLoginError] = useState("");
+  const friendlyError = (reason: unknown) => {
+    const name = reason && typeof reason === "object" && "name" in reason ? String((reason as { name?: string }).name) : "";
+    if (name === "NotAuthorizedException") return "Incorrect username or password.";
+    if (name === "PasswordResetRequiredException") return "Your password must be reset before signing in.";
+    if (name === "UserNotConfirmedException") return "Your account has not been confirmed yet.";
+    if (name === "UserNotFoundException") return "Incorrect username or password.";
+    return reason instanceof Error ? reason.message : "Unable to sign in. Please try again.";
+  };
   return (
     <main className="production-login-page">
-      <section className="production-login-card">
+      <form className="production-login-card" onSubmit={async (event) => { event.preventDefault(); if (starting) return; setStarting(true); setLoginError(""); try { const result = await signIn(username, password, challenge, newPassword); if (result.challenge) { setChallenge(result.challenge); setNewPassword(""); setLoginError("Your temporary password must be changed before continuing."); } else if (result.user) onSignedIn?.(result.user); } catch (reason) { setLoginError(friendlyError(reason)); } finally { setStarting(false); } }}>
         <div className="production-login-brand">
           <span className="brand-logo" />
           <p className="tag">THE PERK HAVEN HOSTEL</p>
           <h1>Sign in to Perkhaven</h1>
-          <p>Continue to the secure account sign-in service.</p>
+          <p>Sign in securely using your Perkhaven account.</p>
         </div>
-        {error && <p className="form-error">⚠ {error}</p>}
-        <button
-          className="primary production-signin"
-          disabled={loading || starting}
-          onClick={async () => {
-            setStarting(true);
-            try {
-              await startSignIn();
-            } catch {
-              setStarting(false);
-            }
-          }}
-        >
-          {loading ? "Checking session…" : starting ? "Opening secure sign-in…" : "Continue to sign in"}
-        </button>
-      </section>
+        {loading && <p>Checking session…</p>}
+        {(error || loginError) && <p className="form-error">⚠ {loginError || error}</p>}
+        {!loading && <>
+          <label>Username or email<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" required /></label>
+          <label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
+          {challenge && <label>New password<input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" minLength={12} required /></label>}
+          <button className="primary production-signin" disabled={starting}>{starting ? "Signing in…" : challenge ? "Set password and sign in" : "Sign in"}</button>
+        </>}
+      </form>
     </main>
   );
 }

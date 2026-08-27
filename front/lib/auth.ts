@@ -1,3 +1,9 @@
+import {
+  CognitoIdentityProviderClient,
+  InitiateAuthCommand,
+  RespondToAuthChallengeCommand,
+} from "@aws-sdk/client-cognito-identity-provider";
+
 export type AppRole =
   | "Admin"
   | "Chairman"
@@ -20,10 +26,9 @@ type TokenSet = {
 };
 
 const tokenKey = "perkhaven-auth";
-const verifierKey = "perkhaven-oauth-verifier";
-const stateKey = "perkhaven-oauth-state";
-const cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN || "";
 const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || "";
+const region = process.env.NEXT_PUBLIC_AWS_REGION || "ap-south-1";
+const cognito = new CognitoIdentityProviderClient({ region });
 
 const roleNames: Record<string, AppRole> = {
   ADMIN: "Admin",
@@ -35,23 +40,9 @@ const roleNames: Record<string, AppRole> = {
 };
 
 function requireConfiguration() {
-  if (!cognitoDomain || !clientId) {
+  if (!clientId) {
     throw new Error("Production authentication has not been configured.");
   }
-}
-
-function base64Url(bytes: Uint8Array) {
-  let value = "";
-  bytes.forEach((byte) => (value += String.fromCharCode(byte)));
-  return btoa(value).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
-}
-
-function randomValue(length = 48) {
-  return base64Url(crypto.getRandomValues(new Uint8Array(length)));
-}
-
-async function challengeFor(verifier: string) {
-  return base64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
 }
 
 function decodeClaims(token: string): Record<string, unknown> {
@@ -87,65 +78,45 @@ function userFrom(tokens: TokenSet): AuthenticatedUser {
   return { email, name, role };
 }
 
-export async function startSignIn() {
-  requireConfiguration();
-  const verifier = randomValue();
-  const state = randomValue(24);
-  sessionStorage.setItem(verifierKey, verifier);
-  sessionStorage.setItem(stateKey, state);
-  const query = new URLSearchParams({
-    client_id: clientId,
-    response_type: "code",
-    scope: "openid email profile",
-    redirect_uri: `${location.origin}/`,
-    state,
-    code_challenge_method: "S256",
-    code_challenge: await challengeFor(verifier),
-  });
-  location.assign(`${cognitoDomain}/oauth2/authorize?${query}`);
-}
-
 export async function completeSignIn(): Promise<AuthenticatedUser | null> {
   requireConfiguration();
-  const query = new URLSearchParams(location.search);
-  const oauthError = query.get("error_description") || query.get("error");
-  if (oauthError) throw new Error(oauthError);
-
-  const code = query.get("code");
-  if (code) {
-    const verifier = sessionStorage.getItem(verifierKey);
-    const expectedState = sessionStorage.getItem(stateKey);
-    if (!verifier || !expectedState || query.get("state") !== expectedState) {
-      throw new Error("The sign-in response could not be verified. Please try again.");
-    }
-    const response = await fetch(`${cognitoDomain}/oauth2/token`, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        client_id: clientId,
-        code,
-        redirect_uri: `${location.origin}/`,
-        code_verifier: verifier,
-      }),
-    });
-    if (!response.ok) throw new Error("Cognito could not complete sign-in. Please try again.");
-    const payload = await response.json();
-    const tokens: TokenSet = {
-      accessToken: payload.access_token,
-      idToken: payload.id_token,
-      refreshToken: payload.refresh_token,
-      expiresAt: Date.now() + Number(payload.expires_in || 3600) * 1000,
-    };
-    sessionStorage.setItem(tokenKey, JSON.stringify(tokens));
-    sessionStorage.removeItem(verifierKey);
-    sessionStorage.removeItem(stateKey);
-    history.replaceState({}, "", `${location.pathname}${location.hash}`);
-    return userFrom(tokens);
-  }
-
   const tokens = readTokens();
   return tokens ? userFrom(tokens) : null;
+}
+
+export type PasswordChallenge = { session: string; username: string };
+
+function saveAuthentication(result: { AuthenticationResult?: { AccessToken?: string; IdToken?: string; RefreshToken?: string; ExpiresIn?: number } }) {
+  const authentication = result.AuthenticationResult;
+  if (!authentication?.AccessToken || !authentication.IdToken) throw new Error("Cognito did not return valid authentication tokens.");
+  const tokens: TokenSet = {
+    accessToken: authentication.AccessToken,
+    idToken: authentication.IdToken,
+    refreshToken: authentication.RefreshToken,
+    expiresAt: Date.now() + Number(authentication.ExpiresIn || 3600) * 1000,
+  };
+  sessionStorage.setItem(tokenKey, JSON.stringify(tokens));
+  return userFrom(tokens);
+}
+
+export async function signIn(username: string, password: string, challenge?: PasswordChallenge, newPassword?: string): Promise<{ user?: AuthenticatedUser; challenge?: PasswordChallenge }> {
+  requireConfiguration();
+  const result = challenge
+    ? await cognito.send(new RespondToAuthChallengeCommand({
+        ClientId: clientId,
+        ChallengeName: "NEW_PASSWORD_REQUIRED",
+        Session: challenge.session,
+        ChallengeResponses: { USERNAME: challenge.username, NEW_PASSWORD: newPassword || "" },
+      }))
+    : await cognito.send(new InitiateAuthCommand({
+        ClientId: clientId,
+        AuthFlow: "USER_PASSWORD_AUTH",
+        AuthParameters: { USERNAME: username.trim(), PASSWORD: password },
+      }));
+  if (result.ChallengeName === "NEW_PASSWORD_REQUIRED" && result.Session) {
+    return { challenge: { session: result.Session, username: username.trim() } };
+  }
+  return { user: saveAuthentication(result) };
 }
 
 export function installAuthenticatedFetch() {
@@ -168,10 +139,5 @@ export function installAuthenticatedFetch() {
 
 export function signOut() {
   sessionStorage.removeItem(tokenKey);
-  if (!cognitoDomain || !clientId) {
-    location.assign("/");
-    return;
-  }
-  const query = new URLSearchParams({ client_id: clientId, logout_uri: `${location.origin}/` });
-  location.assign(`${cognitoDomain}/logout?${query}`);
+  location.assign("/");
 }

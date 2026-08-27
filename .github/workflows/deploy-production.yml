@@ -257,8 +257,8 @@ jobs:
       - name: Build static frontend
         working-directory: front
         env:
-          NEXT_PUBLIC_COGNITO_DOMAIN: ${{ steps.infra.outputs.cognito_domain }}
           NEXT_PUBLIC_COGNITO_CLIENT_ID: ${{ steps.infra.outputs.cognito_client_id }}
+          NEXT_PUBLIC_AWS_REGION: ${{ env.AWS_REGION }}
         run: npm ci && npm run build
 
       - name: Publish frontend
