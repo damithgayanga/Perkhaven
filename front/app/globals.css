@@ -2034,14 +2034,21 @@ mark {
 .admin-row-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 145px; }
 .danger-button { border: 1px solid #efb2ae; background: #fff4f3; color: #a32e29; border-radius: 6px; padding: 7px 10px; font-weight: 700; cursor: pointer; }
 .danger-button:hover { background: #fde3e1; border-color: #d96b65; }
-.production-login-page { min-height: 100vh; display: grid; place-items: center; padding: 28px; background: radial-gradient(circle at top left, #e7f1e5, transparent 38%), linear-gradient(135deg, #f7f4df, #eef3f7 62%); }
-.production-login-card { width: min(470px, 100%); background: #fff; border: 1px solid #d9e2ea; border-radius: 22px; box-shadow: 0 24px 70px rgba(15, 43, 67, .16); padding: 34px; }
+.production-login-page { min-height: 100vh; display: grid; place-items: center; padding: clamp(20px, 5vw, 56px); background: radial-gradient(circle at 8% 8%, rgba(219, 237, 214, .9), transparent 34%), radial-gradient(circle at 92% 90%, rgba(205, 224, 241, .75), transparent 38%), linear-gradient(135deg, #f8f8ee, #eef3f7 62%); }
+.production-login-card { width: min(500px, 100%); display: grid; gap: 18px; background: rgba(255, 255, 255, .98); border: 1px solid #d7e1ea; border-radius: 26px; box-shadow: 0 28px 80px rgba(15, 43, 67, .18); padding: clamp(30px, 6vw, 48px); }
 .production-login-brand { text-align: center; }
-.production-login-brand .brand-logo { display: block; width: 106px; height: 106px; margin: 0 auto 15px; background: url('/perkhaven-logo.png') center/contain no-repeat; }
-.production-login-brand h1 { margin: 5px 0 8px; font-size: 30px; color: #102f4a; }
-.production-login-brand p:not(.tag) { color: #627286; line-height: 1.55; }
-.production-login-card .form-error { margin-top: 22px; }
-.production-signin { width: 100%; margin-top: 24px; padding: 13px; }
+.production-login-brand .brand-logo { display: block; width: 112px; height: 112px; margin: 0 auto 18px; background: #fbfad6 url('/perkhaven-logo.png') center/contain no-repeat; border-radius: 22px; box-shadow: 0 14px 30px rgba(15, 43, 67, .18); }
+.production-login-brand .tag { margin: 0 0 12px; color: #7b8da2; font-size: 12px; font-weight: 800; letter-spacing: .17em; }
+.production-login-brand h1 { margin: 0 0 10px; font-size: clamp(29px, 5vw, 36px); letter-spacing: -.03em; color: #102f4a; }
+.production-login-brand p:not(.tag) { margin: 0; color: #627286; line-height: 1.55; font-size: 15px; }
+.production-login-card > label { display: grid; gap: 8px; color: #263b52; font-size: 13px; font-weight: 800; }
+.production-login-card > label input { width: 100%; min-height: 50px; border: 1px solid #c9d7e4; border-radius: 11px; padding: 12px 14px; outline: 0; background: #fbfdff; color: #173651; transition: border-color .18s, box-shadow .18s, background .18s; }
+.production-login-card > label input::placeholder { color: #9aa9b8; }
+.production-login-card > label input:focus { border-color: #2461ad; background: #fff; box-shadow: 0 0 0 4px rgba(36, 97, 173, .13); }
+.production-login-card .form-error { margin: 0; }
+.production-signin { width: 100%; margin-top: 4px; min-height: 52px; padding: 13px 18px; border-radius: 11px; font-size: 16px; font-weight: 800; box-shadow: 0 8px 18px rgba(36, 97, 173, .2); }
+.production-signin:disabled { cursor: wait; opacity: .72; }
+@media (max-width: 520px) { .production-login-card { border-radius: 20px; } .production-login-brand .brand-logo { width: 96px; height: 96px; } }
 .signout { margin-left: auto; padding: 4px 7px; border: 1px solid rgba(255,255,255,.28); background: transparent; color: #fff; border-radius: 5px; font-size: 10px; cursor: pointer; }
 .limited-portal { min-height: 100vh; background: #f3f6f9; display: block; }
 .limited-topbar { min-height: 78px; padding: 12px clamp(18px, 4vw, 60px); background: #102f4a; color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 20px; position: sticky; top: 0; z-index: 40; box-shadow: 0 5px 16px rgba(6, 24, 39, .2); }
