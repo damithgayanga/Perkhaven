@@ -9318,7 +9318,7 @@ function PaymentLedger({
                         </button>
                         <a
                           className="evidence-download-link"
-                          href={`/api/payments/receipt?id=${payment.id}&download=1`}
+                          href={`/api/v1/payments/${payment.id}/receipt?download=true`}
                           download
                         >
                           Download PDF
@@ -9340,7 +9340,7 @@ function PaymentLedger({
                     {payment.evidenceName ? (
                       <a
                         className="evidence-download-link"
-                        href={`/api/payments/evidence?id=${payment.id}`}
+                        href={`/api/v1/payments/${payment.id}/evidence`}
                         download
                       >
                         ⇩ {payment.evidenceName}
@@ -9374,8 +9374,8 @@ function PaymentLedger({
       {previewReceipt && (
         <PdfDocumentPreviewModal
           title={`Payment Receipt — ${transactionIdFor(previewReceipt)}`}
-          source={`/api/payments/receipt?id=${previewReceipt.id}`}
-          downloadSource={`/api/payments/receipt?id=${previewReceipt.id}&download=1`}
+          source={`/api/v1/payments/${previewReceipt.id}/receipt`}
+          downloadSource={`/api/v1/payments/${previewReceipt.id}/receipt?download=true`}
           close={() => setPreviewReceipt(null)}
         />
       )}
@@ -9922,7 +9922,7 @@ function OtherIncomeView({
                   <td><b className="transaction-id">{transactionIdFor(payment)}</b></td>
                   <td>{payment.incomeCategory || "Other Income"}</td>
                   <td>{fmtDate(payment.paidDate)}</td>
-                  <td>{payment.evidenceName ? <a href={`/api/payments/evidence?id=${payment.id}`} download>{payment.evidenceName}</a> : "—"}</td>
+                  <td>{payment.evidenceName ? <a href={`/api/v1/payments/${payment.id}/evidence`} download>{payment.evidenceName}</a> : "—"}</td>
                   <td className="amount-cell"><b>{amountOnly.format(payment.paidAmount)}</b></td>
                   <td>{payment.incomeAccountType || "PH Account"}</td>
                   <td><span className={`approval-status ${(payment.incomeApprovalStatus || "Pending").toLowerCase()}`}>{payment.incomeApprovalStatus || "Pending"}</span></td>
@@ -18970,7 +18970,7 @@ function StaffProfile({
     form.set("staffNo", member.staffNo);
     form.set("photo", photo);
     try {
-      const response = await fetch("/api/staff/photo", {
+      const response = await fetch(`/api/v1/staff/${encodeURIComponent(member.staffNo)}/photo`, {
         method: "POST",
         body: form,
       });
@@ -19003,7 +19003,7 @@ function StaffProfile({
             style={
               member.photoKey
                 ? {
-                    backgroundImage: `url("/api/staff/photo?staffNo=${encodeURIComponent(member.staffNo)}&v=${encodeURIComponent(member.photoName || "photo")}")`,
+                    backgroundImage: `url("/api/v1/staff/${encodeURIComponent(member.staffNo)}/photo?v=${encodeURIComponent(member.photoName || "photo")}")`,
                   }
                 : undefined
             }
@@ -19655,7 +19655,7 @@ function StudentPaymentProfile({
                         {transactionIdFor(payment)}
                       </b>
                     </td>
-                    <td>{studentReceiptAvailable(payment) ? <a className="evidence-link" href={`/api/payments/receipt?id=${payment.id}&download=1`} download>⬇ Download receipt</a> : <span className="receipt-pending">Pending verification</span>}</td>
+                    <td>{studentReceiptAvailable(payment) ? <a className="evidence-link" href={`/api/v1/payments/${payment.id}/receipt?download=true`} download>⬇ Download receipt</a> : <span className="receipt-pending">Pending verification</span>}</td>
                     <td>
                       <b className="transaction-id">
                         {payment.invoiceNo || "—"}
@@ -19670,7 +19670,7 @@ function StudentPaymentProfile({
                       {payment.evidenceName ? (
                         <a
                           className="evidence-link"
-                          href={`/api/payments/evidence?id=${payment.id}`}
+                          href={`/api/v1/payments/${payment.id}/evidence`}
                           download
                         >
                           ⬇ {payment.evidenceName}
@@ -19720,7 +19720,7 @@ function StudentPaymentProfile({
                         {transactionIdFor(payment)}
                       </b>
                     </td>
-                    <td>{studentReceiptAvailable(payment) ? <a className="evidence-link" href={`/api/payments/receipt?id=${payment.id}&download=1`} download>⬇ Download receipt</a> : <span className="receipt-pending">Pending verification</span>}</td>
+                    <td>{studentReceiptAvailable(payment) ? <a className="evidence-link" href={`/api/v1/payments/${payment.id}/receipt?download=true`} download>⬇ Download receipt</a> : <span className="receipt-pending">Pending verification</span>}</td>
                     <td>
                       <b className="transaction-id">
                         {payment.invoiceNo || "—"}
@@ -19742,7 +19742,7 @@ function StudentPaymentProfile({
                       {payment.evidenceName ? (
                         <a
                           className="evidence-link"
-                          href={`/api/payments/evidence?id=${payment.id}`}
+                          href={`/api/v1/payments/${payment.id}/evidence`}
                           download
                         >
                           ⬇ {payment.evidenceName}

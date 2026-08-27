@@ -5,6 +5,12 @@ import com.perkhaven.common.audit.AuditService;
 import com.perkhaven.common.domain.RecordStatus;
 import com.perkhaven.common.error.ConflictException;
 import com.perkhaven.common.error.NotFoundException;
+import com.perkhaven.storage.StorageService;
+import java.io.IOException;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -22,8 +28,8 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/staff")
 public class StaffController {
-    private final StaffRepository staff; private final StaffDesignationRepository designations; private final AuditService audit;
-    public StaffController(StaffRepository staff, StaffDesignationRepository designations, AuditService audit){this.staff=staff;this.designations=designations;this.audit=audit;}
+    private final StaffRepository staff; private final StaffDesignationRepository designations; private final AuditService audit; private final StorageService storage;
+    public StaffController(StaffRepository staff, StaffDesignationRepository designations, AuditService audit, StorageService storage){this.staff=staff;this.designations=designations;this.audit=audit;this.storage=storage;}
     @GetMapping @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN')")
     @Transactional(readOnly=true) public PageResponse<Response> list(@RequestParam(defaultValue="") String search,@RequestParam(required=false) RecordStatus status,
                                        @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="25") @Min(1) int size){
@@ -37,7 +43,11 @@ public class StaffController {
     @PutMapping("/{staffNo}") @PreAuthorize("hasRole('ADMIN')") @Transactional
     public Response update(@PathVariable String staffNo,@Valid @RequestBody Request request){if(!staffNo.equalsIgnoreCase(request.staffNo()))throw new ConflictException("Staff number cannot be changed.");var item=find(staffNo);apply(item,request);audit.record("UPDATE","STAFF",staffNo,null);return Response.from(item);}
     @DeleteMapping("/{staffNo}") @ResponseStatus(HttpStatus.NO_CONTENT) @PreAuthorize("hasRole('ADMIN')") @Transactional
-    public void delete(@PathVariable String staffNo){staff.delete(find(staffNo));audit.record("DELETE","STAFF",staffNo,null);}
+    public void delete(@PathVariable String staffNo){var item=find(staffNo); storage.delete(item.getPhotoKey()); staff.delete(item);audit.record("DELETE","STAFF",staffNo,null);}
+    @PostMapping(value="/{staffNo}/photo", consumes=MediaType.MULTIPART_FORM_DATA_VALUE) @PreAuthorize("hasRole('ADMIN')") @Transactional
+    public Response uploadPhoto(@PathVariable String staffNo, @RequestPart("file") org.springframework.web.multipart.MultipartFile file) throws IOException { var item=find(staffNo); var stored=storage.store("staff/"+item.getId(), file); storage.delete(item.getPhotoKey()); item.updatePhoto(stored.key(), stored.originalName(), stored.contentType(), stored.size()); audit.record("UPDATE_PHOTO","STAFF",staffNo,stored.originalName()); return Response.from(item); }
+    @GetMapping("/{staffNo}/photo") @PreAuthorize("isAuthenticated()") @Transactional(readOnly=true)
+    public ResponseEntity<Resource> photo(@PathVariable String staffNo, @RequestParam(defaultValue="false") boolean download) { var item=find(staffNo); if(item.getPhotoKey()==null) throw new NotFoundException("Staff photo not found."); var disposition=(download?"attachment":"inline")+"; filename=\""+item.getPhotoName().replace("\"","")+"\""; return ResponseEntity.ok().contentType(MediaType.parseMediaType(item.getPhotoContentType())).header(HttpHeaders.CONTENT_DISPOSITION,disposition).body(storage.load(item.getPhotoKey())); }
     private void apply(Staff item,Request r){if(staff.existsByEmailIgnoreCaseAndStaffNoNot(r.email(),r.staffNo()))throw new ConflictException("Email is already assigned to another staff member.");var designation=r.designationId()==null?null:designations.findById(r.designationId()).orElseThrow(()->new NotFoundException("Designation not found."));var contacts=r.emergencyContacts()==null?List.<Staff.ContactData>of():r.emergencyContacts().stream().map(c->new Staff.ContactData(c.name(),c.phone(),c.relationship(),c.address())).toList();item.update(new Staff.StaffData(r.firstName(),r.lastName(),r.idNo(),r.mobile(),r.whatsapp(),r.email(),r.address(),r.monthlySalary(),r.accountHolderName(),r.accountNo(),r.bank(),r.bankBranch(),r.registeredDate(),r.startDate(),r.finishDate(),r.status(),contacts),designation);}
     private Staff find(String no){return staff.findByStaffNoIgnoreCase(no).orElseThrow(()->new NotFoundException("Staff member not found."));}
     public record Request(@NotBlank String staffNo,@NotBlank String firstName,@NotBlank String lastName,@NotBlank String idNo,@NotBlank String mobile,String whatsapp,
@@ -47,5 +57,5 @@ public class StaffController {
     public record ContactResponse(int order,String name,String phone,String relationship,String address){static ContactResponse from(StaffEmergencyContact c){return new ContactResponse(c.getOrder(),c.getName(),c.getPhone(),c.getRelationship(),c.getAddress());}}
     public record Response(Long id,long version,String staffNo,String firstName,String lastName,String idNo,String mobile,String whatsapp,String email,String address,
                            Long designationId,String designation,BigDecimal monthlySalary,String accountHolderName,String accountNo,String bank,String bankBranch,
-                           LocalDate registeredDate,LocalDate startDate,LocalDate finishDate,RecordStatus status,List<ContactResponse> emergencyContacts){static Response from(Staff s){return new Response(s.getId(),s.getVersion(),s.getStaffNo(),s.getFirstName(),s.getLastName(),s.getIdNo(),s.getMobile(),s.getWhatsapp(),s.getEmail(),s.getAddress(),s.getDesignation()==null?null:s.getDesignation().getId(),s.getDesignation()==null?null:s.getDesignation().getName(),s.getMonthlySalary(),s.getAccountHolderName(),s.getAccountNo(),s.getBank(),s.getBankBranch(),s.getRegisteredDate(),s.getStartDate(),s.getFinishDate(),s.getStatus(),s.getEmergencyContacts().stream().map(ContactResponse::from).toList());}}
+                           LocalDate registeredDate,LocalDate startDate,LocalDate finishDate,RecordStatus status,List<ContactResponse> emergencyContacts, String photoName, Long photoSize){static Response from(Staff s){return new Response(s.getId(),s.getVersion(),s.getStaffNo(),s.getFirstName(),s.getLastName(),s.getIdNo(),s.getMobile(),s.getWhatsapp(),s.getEmail(),s.getAddress(),s.getDesignation()==null?null:s.getDesignation().getId(),s.getDesignation()==null?null:s.getDesignation().getName(),s.getMonthlySalary(),s.getAccountHolderName(),s.getAccountNo(),s.getBank(),s.getBankBranch(),s.getRegisteredDate(),s.getStartDate(),s.getFinishDate(),s.getStatus(),s.getEmergencyContacts().stream().map(ContactResponse::from).toList(),s.getPhotoName(),s.getPhotoSize());}}
 }

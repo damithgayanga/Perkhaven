@@ -32,8 +32,9 @@ public class PaymentController {
     private final StorageService storage;
     private final AuditService audit;
     private final NumberSequenceRepository sequences;
-    public PaymentController(PaymentRepository payments, InvoiceRepository invoices, StorageService storage, AuditService audit, NumberSequenceRepository sequences) {
-        this.payments = payments; this.invoices = invoices; this.storage = storage; this.audit = audit; this.sequences = sequences;
+    private final PaymentReceiptPdfService receipts;
+    public PaymentController(PaymentRepository payments, InvoiceRepository invoices, StorageService storage, AuditService audit, NumberSequenceRepository sequences, PaymentReceiptPdfService receipts) {
+        this.payments = payments; this.invoices = invoices; this.storage = storage; this.audit = audit; this.sequences = sequences; this.receipts = receipts;
     }
 
     @GetMapping
@@ -87,6 +88,15 @@ public class PaymentController {
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(payment.getEvidenceContentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + payment.getEvidenceName().replace("\"", "") + "\"")
                 .body(storage.load(payment.getEvidenceKey()));
+    }
+
+    @GetMapping(value = "/{id}/receipt", produces = MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN','STUDENT')")
+    @Transactional(readOnly = true)
+    public ResponseEntity<byte[]> receipt(@PathVariable long id, @RequestParam(defaultValue = "false") boolean download) {
+        var payment = payments.findById(id).orElseThrow(() -> new NotFoundException("Payment not found."));
+        var disposition = (download ? "attachment" : "inline") + "; filename=\"" + payment.getTransactionId() + ".pdf\"";
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).header(HttpHeaders.CONTENT_DISPOSITION, disposition).body(receipts.create(payment));
     }
 
     public record Response(Long id, String transactionId, String invoiceNo, Long invoiceId, String registrationNo,

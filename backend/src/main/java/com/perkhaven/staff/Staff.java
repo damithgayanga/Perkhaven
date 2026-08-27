@@ -45,6 +45,7 @@ public class Staff extends AuditedEntity {
         emergencyContacts.clear();
         if(data.emergencyContacts()!=null)for(int i=0;i<data.emergencyContacts().size();i++){var c=data.emergencyContacts().get(i);emergencyContacts.add(new StaffEmergencyContact(this,i+1,c.name(),c.phone(),c.relationship(),c.address()));}
     }
+    public void updatePhoto(String key, String name, String contentType, long size) { photoKey = key; photoName = name; photoContentType = contentType; photoSize = size; }
     public String getStaffNo(){return staffNo;} public String getFirstName(){return firstName;} public String getLastName(){return lastName;}
     public String getIdNo(){return idNo;} public String getMobile(){return mobile;} public String getWhatsapp(){return whatsapp;} public String getEmail(){return email;}
     public String getAddress(){return address;} public StaffDesignation getDesignation(){return designation;} public BigDecimal getMonthlySalary(){return monthlySalary;}
@@ -52,6 +53,7 @@ public class Staff extends AuditedEntity {
     public String getBankBranch(){return bankBranch;} public LocalDate getRegisteredDate(){return registeredDate;} public LocalDate getStartDate(){return startDate;}
     public LocalDate getFinishDate(){return finishDate;} public RecordStatus getStatus(){return status;}
     public List<StaffEmergencyContact> getEmergencyContacts(){return emergencyContacts;}
+    public String getPhotoKey(){return photoKey;} public String getPhotoName(){return photoName;} public String getPhotoContentType(){return photoContentType;} public Long getPhotoSize(){return photoSize;}
     public record StaffData(String firstName,String lastName,String idNo,String mobile,String whatsapp,String email,String address,BigDecimal monthlySalary,
                             String accountHolderName,String accountNo,String bank,String bankBranch,LocalDate registeredDate,LocalDate startDate,LocalDate finishDate,RecordStatus status,List<ContactData> emergencyContacts){}
     public record ContactData(String name,String phone,String relationship,String address){}
