@@ -39,8 +39,8 @@ public class BankTransaction extends AuditedEntity {
     private static BigDecimal money(BigDecimal value) { return value.setScale(2, java.math.RoundingMode.HALF_UP); }
     private static String normalizeDirection(String value) {
         var normalized = value == null ? "" : value.trim().toUpperCase();
-        if (normalized.startsWith("CR")) return "Cr";
-        if (normalized.startsWith("DR")) return "Dr";
+        if (normalized.startsWith("CR") || normalized.equals("C") || normalized.startsWith("CREDIT")) return "Cr";
+        if (normalized.startsWith("DR") || normalized.equals("D") || normalized.startsWith("DEBIT")) return "Dr";
         throw new IllegalArgumentException("DR / CR must be either Dr or Cr.");
     }
     public String getBankTransactionId() { return bankTransactionId; }
