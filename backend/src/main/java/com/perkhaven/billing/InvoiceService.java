@@ -1,6 +1,7 @@
 package com.perkhaven.billing;
 
 import com.perkhaven.common.domain.RecordStatus;
+import com.perkhaven.common.sequence.NumberSequenceRepository;
 import com.perkhaven.common.error.NotFoundException;
 import com.perkhaven.student.Student;
 import com.perkhaven.student.StudentRepository;
@@ -26,12 +27,13 @@ public class InvoiceService {
     private final StudentRepository students;
     private final NotificationOutboxRepository notifications;
     private final InvoicePdfService pdf;
+    private final NumberSequenceRepository sequences;
     private final String hostelTelephone;
     private final String hostelEmail;
-    public InvoiceService(InvoiceRepository invoices, StudentRepository students, NotificationOutboxRepository notifications, InvoicePdfService pdf,
+    public InvoiceService(InvoiceRepository invoices, StudentRepository students, NotificationOutboxRepository notifications, InvoicePdfService pdf, NumberSequenceRepository sequences,
                           @Value("${perkhaven.hostel.telephone}") String hostelTelephone,
                           @Value("${perkhaven.hostel.email}") String hostelEmail) {
-        this.invoices = invoices; this.students = students; this.notifications = notifications; this.pdf = pdf;
+        this.invoices = invoices; this.students = students; this.notifications = notifications; this.pdf = pdf; this.sequences = sequences;
         this.hostelTelephone = hostelTelephone; this.hostelEmail = hostelEmail;
     }
 
@@ -146,5 +148,12 @@ public class InvoiceService {
                 invoice.getInvoiceNo() + "-Rev." + String.format("%02d", invoice.getRevisionNumber()) + ".pdf", pdf.create(invoice)));
     }
 
-    private String number(Student student, String suffix) { return "INV-" + student.getRegistrationNo().replaceAll("[^A-Za-z0-9]", "") + "-" + suffix; }
+    private String number(Student student, String suffix) {
+        var sequence = sequences.findForUpdate("INVOICE").orElseThrow(() -> new IllegalStateException("Invoice sequence is not configured.")).takeNextValue();
+        var year = suffix.equals("DEP") ? student.getRegisteredDate().getYear() : Integer.parseInt(suffix.substring(0, 4));
+        var digits = student.getRegistrationNo().replaceAll("\\D", "");
+        var reference = (digits.isBlank() ? student.getRegistrationNo().replaceAll("[^A-Za-z0-9]", "") : digits);
+        reference = reference.length() > 4 ? reference.substring(reference.length() - 4) : String.format("%4s", reference).replace(' ', '0');
+        return "INV-%04d-%s-%05d".formatted(year, reference, sequence);
+    }
 }

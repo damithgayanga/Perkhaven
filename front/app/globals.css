@@ -1497,7 +1497,7 @@ mark {
 .bank-reconciliation-table .col-bank-difference { width: 7%; }
 .bank-reconciliation-table .col-bank-links { width: 8%; }
 .bank-reconciliation-table .col-bank-status { width: 9%; }
-.bank-reconciliation-table .col-bank-actions { width: 7%; }
+.bank-reconciliation-table .col-bank-actions { width: 12%; }
 .bank-reconciliation-table .bank-id-column { white-space: normal; }
 .bank-reconciliation-table .bank-id-column .table-sort-head {
   width: 100%;
@@ -1534,16 +1534,17 @@ mark {
 .bank-reconciliation-table .bank-status { max-width: 100%; white-space: normal; justify-content: center; text-align: center; }
 .bank-reconciliation-table .admin-row-actions {
   min-width: 0;
-  flex-direction: column;
+  flex-direction: row;
   flex-wrap: nowrap;
-  align-items: stretch;
-  gap: 5px;
+  align-items: center;
+  gap: 4px;
 }
 .bank-reconciliation-table .admin-row-actions button {
-  width: 100%;
+  width: auto;
   margin: 0;
-  padding: 5px 3px;
-  font-size: 9px;
+  padding: 5px 6px;
+  font-size: 8px;
+  white-space: nowrap;
 }
 .bank-reconciliation-table td:last-child .admin-row-actions .review-button { margin: 0; }
 .bank-reconcile-modal { width: min(1180px, calc(100vw - 32px)); max-width: 1180px; }
@@ -1802,8 +1803,8 @@ mark {
 .ledger-table td:nth-child(13) { text-align: center; }
 .ledger-table td:nth-child(9) { text-align: right; }
 .ledger-table .transaction-id { white-space: normal; overflow-wrap: anywhere; }
-.ledger-table .admin-row-actions { min-width: 0; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 5px; }
-.ledger-table .admin-row-actions button { width: 100%; margin: 0; padding: 5px 3px; font-size: 9px; }
+.ledger-table .admin-row-actions { min-width: 0; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 4px; white-space: nowrap; }
+.ledger-table .admin-row-actions button { width: auto; margin: 0; padding: 5px 6px; font-size: 8px; white-space: nowrap; }
 .payment-workspace .ledger-filters {
   grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(104px, .72fr);
 }

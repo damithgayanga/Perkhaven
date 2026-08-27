@@ -2,12 +2,12 @@ package com.perkhaven.billing;
 
 import com.perkhaven.common.audit.AuditService;
 import com.perkhaven.common.error.NotFoundException;
+import com.perkhaven.common.sequence.NumberSequenceRepository;
 import com.perkhaven.storage.StorageService;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -30,8 +30,9 @@ public class PaymentController {
     private final InvoiceRepository invoices;
     private final StorageService storage;
     private final AuditService audit;
-    public PaymentController(PaymentRepository payments, InvoiceRepository invoices, StorageService storage, AuditService audit) {
-        this.payments = payments; this.invoices = invoices; this.storage = storage; this.audit = audit;
+    private final NumberSequenceRepository sequences;
+    public PaymentController(PaymentRepository payments, InvoiceRepository invoices, StorageService storage, AuditService audit, NumberSequenceRepository sequences) {
+        this.payments = payments; this.invoices = invoices; this.storage = storage; this.audit = audit; this.sequences = sequences;
     }
 
     @GetMapping
@@ -58,7 +59,7 @@ public class PaymentController {
         if (paidAmount.compareTo(remaining) > 0)
             throw new IllegalArgumentException("Payment exceeds the invoice balance of LKR " + remaining.toPlainString() + ".");
         var stored = storage.store("payment-evidence", evidence);
-        var transactionId = "PAY-" + paidDate.getYear() + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        var transactionId = "PH-PAY-%06d".formatted(sequences.findForUpdate("PAYMENT").orElseThrow(() -> new IllegalStateException("Payment sequence is not configured.")).takeNextValue());
         var payment = payments.save(new Payment(transactionId, invoice, paidAmount, paidDate, settlementMethod, remarks,
                 stored.key(), stored.originalName(), stored.contentType()));
         invoice.recordPayment(paidAmount);

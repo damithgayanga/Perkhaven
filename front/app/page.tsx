@@ -9494,7 +9494,7 @@ function PaymentLedger({
                   <option>All</option>
                   <option value="Rent">Monthly Accommodation Fee</option>
                   <option value="Deposit">Security Deposit</option>
-                  <option value="Shop Rent">Shop Monthly Accommodation Fee</option>
+                  <option value="Shop Rent">Shop Monthly Rental</option>
                   <option>Shop Electricity</option>
                   <option>Shop Water</option>
                   <option>Other Income</option>
@@ -13611,7 +13611,7 @@ function FinancialAccounts({
     },
     {
       key: "income-shop",
-      label: "Shop Monthly Accommodation Fee",
+      label: "Shop Monthly Rental",
       rows: incomePayments.filter((payment) => payment.type === "Shop Rent"),
     },
     {
@@ -13771,7 +13771,7 @@ function FinancialAccounts({
         <article className="panel income">
           <small>TOTAL INCOME</small>
           <b>{cash.format(totalIncome)}</b>
-          <span>Monthly Accommodation Fee, Shop Monthly Accommodation Fee and Other Income</span>
+          <span>Monthly Accommodation Fee, Shop Monthly Rental and Other Income</span>
         </article>
         <article className="panel expense">
           <small>TOTAL EXPENSES</small>
@@ -18010,7 +18010,7 @@ function AddPayment({
                 {s && depositOutstanding > 0 ? " — security deposit required first" : ""}
               </option>
               <option value="Deposit">Security Deposit</option>
-              <option value="Shop Rent">Shop Monthly Accommodation Fee</option>
+                  <option value="Shop Rent">Shop Monthly Rental</option>
               <option value="Shop Electricity">Shop Electricity</option>
               <option value="Shop Water">Shop Water</option>
               <option value="Other Income">Other Income</option>
