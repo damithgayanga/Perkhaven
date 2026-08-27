@@ -44,20 +44,18 @@ public class BankSpreadsheetImporter {
             var headerColumns = new HashMap<>(columns);
             var values = new ArrayList<BankTransaction.Data>();
             var invalid = new ArrayList<InvalidRow>();
-            BigDecimal previousBalance = null;
             for (int index = header.getRowNum() + 1; index <= sheet.getLastRowNum(); index++) {
                 var row = sheet.getRow(index);
                 if (row == null || text(row.getCell(headerColumns.get("DATE"))).isBlank()) continue;
                 try {
                     var balance = number(row.getCell(headerColumns.get("ACCOUNT BALANCE")));
                     var rawDirection = text(row.getCell(headerColumns.get("DR / CR")));
-                    var direction = inferDirection(rawDirection, previousBalance, balance);
+                    var direction = requireDirection(rawDirection);
                     values.add(new BankTransaction.Data(
                             date(row.getCell(headerColumns.get("DATE"))), text(row.getCell(headerColumns.get("REMARKS"))),
                             text(row.getCell(headerColumns.get("CHEQUE NO"))), text(row.getCell(headerColumns.get("BRANCH CODE"))),
                             text(row.getCell(headerColumns.get("BRANCH NAME"))), text(row.getCell(headerColumns.get("CURRENCY"))),
                             number(row.getCell(headerColumns.get("AMOUNT"))), direction, balance));
-                    previousBalance = balance;
                 } catch (RuntimeException exception) {
                     var raw = new java.util.LinkedHashMap<String, String>();
                     for (var entry : headerColumns.entrySet()) raw.put(entry.getKey(), text(row.getCell(entry.getValue())));
@@ -100,10 +98,9 @@ public class BankSpreadsheetImporter {
     }
 
     private String header(String value) { return value.trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT); }
-    private String inferDirection(String value, BigDecimal previousBalance, BigDecimal balance) {
-        if (value != null && !value.isBlank()) return value;
-        if (previousBalance == null) return "Cr";
-        return balance.compareTo(previousBalance) >= 0 ? "Cr" : "Dr";
+    private String requireDirection(String value) {
+        if (value == null || value.isBlank()) throw new IllegalArgumentException("DR / CR is required.");
+        return value;
     }
     private int column(HashMap<String, Integer> columns, String... names) { for (var name : names) if (columns.containsKey(name)) return columns.get(name); return -1; }
     private String cell(List<String> cells, int index) { return index >= 0 && index < cells.size() ? cells.get(index).trim() : ""; }

@@ -8773,7 +8773,10 @@ function PaymentLedger({
     const result = await response.json();
     if (!response.ok)
       return setError(result.error || "Unable to update cash verification");
-    updated(result.payment);
+    const changed = result.payment || result;
+    if (!changed || typeof changed.id !== "number")
+      return setError("The server returned an invalid payment response.");
+    updated(changed as Payment);
   };
   const deletePayment = async (payment: Payment) => {
     if (
