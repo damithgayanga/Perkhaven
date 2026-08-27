@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -67,6 +68,17 @@ public class PaymentController {
         return Response.from(payment);
     }
 
+    @PatchMapping("/{id}/cash-verification")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public Response verifyCash(@PathVariable long id, @RequestParam boolean verified) {
+        var payment = payments.findById(id).orElseThrow(() -> new NotFoundException("Payment not found."));
+        if (!"Cash".equalsIgnoreCase(payment.getSettlementMethod())) throw new IllegalArgumentException("Only cash payments can be manually verified.");
+        payment.verifyCash(verified);
+        audit.record(verified ? "VERIFY" : "UNVERIFY", "PAYMENT", payment.getTransactionId(), "Cash payment");
+        return Response.from(payment);
+    }
+
     @GetMapping("/{id}/evidence")
     @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN')")
     @Transactional(readOnly = true)
@@ -80,7 +92,7 @@ public class PaymentController {
     public record Response(Long id, String transactionId, String invoiceNo, Long invoiceId, String registrationNo,
                            String studentName, String roomNo, String month, String type, BigDecimal payableAmount,
                            BigDecimal vacationDiscount, BigDecimal paidAmount, LocalDate paidDate, String settlementMethod,
-                           String evidenceName, String remarks) {
+                           String evidenceName, String remarks, boolean cashVerified, java.time.Instant cashVerifiedAt) {
         static Response from(Payment value) {
             var invoice = value.getInvoice(); var student = invoice.getStudent();
             var name = java.util.stream.Stream.of(student.getFirstName(), student.getMiddleNames(), student.getLastName())
@@ -89,7 +101,7 @@ public class PaymentController {
                     student.getRegistrationNo(), name, student.getRoom() == null ? "" : student.getRoom().getRoomNo(),
                     invoice.getBillingMonth() == null ? "" : invoice.getBillingMonth().toString().substring(0, 7),
                     invoice.getInvoiceType() == InvoiceType.DEPOSIT ? "Deposit" : "Rent", invoice.getAmount(), BigDecimal.ZERO,
-                    value.getPaidAmount(), value.getPaidDate(), value.getSettlementMethod(), value.getEvidenceName(), value.getRemarks());
+                    value.getPaidAmount(), value.getPaidDate(), value.getSettlementMethod(), value.getEvidenceName(), value.getRemarks(), value.isCashVerified(), value.getCashVerifiedAt());
         }
     }
 }

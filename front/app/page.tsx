@@ -8768,11 +8768,7 @@ function PaymentLedger({
   const [error, setError] = useState("");
   const setCashVerification = async (payment: Payment, verified: boolean) => {
     setError("");
-    const response = await fetch("/api/payments", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: "verify-cash", id: payment.id, verified }),
-    });
+    const response = await fetch(`/api/v1/payments/${payment.id}/cash-verification?verified=${verified}`, { method: "PATCH" });
     const result = await response.json();
     if (!response.ok)
       return setError(result.error || "Unable to update cash verification");

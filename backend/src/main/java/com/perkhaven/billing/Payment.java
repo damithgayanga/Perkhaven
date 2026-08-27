@@ -9,6 +9,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Instant;
 
 @Entity
 @Table(name = "payments")
@@ -32,6 +33,10 @@ public class Payment extends AuditedEntity {
     private String evidenceName;
     @Column(name = "evidence_content_type", nullable = false, length = 100)
     private String evidenceContentType;
+    @Column(name = "cash_verified", nullable = false)
+    private boolean cashVerified;
+    @Column(name = "cash_verified_at")
+    private Instant cashVerifiedAt;
 
     protected Payment() {}
     public Payment(String transactionId, Invoice invoice, BigDecimal paidAmount, LocalDate paidDate,
@@ -49,4 +54,7 @@ public class Payment extends AuditedEntity {
     public String getEvidenceKey() { return evidenceKey; }
     public String getEvidenceName() { return evidenceName; }
     public String getEvidenceContentType() { return evidenceContentType; }
+    public boolean isCashVerified() { return cashVerified; }
+    public Instant getCashVerifiedAt() { return cashVerifiedAt; }
+    public void verifyCash(boolean verified) { cashVerified = verified; cashVerifiedAt = verified ? Instant.now() : null; }
 }
