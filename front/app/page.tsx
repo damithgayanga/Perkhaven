@@ -343,6 +343,7 @@ type Payment = {
   id: number;
   transactionId?: string;
   invoiceNo?: string;
+  invoiceId?: number;
   registrationNo: string;
   studentName: string;
   roomNo: string;
@@ -9670,6 +9671,7 @@ function PaymentEditModal({
       "Bank Transfer" | "Cash" | "Cash/Bank"
     >(payment.settlementMethod || "Bank Transfer"),
     [error, setError] = useState(""),
+    [evidence, setEvidence] = useState<File | null>(null),
     [saving, setSaving] = useState(false);
   const deposit = canonicalPaymentType(payment.type) === "Deposit";
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -9677,19 +9679,12 @@ function PaymentEditModal({
     setSaving(true);
     setError("");
     try {
-      const response = await fetch("/api/payments", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          id: payment.id,
-          paidAmount: amount,
-          paidDate: date,
-          month,
-          studentName: name,
-          roomNo: reference,
-          settlementMethod,
-        }),
-      });
+      const body = new FormData();
+      if (!payment.invoiceId) throw new Error("This payment is not linked to an invoice and cannot be edited here.");
+      body.set("invoiceId", String(payment.invoiceId)); body.set("paidAmount", String(amount));
+      body.set("paidDate", date); body.set("settlementMethod", settlementMethod); body.set("remarks", `${name} | ${reference}${month ? ` | ${month}` : ""}`);
+      if (evidence) body.set("evidence", evidence);
+      const response = await fetch(`/api/v1/payments/${payment.id}`, { method: "PUT", body });
       const result = await response.json();
       if (!response.ok)
         throw new Error(result.error || "Unable to update payment");
@@ -9785,6 +9780,10 @@ function PaymentEditModal({
               <option>Cash</option>
               <option>Cash/Bank</option>
             </select>
+          </label>
+          <label>
+            Replace evidence (optional)
+            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setEvidence(event.target.files?.[0] || null)} />
           </label>
         </section>
         {error && <p className="form-error">⚠ {error}</p>}

@@ -4,6 +4,7 @@ import com.perkhaven.common.audit.AuditService;
 import com.perkhaven.common.error.NotFoundException;
 import com.perkhaven.common.sequence.NumberSequenceRepository;
 import com.perkhaven.storage.StorageService;
+import com.perkhaven.reconciliation.ReconciliationLinkRepository;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -33,8 +35,35 @@ public class PaymentController {
     private final AuditService audit;
     private final NumberSequenceRepository sequences;
     private final PaymentReceiptPdfService receipts;
-    public PaymentController(PaymentRepository payments, InvoiceRepository invoices, StorageService storage, AuditService audit, NumberSequenceRepository sequences, PaymentReceiptPdfService receipts) {
+    private final ReconciliationLinkRepository reconciliationLinks;
+    public PaymentController(PaymentRepository payments, InvoiceRepository invoices, StorageService storage, AuditService audit, NumberSequenceRepository sequences, PaymentReceiptPdfService receipts, ReconciliationLinkRepository reconciliationLinks) {
         this.payments = payments; this.invoices = invoices; this.storage = storage; this.audit = audit; this.sequences = sequences; this.receipts = receipts;
+        this.reconciliationLinks = reconciliationLinks;
+    }
+
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public Response update(@PathVariable long id, @RequestParam long invoiceId, @RequestParam BigDecimal paidAmount,
+                           @RequestParam LocalDate paidDate, @RequestParam String settlementMethod,
+                           @RequestParam(defaultValue = "") String remarks,
+                           @RequestPart(value = "evidence", required = false) MultipartFile evidence) throws IOException {
+        var payment = payments.findById(id).orElseThrow(() -> new NotFoundException("Payment not found."));
+        var invoice = invoices.findById(invoiceId).orElseThrow(() -> new NotFoundException("Invoice not found."));
+        if (paidAmount.signum() <= 0) throw new IllegalArgumentException("Payment amount must be greater than zero.");
+        var oldInvoice = payment.getInvoice(); oldInvoice.removePayment(payment.getPaidAmount());
+        if (invoice.getAmount().subtract(invoice.getPaidAmount()).compareTo(paidAmount) < 0)
+            throw new IllegalArgumentException("Payment exceeds the invoice balance.");
+        invoice.recordPayment(paidAmount);
+        var key = payment.getEvidenceKey(); var name = payment.getEvidenceName(); var type = payment.getEvidenceContentType();
+        if (evidence != null && !evidence.isEmpty()) {
+            var stored = storage.store("students/" + invoice.getStudent().getRegistrationNo() + "/invoices/" + invoice.getInvoiceNo() + "/evidence", evidence);
+            key = stored.key(); name = stored.originalName(); type = stored.contentType(); storage.delete(payment.getEvidenceKey());
+        }
+        payment.update(invoice, paidAmount, paidDate, settlementMethod, remarks, key, name, type);
+        reconciliationLinks.deleteBySourceTypeAndSourceRecordId("Payment", id);
+        audit.record("UPDATE", "PAYMENT", payment.getTransactionId(), "Reconciliation reset");
+        return Response.from(payment);
     }
 
     @GetMapping

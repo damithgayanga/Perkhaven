@@ -86,6 +86,10 @@ public class Invoice extends AuditedEntity {
         paidAmount = money(paidAmount.add(value));
         status = paidAmount.compareTo(amount) >= 0 ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID;
     }
+    public void removePayment(BigDecimal value) {
+        paidAmount = money(paidAmount.subtract(value).max(BigDecimal.ZERO));
+        status = paidAmount.signum() == 0 ? InvoiceStatus.ISSUED : InvoiceStatus.PARTIALLY_PAID;
+    }
     private static BigDecimal money(BigDecimal value) { return value.setScale(2, java.math.RoundingMode.HALF_UP); }
     public String getInvoiceNo() { return invoiceNo; }
     public Student getStudent() { return student; }

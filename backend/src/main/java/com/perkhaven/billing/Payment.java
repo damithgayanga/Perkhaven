@@ -57,4 +57,11 @@ public class Payment extends AuditedEntity {
     public boolean isCashVerified() { return cashVerified; }
     public Instant getCashVerifiedAt() { return cashVerifiedAt; }
     public void verifyCash(boolean verified) { cashVerified = verified; cashVerifiedAt = verified ? Instant.now() : null; }
+    public void update(Invoice invoice, BigDecimal amount, LocalDate date, String method, String remarks,
+                       String evidenceKey, String evidenceName, String evidenceContentType) {
+        this.invoice = invoice; this.paidAmount = amount.setScale(2, java.math.RoundingMode.HALF_UP);
+        this.paidDate = date; this.settlementMethod = method; this.remarks = remarks;
+        this.evidenceKey = evidenceKey; this.evidenceName = evidenceName; this.evidenceContentType = evidenceContentType;
+        this.cashVerified = false; this.cashVerifiedAt = null;
+    }
 }
