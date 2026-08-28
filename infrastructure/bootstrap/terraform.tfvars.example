@@ -4,7 +4,7 @@ github_owner_id        = "314482339"
 github_repository      = "Perkhaven"
 github_repository_id   = "1327320371"
 production_environment = "production"
-domain_name            = "perkhaven.com"
+domain_name            = "perkhaven.lk"
 
 # Reuse an existing Route 53 hosted zone. Leave unset to create it in bootstrap.
 # existing_route53_zone_id = "Z0123456789ABCDEFG"

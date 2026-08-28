@@ -1,5 +1,5 @@
 aws_region       = "ap-south-1"
-domain_name      = "perkhaven.com"
+domain_name      = "perkhaven.lk"
 backend_image_uri = "890839646565.dkr.ecr.ap-south-1.amazonaws.com/perkhaven-backend:replace-with-commit-sha"
 
 # Reuse an existing hosted zone instead of creating a second one:
@@ -7,7 +7,7 @@ backend_image_uri = "890839646565.dkr.ecr.ap-south-1.amazonaws.com/perkhaven-bac
 # route53_zone_id      = "Z0123456789ABCDEFG"
 
 # Optional. AWS sends a confirmation request before notifications begin.
-# alert_email = "operations@perkhaven.com"
+# alert_email = "operations@perkhaven.lk"
 
 # Keep these production safeguards enabled.
 database_backup_retention_days = 1

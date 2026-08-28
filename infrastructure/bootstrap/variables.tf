@@ -35,7 +35,7 @@ variable "production_environment" {
 variable "domain_name" {
   description = "Public domain to create or locate in Route 53 during bootstrap."
   type        = string
-  default     = "perkhaven.com"
+  default     = "perkhaven.lk"
 }
 
 variable "existing_route53_zone_id" {

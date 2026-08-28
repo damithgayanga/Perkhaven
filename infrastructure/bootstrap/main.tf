@@ -90,7 +90,9 @@ resource "aws_route53_zone" "main" {
   name = var.domain_name
 
   lifecycle {
-    prevent_destroy = true
+    # Hosted-zone names are immutable, so a domain migration requires a new
+    # zone. Create it before removing the previous empty bootstrap zone.
+    create_before_destroy = true
   }
 }
 

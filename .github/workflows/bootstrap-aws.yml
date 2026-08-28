@@ -6,7 +6,7 @@ on:
       domain_name:
         description: Production domain
         required: true
-        default: perkhaven.com
+        default: perkhaven.lk
         type: string
       request_ses_production_access:
         description: Submit the SES production-access request
@@ -78,7 +78,7 @@ jobs:
         id: discovery
         shell: bash
         env:
-          DOMAIN_NAME: ${{ inputs.domain_name || 'perkhaven.com' }}
+          DOMAIN_NAME: ${{ inputs.domain_name || 'perkhaven.lk' }}
         run: |
           oidc_arn="arn:aws:iam::${EXPECTED_AWS_ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
           if aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$oidc_arn" >/dev/null 2>&1; then
@@ -165,7 +165,7 @@ jobs:
           TF_VAR_github_owner_id: ${{ github.event.repository.owner.id }}
           TF_VAR_github_repository: ${{ github.event.repository.name }}
           TF_VAR_github_repository_id: ${{ github.event.repository.id }}
-          TF_VAR_domain_name: ${{ inputs.domain_name || 'perkhaven.com' }}
+          TF_VAR_domain_name: ${{ inputs.domain_name || 'perkhaven.lk' }}
           TF_VAR_create_github_oidc_provider: ${{ steps.managed.outputs.create_oidc }}
           TF_VAR_existing_github_oidc_provider_arn: ${{ steps.managed.outputs.oidc_arn }}
           TF_VAR_existing_route53_zone_id: ${{ steps.managed.outputs.route53_zone_id }}

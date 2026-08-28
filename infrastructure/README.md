@@ -67,7 +67,7 @@ after the new `admin` login is confirmed.
 ## Optional custom domain
 
 Production initially uses the generated `https://*.cloudfront.net` URL and does not wait for Route 53 or ACM
-validation. HTTP viewer requests redirect to HTTPS. After registering `perkhaven.com`, set
+validation. HTTP viewer requests redirect to HTTPS. After registering `perkhaven.lk`, set
 `enable_custom_domain` and `enable_ses_domain` to true and supply the existing hosted-zone ID; Terraform will
 then add the custom CloudFront certificate, DNS aliases and SES identity records.
 

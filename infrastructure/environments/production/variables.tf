@@ -15,7 +15,7 @@ variable "aws_region" {
 
 variable "domain_name" {
   type    = string
-  default = "perkhaven.com"
+  default = "perkhaven.lk"
 }
 
 variable "initial_admin_username" {
