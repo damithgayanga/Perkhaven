@@ -543,7 +543,8 @@ const downloadBlob = (blob: Blob, filename: string) => {
 };
 const previewProtectedFile = async (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
   event.preventDefault();
-  const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
+  const popup = window.open("about:blank", "_blank");
+  if (popup) popup.opener = null;
   try {
     const response = await fetch(href);
     if (!response.ok) throw new Error("Unable to load the file.");
