@@ -148,7 +148,7 @@ public class InvoiceService {
                 ".\n\nRegards,\nThe Perk Haven Hostel\n" + hostelTelephone + " | " + hostelEmail;
         try {
             var name = invoice.getInvoiceNo() + "-Rev." + String.format("%02d", invoice.getRevisionNumber()) + ".pdf";
-            var stored = storage.store("invoices", name, "application/pdf", pdf.create(invoice));
+            var stored = storage.store("invoices/" + invoice.getInvoiceNo() + "/email", name, "application/pdf", pdf.create(invoice));
             notifications.save(new NotificationOutbox(invoice, student.getEmail(), subject, body, name, stored.key()));
         } catch (java.io.IOException exception) {
             throw new IllegalStateException("Unable to store invoice attachment.", exception);

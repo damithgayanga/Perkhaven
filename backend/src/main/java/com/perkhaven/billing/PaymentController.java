@@ -60,7 +60,9 @@ public class PaymentController {
         var remaining = invoice.getAmount().subtract(invoice.getPaidAmount());
         if (paidAmount.compareTo(remaining) > 0)
             throw new IllegalArgumentException("Payment exceeds the invoice balance of LKR " + remaining.toPlainString() + ".");
-        var stored = storage.store("payment-evidence", evidence);
+        // Keep evidence browsable in S3: student registration -> invoice -> evidence.
+        var stored = storage.store("students/" + invoice.getStudent().getRegistrationNo()
+                + "/invoices/" + invoice.getInvoiceNo() + "/evidence", evidence);
         var transactionId = "PH-PAY-%06d".formatted(sequences.findForUpdate("PAYMENT").orElseThrow(() -> new IllegalStateException("Payment sequence is not configured.")).takeNextValue());
         var payment = payments.save(new Payment(transactionId, invoice, paidAmount, paidDate, settlementMethod, remarks,
                 stored.key(), stored.originalName(), stored.contentType()));
@@ -83,8 +85,12 @@ public class PaymentController {
     @GetMapping("/{id}/evidence")
     @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN')")
     @Transactional(readOnly = true)
-    public ResponseEntity<Resource> evidence(@PathVariable long id) {
+    public ResponseEntity<Resource> evidence(@PathVariable long id, @RequestParam(required = false) String invoiceNo) {
         var payment = payments.findById(id).orElseThrow(() -> new NotFoundException("Payment not found."));
+        if (invoiceNo != null && !invoiceNo.isBlank()
+                && !invoiceNo.equalsIgnoreCase(payment.getInvoice().getInvoiceNo())) {
+            throw new NotFoundException("Payment evidence not found.");
+        }
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(payment.getEvidenceContentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + payment.getEvidenceName().replace("\"", "") + "\"")
                 .body(storage.load(payment.getEvidenceKey()));

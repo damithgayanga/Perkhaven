@@ -13,8 +13,8 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Service
 @ConditionalOnProperty(name = "perkhaven.storage.provider", havingValue = "s3")
@@ -74,7 +74,8 @@ public class S3StorageService implements StorageService {
                     return key.substring(key.lastIndexOf('/') + 1);
                 }
             };
-        } catch (NoSuchKeyException exception) {
+        } catch (S3Exception exception) {
+            if (exception.statusCode() != 404) throw exception;
             throw new NotFoundException("Stored file not found.");
         }
     }

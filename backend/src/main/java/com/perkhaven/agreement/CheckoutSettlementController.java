@@ -73,7 +73,7 @@ public class CheckoutSettlementController {
         if (pdf.length < 5 || pdf[0] != '%' || pdf[1] != 'P' || pdf[2] != 'D' || pdf[3] != 'F')
             throw new IllegalArgumentException("A valid check-out settlement PDF is required.");
         String pdfKey;
-        try { pdfKey = storage.store("checkout-settlements", number + ".pdf", "application/pdf", pdf).key(); }
+        try { pdfKey = storage.store("students/" + student.getRegistrationNo() + "/settlements", number + ".pdf", "application/pdf", pdf).key(); }
         catch (java.io.IOException exception) { throw new IllegalStateException("Unable to store settlement PDF.", exception); }
         var settlement = settlements.save(new CheckoutSettlement(number, student, request.settlementData().toString(), request.checkoutDate(), pdfKey));
         audit.record("ISSUE", "CHECKOUT_SETTLEMENT", number, student.getRegistrationNo());

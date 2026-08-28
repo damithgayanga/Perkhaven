@@ -9381,8 +9381,8 @@ function PaymentLedger({
                     {payment.evidenceName ? (
                         <a
                           className="evidence-download-link"
-                          href={`/api/v1/payments/${payment.id}/evidence`}
-                          onClick={(event) => void previewProtectedFile(event, `/api/v1/payments/${payment.id}/evidence`)}
+                          href={`/api/v1/payments/${payment.id}/evidence?invoiceNo=${encodeURIComponent(payment.invoiceNo ?? "")}`}
+                          onClick={(event) => void previewProtectedFile(event, `/api/v1/payments/${payment.id}/evidence?invoiceNo=${encodeURIComponent(payment.invoiceNo ?? "")}`)}
                       >
                         ⇩ {payment.evidenceName}
                       </a>
@@ -9963,7 +9963,7 @@ function OtherIncomeView({
                   <td><b className="transaction-id">{transactionIdFor(payment)}</b></td>
                   <td>{payment.incomeCategory || "Other Income"}</td>
                   <td>{fmtDate(payment.paidDate)}</td>
-                  <td>{payment.evidenceName ? <a href={`/api/v1/payments/${payment.id}/evidence`} onClick={(event) => void previewProtectedFile(event, `/api/v1/payments/${payment.id}/evidence`)}>{payment.evidenceName}</a> : "—"}</td>
+                  <td>{payment.evidenceName ? <a href={`/api/v1/payments/${payment.id}/evidence?invoiceNo=${encodeURIComponent(payment.invoiceNo ?? "")}`} onClick={(event) => void previewProtectedFile(event, `/api/v1/payments/${payment.id}/evidence?invoiceNo=${encodeURIComponent(payment.invoiceNo ?? "")}`)}>{payment.evidenceName}</a> : "—"}</td>
                   <td className="amount-cell"><b>{amountOnly.format(payment.paidAmount)}</b></td>
                   <td>{payment.incomeAccountType || "PH Account"}</td>
                   <td><span className={`approval-status ${(payment.incomeApprovalStatus || "Pending").toLowerCase()}`}>{payment.incomeApprovalStatus || "Pending"}</span></td>
@@ -19734,8 +19734,8 @@ function StudentPaymentProfile({
                       {payment.evidenceName ? (
                         <a
                           className="evidence-link"
-                          href={`/api/v1/payments/${payment.id}/evidence`}
-                          onClick={(event) => void previewProtectedFile(event, `/api/v1/payments/${payment.id}/evidence`)}
+                          href={`/api/v1/payments/${payment.id}/evidence?invoiceNo=${encodeURIComponent(payment.invoiceNo ?? "")}`}
+                          onClick={(event) => void previewProtectedFile(event, `/api/v1/payments/${payment.id}/evidence?invoiceNo=${encodeURIComponent(payment.invoiceNo ?? "")}`)}
                         >
                           ⬇ {payment.evidenceName}
                         </a>
@@ -19799,8 +19799,8 @@ function StudentPaymentProfile({
                       {payment.evidenceName ? (
                         <a
                           className="evidence-link"
-                          href={`/api/v1/payments/${payment.id}/evidence`}
-                          onClick={(event) => void previewProtectedFile(event, `/api/v1/payments/${payment.id}/evidence`)}
+                          href={`/api/v1/payments/${payment.id}/evidence?invoiceNo=${encodeURIComponent(payment.invoiceNo ?? "")}`}
+                          onClick={(event) => void previewProtectedFile(event, `/api/v1/payments/${payment.id}/evidence?invoiceNo=${encodeURIComponent(payment.invoiceNo ?? "")}`)}
                         >
                           ⬇ {payment.evidenceName}
                         </a>

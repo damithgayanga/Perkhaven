@@ -154,7 +154,7 @@ public class StudentController {
     @Transactional
     public StudentResponse uploadPhoto(@PathVariable String registrationNo, @RequestPart("file") MultipartFile file) throws IOException {
         var student = find(registrationNo); var oldKey = student.getPhotoKey();
-        var stored = storage.store("students/" + student.getId(), file);
+        var stored = storage.store("students/" + student.getRegistrationNo() + "/profile", file);
         student.updatePhoto(stored.key(), stored.originalName(), stored.contentType(), stored.size());
         storage.delete(oldKey); audit.record("UPDATE_PHOTO", "STUDENT", registrationNo, stored.originalName());
         return StudentResponse.from(student);
