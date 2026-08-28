@@ -8,6 +8,7 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -19,8 +20,11 @@ public class PaymentReceiptPdfService {
             try (var canvas = new PDPageContentStream(document, page)) {
                 var regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
                 var bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
-                text(canvas, bold, 18, 54, 760, "THE PERK HAVEN HOSTEL");
-                text(canvas, regular, 10, 54, 742, "PAYMENT RECEIPT");
+                try (var logo = PaymentReceiptPdfService.class.getResourceAsStream("/perkhaven-logo.png")) {
+                    if (logo != null) canvas.drawImage(PDImageXObject.createFromByteArray(document, logo.readAllBytes(), "perkhaven-logo"), 54, 780, 54, 54);
+                }
+                text(canvas, bold, 18, 120, 808, "THE PERK HAVEN HOSTEL");
+                text(canvas, regular, 10, 120, 790, "PAYMENT RECEIPT");
                 text(canvas, regular, 10, 54, 690, "Transaction ID"); text(canvas, bold, 10, 220, 690, payment.getTransactionId());
                 text(canvas, regular, 10, 54, 665, "Student Name"); text(canvas, bold, 10, 220, 665, name(payment));
                 text(canvas, regular, 10, 54, 640, "Registration No"); text(canvas, bold, 10, 220, 640, payment.getInvoice().getStudent().getRegistrationNo());

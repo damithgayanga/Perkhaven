@@ -541,6 +541,17 @@ const downloadBlob = (blob: Blob, filename: string) => {
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 30000);
 };
+const previewProtectedFile = async (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+  event.preventDefault();
+  const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
+  try {
+    const response = await fetch(href);
+    if (!response.ok) throw new Error("Unable to load the file.");
+    const url = URL.createObjectURL(await response.blob());
+    if (popup) { popup.location.href = url; window.setTimeout(() => URL.revokeObjectURL(url), 60000); }
+    else URL.revokeObjectURL(url);
+  } catch { popup?.close(); }
+};
 const netPayable = (payment: Payment) =>
   Math.max(0, payment.payableAmount - (payment.vacationDiscount || 0));
 const canonicalPaymentType = (type: Payment["type"]) =>
@@ -2426,8 +2437,7 @@ function WardenPettyCashTable({
                   <a
                     className="evidence-link"
                     href={row.href}
-                    target="_blank"
-                    rel="noreferrer"
+                    onClick={(event) => void previewProtectedFile(event, row.href)}
                   >
                     {row.evidence}
                   </a>
@@ -4212,7 +4222,7 @@ function StudentEvidencePanel({
                     <a
                       className="evidence-link"
                       href={`/api/payment-evidence/file?id=${entry.id}&download=1`}
-                      download
+                      onClick={(event) => void previewProtectedFile(event, `/api/payment-evidence/file?id=${entry.id}&download=1`)}
                     >
                       ⬇ {entry.evidenceName}
                     </a>
@@ -4416,7 +4426,7 @@ function StudentEvidencePanelPaymentModeLegacy({
                     <a
                       className="evidence-link"
                       href={`/api/payment-evidence/file?id=${entry.id}&download=1`}
-                      download
+                      onClick={(event) => void previewProtectedFile(event, `/api/payment-evidence/file?id=${entry.id}&download=1`)}
                     >
                       ⬇ {entry.evidenceName}
                     </a>
@@ -7216,6 +7226,7 @@ function ActionPaymentEvidence({
                     <a
                       className="evidence-link"
                       href={`/api/payment-evidence/file?id=${entry.id}`}
+                      onClick={(event) => void previewProtectedFile(event, `/api/payment-evidence/file?id=${entry.id}`)}
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -8270,6 +8281,7 @@ function PaymentEvidenceLedger({
                   <a
                     className="review-button"
                     href={`/api/payment-evidence/file?id=${entry.id}`}
+                    onClick={(event) => void previewProtectedFile(event, `/api/payment-evidence/file?id=${entry.id}`)}
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -9342,10 +9354,10 @@ function PaymentLedger({
                   </td>
                   <td>
                     {payment.evidenceName ? (
-                      <a
-                        className="evidence-download-link"
-                        href={`/api/v1/payments/${payment.id}/evidence`}
-                        download
+                        <a
+                          className="evidence-download-link"
+                          href={`/api/v1/payments/${payment.id}/evidence`}
+                          onClick={(event) => void previewProtectedFile(event, `/api/v1/payments/${payment.id}/evidence`)}
                       >
                         ⇩ {payment.evidenceName}
                       </a>
@@ -9926,7 +9938,7 @@ function OtherIncomeView({
                   <td><b className="transaction-id">{transactionIdFor(payment)}</b></td>
                   <td>{payment.incomeCategory || "Other Income"}</td>
                   <td>{fmtDate(payment.paidDate)}</td>
-                  <td>{payment.evidenceName ? <a href={`/api/v1/payments/${payment.id}/evidence`} download>{payment.evidenceName}</a> : "—"}</td>
+                  <td>{payment.evidenceName ? <a href={`/api/v1/payments/${payment.id}/evidence`} onClick={(event) => void previewProtectedFile(event, `/api/v1/payments/${payment.id}/evidence`)}>{payment.evidenceName}</a> : "—"}</td>
                   <td className="amount-cell"><b>{amountOnly.format(payment.paidAmount)}</b></td>
                   <td>{payment.incomeAccountType || "PH Account"}</td>
                   <td><span className={`approval-status ${(payment.incomeApprovalStatus || "Pending").toLowerCase()}`}>{payment.incomeApprovalStatus || "Pending"}</span></td>
@@ -10059,13 +10071,9 @@ function RoomPaymentMatrix({
       0,
     );
   const invoicePayable = (registrationNo: string, month: string) =>
-    invoices.find(
-      (invoice) =>
-        invoice.registrationNo === registrationNo &&
-        invoice.invoiceType === "Rent" &&
-        invoice.month === month &&
-        invoice.status !== "Cancelled",
-    )?.amount || 0;
+    invoices
+      .filter((invoice) => invoice.registrationNo === registrationNo && invoice.invoiceType === "Rent" && invoice.month === month && invoice.status !== "Cancelled")
+      .sort((a, b) => (b.revisionNumber ?? b.version ?? 0) - (a.revisionNumber ?? a.version ?? 0) || String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0]?.amount || 0;
   const totalPayable = (month: string) =>
     visibleStudents.reduce(
       (sum, student) => sum + invoicePayable(student.registrationNo, month),
@@ -14845,7 +14853,7 @@ function ExpensesView({
                         <a
                           className="evidence-link"
                           href={`/api/v1/expenses/evidence?transactionId=${encodeURIComponent(expense.transactionId)}`}
-                          target="_blank"
+                          onClick={(event) => void previewProtectedFile(event, `/api/v1/expenses/evidence?transactionId=${encodeURIComponent(expense.transactionId)}`)}
                           rel="noreferrer"
                         >
                           {expense.evidenceName}
@@ -15007,8 +15015,7 @@ function ExpensesView({
                           <a
                             className="evidence-link"
                             href={`/api/v1/petty-cash/evidence?transactionId=${encodeURIComponent(row.transaction)}`}
-                            target="_blank"
-                            rel="noreferrer"
+                            onClick={(event) => void previewProtectedFile(event, `/api/v1/petty-cash/evidence?transactionId=${encodeURIComponent(row.transaction)}`)}
                           >
                             {row.deposit.evidenceName}
                           </a>
@@ -15016,8 +15023,7 @@ function ExpensesView({
                           <a
                             className="evidence-link"
                             href={`/api/v1/expenses/evidence?transactionId=${encodeURIComponent(row.transaction)}`}
-                            target="_blank"
-                            rel="noreferrer"
+                            onClick={(event) => void previewProtectedFile(event, `/api/v1/expenses/evidence?transactionId=${encodeURIComponent(row.transaction)}`)}
                           >
                             {row.expense.evidenceName}
                           </a>
@@ -15551,8 +15557,7 @@ function PettyCashDepositApproval({
             <a
               className="evidence-link evidence-review"
               href={`/api/v1/petty-cash/evidence?transactionId=${encodeURIComponent(deposit.transactionId)}`}
-              target="_blank"
-              rel="noreferrer"
+              onClick={(event) => void previewProtectedFile(event, `/api/v1/petty-cash/evidence?transactionId=${encodeURIComponent(deposit.transactionId)}`)}
             >
               Open {deposit.evidenceName}
             </a>
@@ -19381,6 +19386,9 @@ function StudentPaymentProfile({
     (payment.settlementMethod || "Bank Transfer") === "Cash"
       ? Boolean(payment.cashVerified)
       : Boolean(payment.receiptEmailStatus && !payment.receiptEmailStatus.toLowerCase().includes("pending"));
+  const invoiceAmountFor = (month: string) => invoiceEntries
+    .filter((invoice) => invoice.invoiceType === "Rent" && invoice.month === month && invoice.status !== "Cancelled")
+    .sort((a, b) => (b.revisionNumber ?? b.version ?? 0) - (a.revisionNumber ?? a.version ?? 0) || String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0]?.amount;
   type PaymentRecordRow = { invoice: StudentInvoice; payment: Payment | null; payable: number | null };
   const recordRows: PaymentRecordRow[] = [...invoiceEntries]
     .filter((invoice) => printScope !== "deposit" || invoice.invoiceType === "Deposit")
@@ -19687,7 +19695,6 @@ function StudentPaymentProfile({
                         {transactionIdFor(payment)}
                       </b>
                     </td>
-                    <td>{studentReceiptAvailable(payment) ? <a className="evidence-link" href={`/api/v1/payments/${payment.id}/receipt?download=true`} download>⬇ Download receipt</a> : <span className="receipt-pending">Pending verification</span>}</td>
                     <td>
                       <b className="transaction-id">
                         {payment.invoiceNo || "—"}
@@ -19703,7 +19710,7 @@ function StudentPaymentProfile({
                         <a
                           className="evidence-link"
                           href={`/api/v1/payments/${payment.id}/evidence`}
-                          download
+                          onClick={(event) => void previewProtectedFile(event, `/api/v1/payments/${payment.id}/evidence`)}
                         >
                           ⬇ {payment.evidenceName}
                         </a>
@@ -19712,8 +19719,9 @@ function StudentPaymentProfile({
                       )}
                     </td>
                     <td>
-                      <span className="approval-status approved">Approved</span>
+                      {studentReceiptAvailable(payment) ? <a className="evidence-link" href={`/api/v1/payments/${payment.id}/receipt?download=true`} download>⬇ Download receipt</a> : <span className="receipt-pending">Pending verification</span>}
                     </td>
+                    <td><span className="approval-status approved">Approved</span></td>
                   </tr>
                 ))}
                 {!deposits.length && (
@@ -19752,22 +19760,14 @@ function StudentPaymentProfile({
                         {transactionIdFor(payment)}
                       </b>
                     </td>
-                    <td>{studentReceiptAvailable(payment) ? <a className="evidence-link" href={`/api/v1/payments/${payment.id}/receipt?download=true`} download>⬇ Download receipt</a> : <span className="receipt-pending">Pending verification</span>}</td>
                     <td>
                       <b className="transaction-id">
                         {payment.invoiceNo || "—"}
                       </b>
                     </td>
                     <td>{fmtMonth(payment.month)}</td>
-                    <td>
-                      {amountOnly.format(
-                        rentPayable(student, payment.month, adjustments),
-                      )}
-                    </td>
-                    <td>—</td>
-                    <td>
-                      <b>{amountOnly.format(payment.paidAmount)}</b>
-                    </td>
+                    <td>{amountOnly.format(invoiceAmountFor(payment.month) ?? rentPayable(student, payment.month, adjustments))}</td>
+                    <td><b>{amountOnly.format(payment.paidAmount)}</b></td>
                     <td>{fmtDate(paymentDueDate(payment))}</td>
                     <td>{fmtDate(payment.paidDate)}</td>
                     <td>
@@ -19775,13 +19775,16 @@ function StudentPaymentProfile({
                         <a
                           className="evidence-link"
                           href={`/api/v1/payments/${payment.id}/evidence`}
-                          download
+                          onClick={(event) => void previewProtectedFile(event, `/api/v1/payments/${payment.id}/evidence`)}
                         >
                           ⬇ {payment.evidenceName}
                         </a>
                       ) : (
                         "—"
                       )}
+                    </td>
+                    <td>
+                      {studentReceiptAvailable(payment) ? <a className="evidence-link" href={`/api/v1/payments/${payment.id}/receipt?download=true`} download>⬇ Download receipt</a> : <span className="receipt-pending">Pending verification</span>}
                     </td>
                     <td>
                       <span
@@ -19821,7 +19824,7 @@ function StudentPaymentProfile({
                       <a
                         className="evidence-link"
                         href={`/api/payment-evidence/file?id=${entry.id}&download=1`}
-                        download
+                        onClick={(event) => void previewProtectedFile(event, `/api/payment-evidence/file?id=${entry.id}&download=1`)}
                       >
                         ⬇ {entry.evidenceName}
                       </a>
