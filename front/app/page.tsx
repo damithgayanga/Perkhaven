@@ -19319,6 +19319,7 @@ function StudentPaymentProfile({
     StudentPaymentEvidence[]
   >([]);
   const [invoiceEntries, setInvoiceEntries] = useState<StudentInvoice[]>([]);
+  const [invoicePreview, setInvoicePreview] = useState<StudentInvoice | null>(null);
   useEffect(() => {
     fetch("/api/payment-evidence")
       .then((response) => response.json())
@@ -19668,7 +19669,7 @@ function StudentPaymentProfile({
           <thead><tr><th>INVOICE NO.</th><th>TYPE</th><th>DUE DATE</th><th>TRANSACTION ID</th><th>PAYMENT DATE</th><th>PAYABLE<small>(LKR)</small></th><th>PAID<small>(LKR)</small></th><th>OUTSTANDING<small>(LKR)</small></th></tr></thead>
           <tbody>
             {recordRows.map(({ invoice, payment, payable }, index) => <tr key={`${invoice.id}-${payment?.id || "outstanding"}-${index}`}>
-              <td><b className="transaction-id">{invoice.invoiceNo}</b></td>
+              <td><button type="button" className="invoice-link-button" onClick={() => setInvoicePreview(invoice)}>{invoice.invoiceNo}</button></td>
               <td>{invoice.invoiceType}</td>
               <td>{fmtDate(invoice.dueDate)}</td>
               <td>{payment ? transactionIdFor(payment) : "—"}</td>
@@ -19920,6 +19921,7 @@ function StudentPaymentProfile({
           </table>
         )}
       </div>
+      {invoicePreview && <InvoicePreviewModal invoice={invoicePreview} close={() => setInvoicePreview(null)} />}
     </section>
   );
 }
