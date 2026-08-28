@@ -73,7 +73,9 @@ public class BankReconciliationController {
     @PreAuthorize("hasRole('ADMIN')")
     public BankReconciliationService.ImportResult upload(@RequestPart("file") MultipartFile file) throws IOException {
         var originalName = file.getOriginalFilename() == null ? "bank-import" : file.getOriginalFilename();
-        var stored = storage.store("bank-imports", originalName, file.getContentType() == null ? "application/octet-stream" : file.getContentType(), file.getBytes());
+        var importDate = java.time.LocalDate.now(java.time.ZoneOffset.UTC);
+        var stored = storage.store("bank-imports/" + importDate.getYear() + "/" + String.format("%02d", importDate.getMonthValue()),
+                originalName, file.getContentType() == null ? "application/octet-stream" : file.getContentType(), file.getBytes());
         var read = importer.read(file);
         var imported = service.importRows(read.rows(), stored.key());
         var result = new BankReconciliationService.ImportResult(imported.imported(), imported.duplicates(), read.invalidRows().size(), read.invalidRows());
