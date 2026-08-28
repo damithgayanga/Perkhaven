@@ -553,6 +553,16 @@ const previewProtectedFile = async (event: React.MouseEvent<HTMLAnchorElement>, 
     else URL.revokeObjectURL(url);
   } catch { popup?.close(); }
 };
+const downloadProtectedFile = async (event: React.MouseEvent<HTMLAnchorElement>, href: string, filename: string) => {
+  event.preventDefault();
+  try {
+    const response = await fetch(href);
+    if (!response.ok) throw new Error("Unable to download the file.");
+    downloadBlob(await response.blob(), filename);
+  } catch {
+    /* The caller's page remains usable; the browser will not navigate to an unauthorized endpoint. */
+  }
+};
 const netPayable = (payment: Payment) =>
   Math.max(0, payment.payableAmount - (payment.vacationDiscount || 0));
 const canonicalPaymentType = (type: Payment["type"]) =>
@@ -3860,6 +3870,20 @@ function PdfDocumentPreviewModal({
   downloadSource: string;
   close: () => void;
 }) {
+  const [pdfUrl, setPdfUrl] = useState("");
+  const [loadError, setLoadError] = useState("");
+  useEffect(() => {
+    let active = true;
+    let createdUrl = "";
+    setPdfUrl(""); setLoadError("");
+    fetch(source).then(async (response) => {
+      if (!response.ok) throw new Error("Unable to load this PDF.");
+      const url = URL.createObjectURL(await response.blob());
+      createdUrl = url;
+      if (active) setPdfUrl(url); else URL.revokeObjectURL(url);
+    }).catch(() => { if (active) setLoadError("Unable to load this PDF. Please try downloading it."); });
+    return () => { active = false; if (createdUrl) URL.revokeObjectURL(createdUrl); };
+  }, [source]);
   return (
     <div className="backdrop">
       <section className="modal invoice-preview-modal">
@@ -3869,10 +3893,10 @@ function PdfDocumentPreviewModal({
           text="Preview this document without leaving the current page."
           close={close}
         />
-        <iframe title={title} src={source} />
+        {pdfUrl ? <iframe title={title} src={pdfUrl} /> : <div className="pdf-preview-loading">{loadError || "Loading PDF…"}</div>}
         <footer>
           <button type="button" onClick={close}>Close</button>
-          <a className="primary document-download-button" href={downloadSource} download>
+          <a className="primary document-download-button" href={downloadSource} onClick={(event) => void downloadProtectedFile(event, downloadSource, `${title.replace(/[^a-z0-9]+/gi, "-")}.pdf`)}>
             Download PDF
           </a>
         </footer>
@@ -9336,7 +9360,7 @@ function PaymentLedger({
                         <a
                           className="evidence-download-link"
                           href={`/api/v1/payments/${payment.id}/receipt?download=true`}
-                          download
+                          onClick={(event) => void downloadProtectedFile(event, `/api/v1/payments/${payment.id}/receipt?download=true`, `${transactionIdFor(payment)}.pdf`)}
                         >
                           Download PDF
                         </a>
@@ -19720,7 +19744,7 @@ function StudentPaymentProfile({
                       )}
                     </td>
                     <td>
-                      {studentReceiptAvailable(payment) ? <a className="evidence-link" href={`/api/v1/payments/${payment.id}/receipt?download=true`} download>⬇ Download receipt</a> : <span className="receipt-pending">Pending verification</span>}
+                      {studentReceiptAvailable(payment) ? <a className="evidence-link" href={`/api/v1/payments/${payment.id}/receipt?download=true`} onClick={(event) => void downloadProtectedFile(event, `/api/v1/payments/${payment.id}/receipt?download=true`, `${transactionIdFor(payment)}.pdf`)}>⬇ Download receipt</a> : <span className="receipt-pending">Pending verification</span>}
                     </td>
                     <td><span className="approval-status approved">Approved</span></td>
                   </tr>
@@ -19785,7 +19809,7 @@ function StudentPaymentProfile({
                       )}
                     </td>
                     <td>
-                      {studentReceiptAvailable(payment) ? <a className="evidence-link" href={`/api/v1/payments/${payment.id}/receipt?download=true`} download>⬇ Download receipt</a> : <span className="receipt-pending">Pending verification</span>}
+                      {studentReceiptAvailable(payment) ? <a className="evidence-link" href={`/api/v1/payments/${payment.id}/receipt?download=true`} onClick={(event) => void downloadProtectedFile(event, `/api/v1/payments/${payment.id}/receipt?download=true`, `${transactionIdFor(payment)}.pdf`)}>⬇ Download receipt</a> : <span className="receipt-pending">Pending verification</span>}
                     </td>
                     <td>
                       <span
