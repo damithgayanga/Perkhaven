@@ -42,6 +42,11 @@ output "application_url" {
   value = local.application_public_url
 }
 
+output "route53_zone_id" {
+  description = "Route 53 public hosted zone used for the custom application domain."
+  value       = local.route53_zone_id
+}
+
 output "cognito_user_pool_id" {
   value = aws_cognito_user_pool.username_main.id
 }

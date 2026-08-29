@@ -64,12 +64,12 @@ The original email-based pool `perkhaven-production` is temporarily retained dur
 Production switches to `perkhaven-production-users` immediately, but the legacy pool should only be deleted
 after the new `admin` login is confirmed.
 
-## Optional custom domain
+## Custom domain
 
-Production initially uses the generated `https://*.cloudfront.net` URL and does not wait for Route 53 or ACM
-validation. HTTP viewer requests redirect to HTTPS. After registering `perkhaven.lk`, set
-`enable_custom_domain` and `enable_ses_domain` to true and supply the existing hosted-zone ID; Terraform will
-then add the custom CloudFront certificate, DNS aliases and SES identity records.
+Production uses `https://perkhaven.lk`. The deployment workflow discovers the existing public Route 53 zone,
+provisions and DNS-validates the CloudFront certificate in `us-east-1`, and creates IPv4 and IPv6 aliases for
+the apex and `www` names. HTTP viewer requests redirect to HTTPS. SES domain setup remains disabled until mail
+delivery is configured separately.
 
 ## Automated releases
 
