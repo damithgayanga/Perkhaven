@@ -55,7 +55,8 @@ public class InvoiceService {
         created.add(createDeposit(student));
         var today = LocalDate.now(BUSINESS_ZONE);
         var month = YearMonth.from(student.getStartDate());
-        var current = YearMonth.from(today);
+        var endDate = student.getVacatedDate() == null ? today : student.getVacatedDate().isBefore(today) ? student.getVacatedDate() : today;
+        var current = YearMonth.from(endDate);
         if (!student.getStartDate().isAfter(today)) {
             while (!month.isAfter(current)) {
                 created.add(createRent(student, month, historicalIssueDate(student, month, today)));
