@@ -17477,7 +17477,8 @@ function Register({
               required={!managementCreator}
             />
           </label>
-          <Field name="vacatedDate" label="Check-out date (optional)" type="date" />
+          <Field name="noticeToVacateDate" label="Notice to Check-Out date (optional)" type="date" />
+          <Field name="vacatedDate" label="Check-Out date (optional)" type="date" />
           <label>
 
             Hostel Room no.
@@ -17603,7 +17604,7 @@ function EditStudent({
         university: value("university"), currentYear: value("currentYear"), address: value("address"),
         hasMedicalCondition: value("hasMedicalCondition") === "yes",
         medicalConditionDetails: value("medicalConditionDetails"),
-        registeredDate: value("registeredDate"), startDate: value("startDate"), vacatedDate: value("vacatedDate") || null, roomNo: value("roomNo"),
+        registeredDate: value("registeredDate"), startDate: value("startDate"), vacatedDate: value("vacatedDate") || null, noticeToVacateDate: value("noticeToVacateDate") || null, roomNo: value("roomNo"),
         monthlyRent: Number(value("monthlyRent")), depositPayable: Number(value("depositPayable")),
         status: student.status.toUpperCase(),
         emergencyContacts: [
@@ -17756,7 +17757,8 @@ function EditStudent({
             defaultValue={student.startDate}
             required
           />
-          <Field name="vacatedDate" label="Check-out date (optional)" type="date" defaultValue={student.vacatedDate || ""} />
+          <Field name="noticeToVacateDate" label="Notice to Check-Out date (optional)" type="date" defaultValue={student.noticeToVacateDate || ""} />
+          <Field name="vacatedDate" label="Check-Out date (optional)" type="date" defaultValue={student.vacatedDate || ""} />
           <label>
 
             Hostel Room

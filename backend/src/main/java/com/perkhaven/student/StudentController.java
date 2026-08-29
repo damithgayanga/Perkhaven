@@ -181,7 +181,7 @@ public class StudentController {
         student.update(new Student.StudentData(request.firstName(), request.middleNames(), request.lastName(), request.dateOfBirth(),
                 request.idNo(), request.mobile(), request.whatsapp(), request.email(),
                 request.university(), request.currentYear(), request.address(), request.hasMedicalCondition(),
-                request.medicalConditionDetails(), request.registeredDate(), request.startDate(), request.vacatedDate(), request.monthlyRent(),
+                request.medicalConditionDetails(), request.registeredDate(), request.startDate(), request.vacatedDate(), request.noticeToVacateDate(), request.monthlyRent(),
                 request.depositPayable(), request.vacatedDate() != null && request.vacatedDate().isBefore(LocalDate.now()) ? RecordStatus.INACTIVE : request.status(), contacts), room);
     }
 
@@ -193,7 +193,7 @@ public class StudentController {
                                  @NotBlank String idNo, @NotBlank String mobile, String whatsapp, @Email @NotBlank String email,
                                  String university, String currentYear, @NotBlank String address, boolean hasMedicalCondition,
                                  @Size(max = 2000) String medicalConditionDetails, @NotNull LocalDate registeredDate,
-                                 @NotNull LocalDate startDate, String roomNo, LocalDate vacatedDate, @NotNull @DecimalMin("0.00") BigDecimal monthlyRent,
+                                 @NotNull LocalDate startDate, String roomNo, LocalDate vacatedDate, LocalDate noticeToVacateDate, @NotNull @DecimalMin("0.00") BigDecimal monthlyRent,
                                  @NotNull @DecimalMin("0.00") BigDecimal depositPayable, @NotNull RecordStatus status,
                                  @Size(max = 2) List<@Valid EmergencyContactRequest> emergencyContacts) {}
     public record EmergencyContactResponse(int order, String name, String phone, String relationship, String address) {
@@ -204,14 +204,14 @@ public class StudentController {
                                   String idNo, String mobile, String whatsapp, String email,
                                   String university, String currentYear, String address, boolean hasMedicalCondition,
                                   String medicalConditionDetails, LocalDate registeredDate, LocalDate startDate,
-                                  String roomNo, LocalDate vacatedDate, BigDecimal monthlyRent, BigDecimal depositPayable, RecordStatus status,
+                                  String roomNo, LocalDate vacatedDate, LocalDate noticeToVacateDate, BigDecimal monthlyRent, BigDecimal depositPayable, RecordStatus status,
                                   String photoName, Long photoSize, List<EmergencyContactResponse> emergencyContacts) {
         static StudentResponse from(Student student) { return new StudentResponse(student.getId(), student.getVersion(), student.getCreatedAt(), student.getUpdatedAt(),
                 student.getRegistrationNo(), student.getFirstName(), student.getMiddleNames(), student.getLastName(), student.getDateOfBirth(),
                 student.getIdNo(), student.getMobile(), student.getWhatsapp(), student.getEmail(),
                 student.getUniversity(), student.getCurrentYear(), student.getAddress(), student.hasMedicalCondition(),
                 student.getMedicalConditionDetails(), student.getRegisteredDate(), student.getStartDate(),
-                student.getRoom() == null ? null : student.getRoom().getRoomNo(), student.getVacatedDate(), student.getMonthlyRent(), student.getDepositPayable(), student.getStatus(),
+                student.getRoom() == null ? null : student.getRoom().getRoomNo(), student.getVacatedDate(), student.getNoticeToVacateDate(), student.getMonthlyRent(), student.getDepositPayable(), student.getStatus(),
                 student.getPhotoName(), student.getPhotoSize(), student.getEmergencyContacts().stream().map(EmergencyContactResponse::from).toList()); }
     }
 }

@@ -54,6 +54,7 @@ public class Student extends AuditedEntity {
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
     @Column(name = "vacated_date") private LocalDate vacatedDate;
+    @Column(name = "notice_to_vacate_date") private LocalDate noticeToVacateDate;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "room_id")
     private Room room;
@@ -83,7 +84,7 @@ public class Student extends AuditedEntity {
         this.university = data.university(); this.currentYear = data.currentYear(); this.address = data.address();
         this.hasMedicalCondition = data.hasMedicalCondition();
         this.medicalConditionDetails = data.hasMedicalCondition() ? data.medicalConditionDetails() : null;
-        this.registeredDate = data.registeredDate(); this.startDate = data.startDate(); this.vacatedDate = data.vacatedDate(); this.room = room;
+        this.registeredDate = data.registeredDate(); this.startDate = data.startDate(); this.vacatedDate = data.vacatedDate(); this.noticeToVacateDate = data.noticeToVacateDate(); this.room = room;
         this.monthlyRent = data.monthlyRent(); this.depositPayable = data.depositPayable(); this.status = data.status();
         emergencyContacts.clear();
         if (data.emergencyContacts() != null) {
@@ -113,6 +114,7 @@ public class Student extends AuditedEntity {
     public LocalDate getRegisteredDate() { return registeredDate; }
     public LocalDate getStartDate() { return startDate; }
     public LocalDate getVacatedDate() { return vacatedDate; }
+    public LocalDate getNoticeToVacateDate() { return noticeToVacateDate; }
     public Room getRoom() { return room; }
     public BigDecimal getMonthlyRent() { return monthlyRent; }
     public BigDecimal getDepositPayable() { return depositPayable; }
@@ -127,7 +129,7 @@ public class Student extends AuditedEntity {
                               String idNo, String mobile, String whatsapp, String email,
                               String university, String currentYear, String address, boolean hasMedicalCondition,
                               String medicalConditionDetails, LocalDate registeredDate, LocalDate startDate,
-                              LocalDate vacatedDate, BigDecimal monthlyRent, BigDecimal depositPayable, RecordStatus status,
+                              LocalDate vacatedDate, LocalDate noticeToVacateDate, BigDecimal monthlyRent, BigDecimal depositPayable, RecordStatus status,
                               List<EmergencyContactData> emergencyContacts) {}
     public record EmergencyContactData(String name, String phone, String relationship, String address) {}
 }
