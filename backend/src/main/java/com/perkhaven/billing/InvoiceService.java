@@ -71,7 +71,7 @@ public class InvoiceService {
         var today = LocalDate.now(BUSINESS_ZONE);
         var month = YearMonth.from(today);
         for (var student : students.findByStatusOrderByRegistrationNo(RecordStatus.ACTIVE)) {
-            if (!student.getStartDate().isAfter(month.atEndOfMonth())) createRent(student, month, today);
+            if (eligibleForMonth(student, month)) createRent(student, month, today);
         }
         return invoices.findAll();
     }
@@ -81,7 +81,7 @@ public class InvoiceService {
         var today = LocalDate.now(BUSINESS_ZONE);
         var generated = new java.util.ArrayList<Invoice>();
         for (var student : students.findByStatusOrderByRegistrationNo(RecordStatus.ACTIVE)) {
-            if (!student.getStartDate().isAfter(month.atEndOfMonth())) generated.add(createRent(student, month, today));
+            if (eligibleForMonth(student, month)) generated.add(createRent(student, month, today));
         }
         return generated;
     }
@@ -101,6 +101,11 @@ public class InvoiceService {
             enqueue(invoice);
             return invoice;
         });
+    }
+
+    private boolean eligibleForMonth(Student student, YearMonth month) {
+        if (student.getStartDate().isAfter(month.atEndOfMonth())) return false;
+        return student.getVacatedDate() == null || !student.getVacatedDate().isBefore(month.atDay(1));
     }
 
     private LocalDate historicalIssueDate(Student student, YearMonth month, LocalDate today) {
