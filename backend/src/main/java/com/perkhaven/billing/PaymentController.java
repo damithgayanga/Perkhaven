@@ -69,7 +69,7 @@ public class PaymentController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN')")
     @Transactional(readOnly = true)
-    public List<Response> list() { return payments.findAllByOrderByPaidDateDescIdDesc().stream().map(Response::from).toList(); }
+    public List<Response> list() { return payments.findAllByOrderByPaidDateDescIdDesc().stream().map(p -> Response.from(p, reconciliationLinks.findBySourceTypeAndSourceRecordId("Payment", p.getId()).isPresent())).toList(); }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
@@ -137,8 +137,9 @@ public class PaymentController {
     public record Response(Long id, String transactionId, String invoiceNo, Long invoiceId, String registrationNo,
                            String studentName, String roomNo, String month, String type, BigDecimal payableAmount,
                            BigDecimal vacationDiscount, BigDecimal paidAmount, LocalDate paidDate, String settlementMethod,
-                           String evidenceName, String remarks, boolean cashVerified, java.time.Instant cashVerifiedAt) {
-        static Response from(Payment value) {
+                           String evidenceName, String remarks, boolean cashVerified, java.time.Instant cashVerifiedAt, boolean verified) {
+        static Response from(Payment value) { return from(value, value.isCashVerified()); }
+        static Response from(Payment value, boolean verified) {
             var invoice = value.getInvoice(); var student = invoice.getStudent();
             var name = java.util.stream.Stream.of(student.getFirstName(), student.getMiddleNames(), student.getLastName())
                     .filter(v -> v != null && !v.isBlank()).reduce((a,b) -> a + " " + b).orElse("");
@@ -146,7 +147,7 @@ public class PaymentController {
                     student.getRegistrationNo(), name, student.getRoom() == null ? "" : student.getRoom().getRoomNo(),
                     invoice.getBillingMonth() == null ? "" : invoice.getBillingMonth().toString().substring(0, 7),
                     invoice.getInvoiceType() == InvoiceType.DEPOSIT ? "Deposit" : "Rent", invoice.getAmount(), BigDecimal.ZERO,
-                    value.getPaidAmount(), value.getPaidDate(), value.getSettlementMethod(), value.getEvidenceName(), value.getRemarks(), value.isCashVerified(), value.getCashVerifiedAt());
+                    value.getPaidAmount(), value.getPaidDate(), value.getSettlementMethod(), value.getEvidenceName(), value.getRemarks(), value.isCashVerified(), value.getCashVerifiedAt(), verified || value.isCashVerified());
         }
     }
 }

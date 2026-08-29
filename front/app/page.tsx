@@ -365,6 +365,7 @@ type Payment = {
   settlementMethod?: "Bank Transfer" | "Cash" | "Cash/Bank";
   cashVerified?: boolean;
   cashVerifiedAt?: string;
+  verified?: boolean;
   evidenceName: string;
   receiptEmailStatus?: string;
   receiptEmailedAt?: string;
@@ -19424,7 +19425,7 @@ function StudentPaymentProfile({
   const studentReceiptAvailable = (payment: Payment) =>
     (payment.settlementMethod || "Bank Transfer") === "Cash"
       ? Boolean(payment.cashVerified)
-      : Boolean(payment.receiptEmailStatus && !payment.receiptEmailStatus.toLowerCase().includes("pending"));
+      : Boolean(payment.verified || (payment.receiptEmailStatus && !payment.receiptEmailStatus.toLowerCase().includes("pending")));
   const invoiceAmountFor = (month: string) => invoiceEntries
     .filter((invoice) => invoice.invoiceType === "Rent" && invoice.month === month && invoice.status !== "Cancelled")
     .sort((a, b) => (b.revisionNumber ?? b.version ?? 0) - (a.revisionNumber ?? a.version ?? 0) || String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0]?.amount;
