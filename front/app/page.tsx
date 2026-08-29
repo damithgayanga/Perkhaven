@@ -19384,7 +19384,10 @@ function StudentPaymentProfile({
     : lastCompletedMonth;
   const outstandingRows = monthRange(firstPayableMonth, finalPayableMonth)
     .map((month) => {
-      const payable = rentPayable(student, month, adjustments);
+      const payable = invoiceEntries
+        .filter((invoice) => invoice.invoiceType === "Rent" && invoice.month === month && invoice.status !== "Cancelled")
+        .sort((a, b) => (b.revisionNumber ?? b.version ?? 0) - (a.revisionNumber ?? a.version ?? 0))[0]?.amount
+        ?? rentPayable(student, month, adjustments);
       const paid = rentPaid(payments, student.registrationNo, month);
       return { month, payable, paid, outstanding: Math.max(0, payable - paid) };
     })
