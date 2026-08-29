@@ -4,6 +4,7 @@ import com.perkhaven.accommodation.Room;
 import com.perkhaven.accommodation.RoomRepository;
 import com.perkhaven.billing.InvoiceService;
 import com.perkhaven.billing.InvoiceRepository;
+import com.perkhaven.billing.InvoiceType;
 import com.perkhaven.billing.PaymentRepository;
 import com.perkhaven.common.api.PageResponse;
 import com.perkhaven.common.audit.AuditService;
@@ -128,6 +129,14 @@ public class StudentController {
     public StudentResponse update(@PathVariable String registrationNo, @Valid @RequestBody StudentRequest request) {
         if (!registrationNo.equalsIgnoreCase(request.registrationNo())) throw new ConflictException("Registration number cannot be changed.");
         var student = find(registrationNo); apply(student, request);
+        if (student.getVacatedDate() != null) {
+            invoices.findByStudentRegistrationNoIgnoreCaseOrderByIssueDateDesc(registrationNo).stream()
+                    .filter(i -> i.getInvoiceType() == InvoiceType.RENT && i.getBillingMonth() != null
+                            && (i.getBillingMonth().isBefore(student.getStartDate().withDayOfMonth(1))
+                            || i.getBillingMonth().isAfter(student.getVacatedDate().withDayOfMonth(1)))
+                            && i.getPaidAmount().signum() == 0)
+                    .forEach(invoices::delete);
+        }
         audit.record("UPDATE", "STUDENT", registrationNo, null);
         return StudentResponse.from(student);
     }
