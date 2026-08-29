@@ -3594,7 +3594,7 @@ function StudentVacatingNotice({
       >
         <ModalHead
           tag="RESIDENT PORTAL"
-          title={isAmendment ? "Amend Check-Out Notice" : "Notice to Vacate"}
+          title={isAmendment ? "Amend Check-Out Notice" : "Notice to Check-Out"}
           text={`${student.registrationNo} · ${student.firstName} ${student.lastName}`}
           close={close}
         />
@@ -8424,6 +8424,12 @@ function InvoiceLedger({
     const refreshed = await fetch("/api/v1/invoices?size=100");
     if (refreshed.ok) invoicesUpdated(((await refreshed.json()) as ApiPage<StudentInvoice>).items);
   };
+  const removeInvoice = async (invoice: StudentInvoice) => {
+    if ((invoice.paidAmount || 0) > 0 || !window.confirm(`Delete unpaid invoice ${invoice.invoiceNo}?`)) return;
+    const response = await fetch(`/api/v1/invoices/${invoice.id}`, { method: "DELETE" });
+    if (!response.ok) { const result = await response.json(); return setError(result.detail || "Unable to delete invoice"); }
+    invoicesUpdated(invoices.filter((value) => value.id !== invoice.id));
+  };
   useEffect(() => {
     const issue = (event: Event) => void generate((event as CustomEvent<string>).detail);
     window.addEventListener("issue-due-invoices", issue);
@@ -8503,6 +8509,7 @@ function InvoiceLedger({
                       >
                         Adjust & reissue
                       </button>
+                      <button className="review-button danger" disabled={(invoice.paidAmount || 0) > 0} onClick={() => void removeInvoice(invoice)}>Delete</button>
                     </div>
                   </td>
                 </tr>
@@ -18838,7 +18845,7 @@ function Profile({
                 ["Registered", fmtDate(student.registeredDate)],
                 ["Accommodation start date", fmtDate(student.startDate)],
                 [
-                  "Notice to vacate",
+                  "Notice to Check-Out",
                   student.noticeToVacateDate
                     ? fmtDate(student.noticeToVacateDate)
                     : "Not provided",

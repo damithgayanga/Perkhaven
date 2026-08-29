@@ -19,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -69,6 +70,16 @@ public class InvoiceController {
         var invoice = service.revise(id, request.amount(), request.remarks(), adjustments);
         audit.record("REVISE", "INVOICE", invoice.getInvoiceNo(), "Rev." + String.format("%02d", invoice.getRevisionNumber()));
         return response(invoice);
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public void delete(@PathVariable long id) {
+        var invoice = service.find(id);
+        if (invoice.getPaidAmount().signum() > 0) throw new IllegalArgumentException("Invoices with payments cannot be deleted.");
+        invoices.delete(invoice);
+        audit.record("DELETE", "INVOICE", invoice.getInvoiceNo(), null);
     }
 
     @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
