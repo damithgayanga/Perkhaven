@@ -127,6 +127,7 @@ resource "aws_route53_record" "apex" {
   zone_id = local.route53_zone_id
   name    = var.domain_name
   type    = "A"
+  allow_overwrite = true
   alias {
     name                   = aws_cloudfront_distribution.main.domain_name
     zone_id                = aws_cloudfront_distribution.main.hosted_zone_id
@@ -139,6 +140,7 @@ resource "aws_route53_record" "apex_ipv6" {
   zone_id = local.route53_zone_id
   name    = var.domain_name
   type    = "AAAA"
+  allow_overwrite = true
   alias {
     name                   = aws_cloudfront_distribution.main.domain_name
     zone_id                = aws_cloudfront_distribution.main.hosted_zone_id
@@ -151,6 +153,7 @@ resource "aws_route53_record" "www" {
   zone_id = local.route53_zone_id
   name    = "www.${var.domain_name}"
   type    = "A"
+  allow_overwrite = true
   alias {
     name                   = aws_cloudfront_distribution.main.domain_name
     zone_id                = aws_cloudfront_distribution.main.hosted_zone_id
@@ -163,6 +166,7 @@ resource "aws_route53_record" "www_ipv6" {
   zone_id = local.route53_zone_id
   name    = "www.${var.domain_name}"
   type    = "AAAA"
+  allow_overwrite = true
   alias {
     name                   = aws_cloudfront_distribution.main.domain_name
     zone_id                = aws_cloudfront_distribution.main.hosted_zone_id

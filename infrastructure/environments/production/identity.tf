@@ -224,6 +224,7 @@ resource "aws_route53_record" "ses_verification" {
   name    = "_amazonses.${var.domain_name}"
   type    = "TXT"
   ttl     = 600
+  allow_overwrite = true
   records = [aws_ses_domain_identity.main[0].verification_token]
 }
 
@@ -245,6 +246,7 @@ resource "aws_route53_record" "ses_dkim" {
   name    = "${aws_ses_domain_dkim.main[0].dkim_tokens[count.index]}._domainkey.${var.domain_name}"
   type    = "CNAME"
   ttl     = 600
+  allow_overwrite = true
   records = ["${aws_ses_domain_dkim.main[0].dkim_tokens[count.index]}.dkim.amazonses.com"]
 }
 
@@ -260,6 +262,7 @@ resource "aws_route53_record" "ses_mail_from_mx" {
   name    = aws_ses_domain_mail_from.main[0].mail_from_domain
   type    = "MX"
   ttl     = 600
+  allow_overwrite = true
   records = ["10 feedback-smtp.${var.aws_region}.amazonses.com"]
 }
 
@@ -269,6 +272,7 @@ resource "aws_route53_record" "ses_mail_from_spf" {
   name    = aws_ses_domain_mail_from.main[0].mail_from_domain
   type    = "TXT"
   ttl     = 600
+  allow_overwrite = true
   records = ["v=spf1 include:amazonses.com -all"]
 }
 
@@ -278,5 +282,6 @@ resource "aws_route53_record" "dmarc" {
   name    = "_dmarc.${var.domain_name}"
   type    = "TXT"
   ttl     = 600
+  allow_overwrite = true
   records = ["v=DMARC1; p=none; rua=mailto:dmarc@${var.domain_name}"]
 }
