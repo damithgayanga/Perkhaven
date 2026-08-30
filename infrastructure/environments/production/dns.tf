@@ -33,6 +33,7 @@ resource "aws_route53_record" "cloudfront_certificate" {
   name    = each.value.name
   type    = each.value.type
   ttl     = 60
+  allow_overwrite = true
   records = [each.value.record]
 }
 
