@@ -33,7 +33,33 @@ env:
   TF_LOCK_STALE_AFTER_MINUTES: ${{ vars.TF_LOCK_STALE_AFTER_MINUTES || '30' }}
 
 jobs:
+  changes:
+    name: Detect changed components
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+      infrastructure: ${{ steps.filter.outputs.infrastructure }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Classify changes
+        id: filter
+        shell: bash
+        run: |
+          base="${{ github.event.before }}"
+          if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
+            base="HEAD^"
+          fi
+          changed=$(git diff --name-only "$base" "$GITHUB_SHA")
+          echo "$changed"
+          if grep -q '^front/' <<< "$changed"; then echo 'frontend=true' >> "$GITHUB_OUTPUT"; else echo 'frontend=false' >> "$GITHUB_OUTPUT"; fi
+          if grep -q '^backend/' <<< "$changed" || grep -q '^Dockerfile$' <<< "$changed"; then echo 'backend=true' >> "$GITHUB_OUTPUT"; else echo 'backend=false' >> "$GITHUB_OUTPUT"; fi
+          if grep -q '^infrastructure/' <<< "$changed" || grep -q '^\.github/workflows/' <<< "$changed"; then echo 'infrastructure=true' >> "$GITHUB_OUTPUT"; else echo 'infrastructure=false' >> "$GITHUB_OUTPUT"; fi
+
   aws-ready:
+    needs: changes
     runs-on: ubuntu-latest
     environment: production
     outputs:
@@ -73,8 +99,8 @@ jobs:
 
   test:
     name: Test application
-    needs: aws-ready
-    if: ${{ needs.aws-ready.outputs.ready == 'true' }}
+    needs: [aws-ready, changes]
+    if: ${{ needs.aws-ready.outputs.ready == 'true' && (needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -88,6 +114,7 @@ jobs:
           cache: gradle
 
       - name: Run backend tests
+        if: ${{ needs.changes.outputs.backend == 'true' }}
         working-directory: backend
         run: ./gradlew test --no-daemon
 
@@ -98,13 +125,14 @@ jobs:
           cache-dependency-path: front/package-lock.json
 
       - name: Build frontend
+        if: ${{ needs.changes.outputs.frontend == 'true' }}
         working-directory: front
         run: npm ci && npx next build --webpack
 
   app-build:
     name: Build application image
-    needs: [aws-ready, test]
-    if: ${{ needs.aws-ready.outputs.ready == 'true' }}
+    needs: [aws-ready, changes, test]
+    if: ${{ needs.aws-ready.outputs.ready == 'true' && needs.changes.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -154,8 +182,8 @@ jobs:
 
   backend-deploy:
     name: IaC, migrations and backend deployment
-    needs: [aws-ready, test, app-build]
-    if: ${{ needs.aws-ready.outputs.ready == 'true' }}
+    needs: [aws-ready, changes, test, app-build]
+    if: ${{ needs.aws-ready.outputs.ready == 'true' && (needs.changes.outputs.backend == 'true' || needs.changes.outputs.infrastructure == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: production
@@ -344,8 +372,8 @@ jobs:
 
   frontend-deploy:
     name: Frontend deployment
-    needs: backend-deploy
-    if: ${{ needs.backend-deploy.result == 'success' }}
+    needs: [aws-ready, changes, backend-deploy]
+    if: ${{ always() && needs.aws-ready.outputs.ready == 'true' && needs.changes.outputs.frontend == 'true' && (needs.backend-deploy.result == 'success' || needs.backend-deploy.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
