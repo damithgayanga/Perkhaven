@@ -30,6 +30,7 @@ env:
   TF_VAR_initial_admin_username: ${{ vars.INITIAL_ADMIN_USERNAME || 'admin' }}
   TF_VAR_hostel_contact_email: ${{ vars.HOSTEL_CONTACT_EMAIL || 'hello@perkhaven.example' }}
   TF_VAR_hostel_contact_telephone: ${{ vars.HOSTEL_CONTACT_TELEPHONE || '+94 11 234 5678' }}
+  TF_LOCK_STALE_AFTER_MINUTES: ${{ vars.TF_LOCK_STALE_AFTER_MINUTES || '30' }}
 
 jobs:
   aws-ready:
@@ -151,6 +152,36 @@ jobs:
       - name: Initialize Terraform
         working-directory: infrastructure/environments/production
         run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
+
+      - name: Recover stale Terraform state lock
+        working-directory: infrastructure/environments/production
+        shell: bash
+        run: |
+          lock_key="perkhaven/production/terraform.tfstate.tflock"
+          lock_file="${RUNNER_TEMP}/perkhaven-terraform-lock.json"
+          if ! aws s3api get-object --bucket "$TF_STATE_BUCKET" --key "$lock_key" "$lock_file" >/dev/null 2>&1; then
+            echo "No Terraform lock object found."
+            exit 0
+          fi
+
+          lock_id=$(jq -r '.ID // empty' "$lock_file")
+          created=$(jq -r '.Created // empty' "$lock_file")
+          if [[ -z "$lock_id" || -z "$created" ]]; then
+            echo "Terraform lock object is missing lock metadata; leaving it untouched." >&2
+            exit 1
+          fi
+
+          created_epoch=$(date -d "$created" +%s)
+          now_epoch=$(date +%s)
+          age_minutes=$(( (now_epoch - created_epoch) / 60 ))
+          echo "Terraform lock $lock_id is ${age_minutes} minute(s) old."
+          if (( age_minutes < TF_LOCK_STALE_AFTER_MINUTES )); then
+            echo "Lock is still within the ${TF_LOCK_STALE_AFTER_MINUTES}-minute safety window; refusing to unlock it."
+            exit 1
+          fi
+
+          echo "Unlocking stale Terraform lock $lock_id."
+          terraform force-unlock -force "$lock_id"
 
       - name: Plan infrastructure
         working-directory: infrastructure/environments/production
