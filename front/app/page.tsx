@@ -2880,7 +2880,7 @@ function StudentSelfService({
                     ["Registration date", fmtDate(student.registeredDate)],
                     ["Accommodation start date", fmtDate(student.startDate)],
                     [
-                      "Notice submitted",
+                      "Notice to Check-Out submitted",
                       student.noticeToVacateDate
                         ? fmtDate(student.noticeToVacateDate)
                         : "Not provided",
@@ -2892,7 +2892,7 @@ function StudentSelfService({
                         : "Not provided",
                     ],
                     [
-                      "Vacated date",
+                      "Check-Out date",
                       student.vacatedDate
                         ? fmtDate(student.vacatedDate)
                         : "Not provided",
@@ -5597,7 +5597,7 @@ function Overview({
         <Stat
           tone="amber"
           icon="⌂"
-          label="Vacating settlements"
+          label="Check-Out settlements"
           value={`${pendingSettlementCount} pending`}
           note="Notices awaiting final settlement"
         />
@@ -8142,7 +8142,7 @@ function VacatingNoticeActionList({
       <div className="section-heading">
         <div>
           <p className="tag">RESIDENT NOTICES</p>
-          <h2>Vacating notices awaiting approval</h2>
+          <h2>Check-Out notices awaiting approval</h2>
           <span>
 
             Review the notice date and intended check-out date before deciding.
@@ -18852,7 +18852,7 @@ function Profile({
                     : "Not provided",
                 ],
                 [
-                  "Vacated date",
+                  "Check-Out date",
                   student.vacatedDate
                     ? fmtDate(student.vacatedDate)
                     : "Not provided",
@@ -19394,12 +19394,19 @@ function StudentPaymentProfile({
     : lastCompletedMonth;
   const outstandingRows = monthRange(firstPayableMonth, finalPayableMonth)
     .map((month) => {
-      const payable = invoiceEntries
+      const latestInvoice = invoiceEntries
         .filter((invoice) => invoice.invoiceType === "Rent" && invoice.month === month && invoice.status !== "Cancelled")
-        .sort((a, b) => (b.revisionNumber ?? b.version ?? 0) - (a.revisionNumber ?? a.version ?? 0))[0]?.amount
-        ?? rentPayable(student, month, adjustments);
-      const paid = rentPaid(payments, student.registrationNo, month);
-      return { month, payable, paid, outstanding: Math.max(0, payable - paid) };
+        .sort((a, b) => (b.revisionNumber ?? b.version ?? 0) - (a.revisionNumber ?? a.version ?? 0))[0];
+      if (!latestInvoice) return { month, payable: 0, paid: 0, outstanding: 0 };
+      const payable = latestInvoice.amount;
+      const paid = latestInvoice.paidAmount || 0;
+      return {
+        month,
+        payable,
+        paid,
+        outstanding: Math.max(0, payable - paid),
+        invoiceNo: latestInvoice.invoiceNo,
+      };
     })
     .filter((row) => row.outstanding > 0);
   const totalDeposit = deposits.reduce(
@@ -19904,15 +19911,11 @@ function StudentPaymentProfile({
             </thead>
             <tbody>
               {outstandingRows.map((row) => {
-                const invoice = invoiceEntries.find(
-                  (entry) =>
-                    entry.invoiceType === "Rent" && entry.month === row.month,
-                );
                 return (
                   <tr key={row.month}>
                     <td>
                       <b className="transaction-id">
-                        {invoice?.invoiceNo || "—"}
+                        {row.invoiceNo || "—"}
                       </b>
                     </td>
                     <td>
@@ -19988,10 +19991,10 @@ function StayDatesModal({
           text={`${student.registrationNo} · ${student.firstName} ${student.lastName}`}
           close={close}
         />
-        <FormSection title="Vacating details">
+        <FormSection title="Check-Out details">
           <Field
             name="noticeToVacateDate"
-            label="Notice to vacate date"
+            label="Notice to Check-Out date"
             type="date"
             value={noticeDate}
             onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
@@ -20001,7 +20004,7 @@ function StayDatesModal({
           />
           <Field
             name="vacatedDate"
-            label="Vacated date"
+            label="Check-Out date"
             type="date"
             value={vacatedDate}
             onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
