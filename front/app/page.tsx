@@ -3611,7 +3611,7 @@ function StudentVacatingNotice({
           <div className="notice-date-summary">
             <span>
               <small>
-                {isAmendment ? "ORIGINAL NOTICE DATE" : "NOTICE DATE"}
+                {isAmendment ? "ORIGINAL NOTICE TO CHECK-OUT DATE" : "NOTICE TO CHECK-OUT DATE"}
               </small>
               <b>{fmtDate(originalNoticeDate)}</b>
             </span>
@@ -3632,7 +3632,7 @@ function StudentVacatingNotice({
           <label>
             {isAmendment
               ? "Amend intended check-out date to"
-              : "Intended date to vacate"}
+              : "Intended Check-Out date"}
             <input
               type="date"
               min={earliestAllowedDate}
@@ -7783,7 +7783,7 @@ function ActionVacatingNotices({
             <tr>
               <th>REGISTRATION</th>
               <th>RESIDENT</th>
-              <th>INTENDED DATE</th>
+              <th>INTENDED CHECK-OUT DATE</th>
               <th>ACTION STATUS</th>
               <th>LOGGED DATE</th>
               <th>ACTION DATE</th>
