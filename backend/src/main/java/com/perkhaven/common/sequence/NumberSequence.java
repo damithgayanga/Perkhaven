@@ -29,4 +29,10 @@ public class NumberSequence {
     public long takeNextValue() {
         return nextValue++;
     }
+
+    public long getNextValue() { return nextValue; }
+
+    public void synchronizeNextValue(long value) {
+        if (value > 0) this.nextValue = value;
+    }
 }
