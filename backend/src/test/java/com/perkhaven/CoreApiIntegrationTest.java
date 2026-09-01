@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.mock.web.MockMultipartFile;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.YearMonth;
 import java.io.ByteArrayOutputStream;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
@@ -92,6 +93,49 @@ class CoreApiIntegrationTest {
     }
 
     @Test
+    void studentCannotAccessFinanceRegisters() throws Exception {
+        var token = token("student@perkhaven.demo", "PerkStudent#2026");
+        var authorization = "Bearer " + token;
+
+        mvc.perform(get("/api/v1/expenses").header("Authorization", authorization))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/expenses/categories").header("Authorization", authorization))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/expenses/evidence").param("transactionId", "E-2026-0001")
+                        .header("Authorization", authorization))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/petty-cash").header("Authorization", authorization))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/petty-cash/evidence").param("transactionId", "PCD-2026-0001")
+                        .header("Authorization", authorization))
+                .andExpect(status().isForbidden());
+
+        var evidence = new MockMultipartFile("evidence", "student-upload.pdf", "application/pdf", new byte[]{'%', 'P', 'D', 'F'});
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/expenses")
+                        .file(evidence).param("categoryId", "1").param("amount", "100.00")
+                        .param("transactionDate", "2026-08-30").param("personPaidStaffNo", "STF-2026-001")
+                        .param("settlingMethod", "Cash").header("Authorization", authorization))
+                .andExpect(status().isForbidden());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/petty-cash")
+                        .file(evidence).param("amount", "100.00").param("transactionDate", "2026-08-30")
+                        .header("Authorization", authorization))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void staffCanReadFinanceRegisters() throws Exception {
+        var token = token("staff@perkhaven.demo", "PerkStaff#2026");
+        var authorization = "Bearer " + token;
+
+        mvc.perform(get("/api/v1/expenses").header("Authorization", authorization))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/expenses/categories").header("Authorization", authorization))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/petty-cash").header("Authorization", authorization))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void unauthenticatedCoreRequestIsRejected() throws Exception {
         mvc.perform(get("/api/v1/students/PH-2026-001")).andExpect(status().isUnauthorized());
     }
@@ -99,6 +143,9 @@ class CoreApiIntegrationTest {
     @Test
     void registrationCreatesDepositInvoiceAndSupportsPdfAndRevision() throws Exception {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var today = LocalDate.now(ZoneId.of("Asia/Colombo"));
+        var firstRentMonth = YearMonth.from(today).plusMonths(1);
+        var startDate = firstRentMonth.atDay(1);
         var student = """
                 {
                   "registrationNo":"PH-TEST-900",
@@ -115,15 +162,15 @@ class CoreApiIntegrationTest {
                   "address":"10 Test Road",
                   "hasMedicalCondition":true,
                   "medicalConditionDetails":"Carries an asthma inhaler",
-                  "registeredDate":"2026-08-13",
-                  "startDate":"2026-08-31",
+                  "registeredDate":"%s",
+                  "startDate":"%s",
                   "roomNo":"104",
                   "monthlyRent":22500.00,
                   "depositPayable":67500.00,
                   "status":"ACTIVE",
                   "emergencyContacts":[]
                 }
-                """;
+                """.formatted(today, startDate);
         mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON).content(student))
                 .andExpect(status().isCreated())
@@ -176,9 +223,11 @@ class CoreApiIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].status").value("Paid"))
                 .andExpect(jsonPath("$.items[0].transactionIds.length()").value(2));
 
-        mvc.perform(post("/api/v1/invoices/generation-runs").header("Authorization", "Bearer " + token))
+        mvc.perform(post("/api/v1/invoices/generation-runs").param("month", firstRentMonth.toString())
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
-        mvc.perform(post("/api/v1/invoices/generation-runs").header("Authorization", "Bearer " + token))
+        mvc.perform(post("/api/v1/invoices/generation-runs").param("month", firstRentMonth.toString())
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
         mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-TEST-900")
                         .header("Authorization", "Bearer " + token))
