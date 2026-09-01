@@ -135,6 +135,7 @@ jobs:
     if: ${{ needs.aws-ready.outputs.ready == 'true' && needs.changes.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: production
     outputs:
       image_uri: ${{ steps.image.outputs.uri }}
     steps:
