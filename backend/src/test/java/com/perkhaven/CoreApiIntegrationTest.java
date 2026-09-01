@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.mock.web.MockMultipartFile;
@@ -120,6 +122,62 @@ class CoreApiIntegrationTest {
                         .file(evidence).param("amount", "100.00").param("transactionDate", "2026-08-30")
                         .header("Authorization", authorization))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void studentCanReadOwnPaymentReceiptButNotAnotherStudentsReceipt() throws Exception {
+        var adminToken = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var studentToken = token("student@perkhaven.demo", "PerkStudent#2026");
+        var generated = mvc.perform(post("/api/v1/invoices/generation-runs").param("month", "2026-02")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var generatedInvoices = mapper.readTree(generated).get("invoices");
+        long ownInvoiceId = 0;
+        long otherInvoiceId = 0;
+        for (var invoice : generatedInvoices) {
+            if ("PH-2026-001".equals(invoice.get("registrationNo").asText())) ownInvoiceId = invoice.get("id").asLong();
+            if ("PH-2026-002".equals(invoice.get("registrationNo").asText())) otherInvoiceId = invoice.get("id").asLong();
+        }
+        if (ownInvoiceId == 0 || otherInvoiceId == 0) throw new AssertionError("Expected invoices for both seeded students");
+
+        var ownEvidence = new MockMultipartFile("evidence", "own-payment.pdf", "application/pdf", new byte[]{'%', 'P', 'D', 'F'});
+        var ownPayment = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payments")
+                        .file(ownEvidence).param("invoiceId", String.valueOf(ownInvoiceId)).param("paidAmount", "100.00")
+                        .param("paidDate", "2026-02-10").param("settlementMethod", "Bank Transfer")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        var ownPaymentId = mapper.readTree(ownPayment).get("id").asLong();
+
+        var otherEvidence = new MockMultipartFile("evidence", "other-payment.pdf", "application/pdf", new byte[]{'%', 'P', 'D', 'F'});
+        var otherPayment = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payments")
+                        .file(otherEvidence).param("invoiceId", String.valueOf(otherInvoiceId)).param("paidAmount", "100.00")
+                        .param("paidDate", "2026-02-10").param("settlementMethod", "Bank Transfer")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        var otherPaymentId = mapper.readTree(otherPayment).get("id").asLong();
+
+        mvc.perform(get("/api/v1/payments/{id}/receipt", ownPaymentId)
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    if (!MediaType.APPLICATION_PDF_VALUE.equals(result.getResponse().getContentType()))
+                        throw new AssertionError("Expected PDF content type");
+                });
+        mvc.perform(get("/api/v1/payments/{id}/receipt", otherPaymentId)
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/payments/{id}/receipt", ownPaymentId)
+                        .with(jwt().jwt(value -> value.claim("email", "nethmi.p@email.com"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/payments/{id}/receipt", ownPaymentId)
+                        .with(jwt().jwt(value -> value.claim("email", "nethmi.p@email.com"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_STAFF"))))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/payments/{id}/receipt", otherPaymentId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
     }
 
     @Test

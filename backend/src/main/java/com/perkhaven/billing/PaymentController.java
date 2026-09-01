@@ -126,7 +126,7 @@ public class PaymentController {
     }
 
     @GetMapping(value = "/{id}/receipt", produces = MediaType.APPLICATION_PDF_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN','STUDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN') or @paymentAuthorizationService.canAccess(#id, authentication)")
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> receipt(@PathVariable long id, @RequestParam(defaultValue = "false") boolean download) {
         var payment = payments.findById(id).orElseThrow(() -> new NotFoundException("Payment not found."));
