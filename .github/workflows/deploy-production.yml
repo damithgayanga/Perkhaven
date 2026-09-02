@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force_deploy_all:
+        description: Deploy backend, frontend, and infrastructure even when no files changed
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -43,11 +49,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - name: Classify changes
         id: filter
         shell: bash
+        env:
+          FORCE_DEPLOY_ALL: ${{ github.event_name == 'workflow_dispatch' && inputs.force_deploy_all }}
         run: |
+          if [[ "$FORCE_DEPLOY_ALL" == "true" ]]; then
+            echo "Manual force deployment requested; enabling every deployment component."
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            echo "infrastructure=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           base="${{ github.event.before }}"
           if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
             base="HEAD^"
@@ -184,7 +200,7 @@ jobs:
   backend-deploy:
     name: IaC, migrations and backend deployment
     needs: [aws-ready, changes, test, app-build]
-    if: ${{ needs.aws-ready.outputs.ready == 'true' && (needs.changes.outputs.backend == 'true' || needs.changes.outputs.infrastructure == 'true') }}
+    if: ${{ always() && needs.aws-ready.outputs.ready == 'true' && (needs.changes.outputs.backend == 'true' || needs.changes.outputs.infrastructure == 'true') && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.app-build.result == 'success' || needs.app-build.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: production
@@ -224,6 +240,27 @@ jobs:
         working-directory: infrastructure/environments/production
         run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
 
+      - name: Resolve backend image for Terraform
+        id: backend-image
+        working-directory: infrastructure/environments/production
+        env:
+          BUILT_IMAGE_URI: ${{ needs.app-build.outputs.image_uri }}
+        shell: bash
+        run: |
+          image_uri="$BUILT_IMAGE_URI"
+          if [[ -z "$image_uri" ]]; then
+            task_definition=$(terraform output -raw ecs_task_definition_arn)
+            image_uri=$(aws ecs describe-task-definition \
+              --task-definition "$task_definition" \
+              --query 'taskDefinition.containerDefinitions[?name==`backend`].image | [0]' \
+              --output text)
+          fi
+          if [[ -z "$image_uri" || "$image_uri" == "None" ]]; then
+            echo "Unable to resolve the backend image for Terraform." >&2
+            exit 1
+          fi
+          echo "uri=$image_uri" >> "$GITHUB_OUTPUT"
+
       - name: Recover stale Terraform state lock
         working-directory: infrastructure/environments/production
         shell: bash
@@ -257,7 +294,7 @@ jobs:
       - name: Plan infrastructure
         working-directory: infrastructure/environments/production
         env:
-          TF_VAR_backend_image_uri: ${{ needs.app-build.outputs.image_uri }}
+          TF_VAR_backend_image_uri: ${{ steps.backend-image.outputs.uri }}
           TF_VAR_route53_zone_id: ${{ steps.dns.outputs.zone_id }}
         run: terraform plan -lock-timeout=10m -out=production.tfplan
 
