@@ -17326,6 +17326,7 @@ function Register({
 }) {
   const managementCreator = ["Admin", "Chairman", "Managing Director"].includes(creatorRole);
   const [selectedRoom, setSelectedRoom] = useState("");
+  const [registrationStatus, setRegistrationStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
   const [startDate, setStartDate] = useState("");
   const [monthlyRent, setMonthlyRent] = useState("");
   const [depositPayable, setDepositPayable] = useState("");
@@ -17337,6 +17338,7 @@ function Register({
     overlappingResidents = students.filter(
       (student) =>
         student.roomNo === selectedRoom &&
+        registrationStatus === "ACTIVE" &&
         Boolean(startDate) &&
         student.startDate <= startDate &&
         (!student.vacatedDate || student.vacatedDate >= startDate),
@@ -17391,7 +17393,7 @@ function Register({
       roomNo: v("roomNo"),
       monthlyRent: Number(v("monthlyRent") || r?.price || 0),
       depositPayable: Number(v("depositPayable")),
-      status: "Active",
+      status: registrationStatus === "ACTIVE" ? "Active" : "Inactive",
     };
     const delegatedRequired = [
       s.firstName, s.lastName, s.idNo, s.mobile, s.whatsapp, s.email,
@@ -17467,6 +17469,20 @@ function Register({
           {hasMedicalCondition && <label className="wide">Medical condition details<textarea name="medicalConditionDetails" maxLength={2000} required /></label>}
         </FormSection>
         <FormSection title="Hostel allocation">
+          <label>
+            Student status at registration
+            <select
+              name="status"
+              value={registrationStatus}
+              onChange={(event) => setRegistrationStatus(event.target.value as "ACTIVE" | "INACTIVE")}
+            >
+              <option value="ACTIVE">Active student (currently residing)</option>
+              <option value="INACTIVE">Inactive student (already checked out)</option>
+            </select>
+            <small>
+              Choose Inactive for backlog records whose check-out happened before they are entered.
+            </small>
+          </label>
           <Field
             name="registeredDate"
             label="Registration date"
@@ -17553,11 +17569,12 @@ function Register({
             </small>
           </label>
           <div className="capacity-check available">
-            <b>Status: Active</b>
-            <small>
-              Status changes only after the departure and settlement process is
-              completed.
-            </small>
+              <b>Status: {registrationStatus === "ACTIVE" ? "Active" : "Inactive"}</b>
+              <small>
+                {registrationStatus === "ACTIVE"
+                  ? "This resident will count toward room occupancy."
+                  : "This resident will not count toward current room occupancy or future rent generation."}
+              </small>
           </div>
           {selectedRoomRecord && startDate && (
             <div
