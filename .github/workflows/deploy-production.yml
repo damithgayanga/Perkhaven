@@ -5,10 +5,21 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      force_deploy_all:
-        description: Deploy backend, frontend, and infrastructure even when no files changed
-        required: false
-        default: true
+      build_application_image:
+        description: Build and publish the backend application image
+        default: false
+        type: boolean
+      deploy_infrastructure:
+        description: Plan and apply Terraform (required to deploy a newly built backend image)
+        default: false
+        type: boolean
+      deploy_backend:
+        description: Run database migrations and deploy the backend service
+        default: false
+        type: boolean
+      deploy_frontend:
+        description: Build and deploy the frontend
+        default: false
         type: boolean
 
 permissions:
@@ -43,6 +54,7 @@ jobs:
     name: Detect changed components
     runs-on: ubuntu-latest
     outputs:
+      build_image: ${{ steps.filter.outputs.build_image }}
       frontend: ${{ steps.filter.outputs.frontend }}
       backend: ${{ steps.filter.outputs.backend }}
       infrastructure: ${{ steps.filter.outputs.infrastructure }}
@@ -54,13 +66,18 @@ jobs:
         id: filter
         shell: bash
         env:
-          FORCE_DEPLOY_ALL: ${{ github.event_name == 'workflow_dispatch' && inputs.force_deploy_all }}
+          MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' }}
+          BUILD_APPLICATION_IMAGE: ${{ inputs.build_application_image }}
+          DEPLOY_INFRASTRUCTURE: ${{ inputs.deploy_infrastructure }}
+          DEPLOY_BACKEND: ${{ inputs.deploy_backend }}
+          DEPLOY_FRONTEND: ${{ inputs.deploy_frontend }}
         run: |
-          if [[ "$FORCE_DEPLOY_ALL" == "true" ]]; then
-            echo "Manual force deployment requested; enabling every deployment component."
-            echo "frontend=true" >> "$GITHUB_OUTPUT"
-            echo "backend=true" >> "$GITHUB_OUTPUT"
-            echo "infrastructure=true" >> "$GITHUB_OUTPUT"
+          if [[ "$MANUAL_RUN" == "true" ]]; then
+            echo "Manual stage selection requested."
+            echo "build_image=$BUILD_APPLICATION_IMAGE" >> "$GITHUB_OUTPUT"
+            echo "frontend=$DEPLOY_FRONTEND" >> "$GITHUB_OUTPUT"
+            echo "backend=$DEPLOY_BACKEND" >> "$GITHUB_OUTPUT"
+            echo "infrastructure=$DEPLOY_INFRASTRUCTURE" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -71,7 +88,13 @@ jobs:
           changed=$(git diff --name-only "$base" "$GITHUB_SHA")
           echo "$changed"
           if grep -q '^front/' <<< "$changed"; then echo 'frontend=true' >> "$GITHUB_OUTPUT"; else echo 'frontend=false' >> "$GITHUB_OUTPUT"; fi
-          if grep -q '^backend/' <<< "$changed" || grep -q '^Dockerfile$' <<< "$changed"; then echo 'backend=true' >> "$GITHUB_OUTPUT"; else echo 'backend=false' >> "$GITHUB_OUTPUT"; fi
+          if grep -q '^backend/' <<< "$changed" || grep -q '^Dockerfile$' <<< "$changed"; then
+            echo 'build_image=true' >> "$GITHUB_OUTPUT"
+            echo 'backend=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'build_image=false' >> "$GITHUB_OUTPUT"
+            echo 'backend=false' >> "$GITHUB_OUTPUT"
+          fi
           if grep -q '^infrastructure/' <<< "$changed" || grep -q '^\.github/workflows/' <<< "$changed"; then echo 'infrastructure=true' >> "$GITHUB_OUTPUT"; else echo 'infrastructure=false' >> "$GITHUB_OUTPUT"; fi
 
   aws-ready:
@@ -116,7 +139,7 @@ jobs:
   test:
     name: Test application
     needs: [aws-ready, changes]
-    if: ${{ needs.aws-ready.outputs.ready == 'true' && (needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true') }}
+    if: ${{ needs.aws-ready.outputs.ready == 'true' && (needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true' || needs.changes.outputs.build_image == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -130,7 +153,7 @@ jobs:
           cache: gradle
 
       - name: Run backend tests
-        if: ${{ needs.changes.outputs.backend == 'true' }}
+        if: ${{ needs.changes.outputs.backend == 'true' || needs.changes.outputs.build_image == 'true' }}
         working-directory: backend
         run: ./gradlew test --no-daemon
 
@@ -148,7 +171,7 @@ jobs:
   app-build:
     name: Build application image
     needs: [aws-ready, changes, test]
-    if: ${{ needs.aws-ready.outputs.ready == 'true' && needs.changes.outputs.backend == 'true' }}
+    if: ${{ needs.aws-ready.outputs.ready == 'true' && needs.changes.outputs.build_image == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
@@ -197,10 +220,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  backend-deploy:
-    name: IaC, migrations and backend deployment
+  infrastructure-deploy:
+    name: Infrastructure (IaC) deployment
     needs: [aws-ready, changes, test, app-build]
-    if: ${{ always() && needs.aws-ready.outputs.ready == 'true' && (needs.changes.outputs.backend == 'true' || needs.changes.outputs.infrastructure == 'true') && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.app-build.result == 'success' || needs.app-build.result == 'skipped') }}
+    if: ${{ always() && needs.aws-ready.outputs.ready == 'true' && (needs.changes.outputs.infrastructure == 'true' || (github.event_name == 'push' && needs.changes.outputs.backend == 'true')) && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.app-build.result == 'success' || needs.app-build.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: production
@@ -302,21 +325,37 @@ jobs:
         working-directory: infrastructure/environments/production
         run: terraform apply -lock-timeout=10m -auto-approve production.tfplan
 
+  backend-deploy:
+    name: Migrations and backend deployment
+    needs: [aws-ready, changes, test, app-build, infrastructure-deploy]
+    if: ${{ always() && needs.aws-ready.outputs.ready == 'true' && needs.changes.outputs.backend == 'true' && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.app-build.result == 'success' || needs.app-build.result == 'skipped') && (needs.infrastructure-deploy.result == 'success' || needs.infrastructure-deploy.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.5"
+
+      - name: Configure Terraform credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ env.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Read deployment outputs
         id: infra
         working-directory: infrastructure/environments/production
         shell: bash
         run: |
+          terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
           echo "cluster=$(terraform output -raw ecs_cluster_name)" >> "$GITHUB_OUTPUT"
           echo "service=$(terraform output -raw ecs_service_name)" >> "$GITHUB_OUTPUT"
           echo "task_definition=$(terraform output -raw ecs_task_definition_arn)" >> "$GITHUB_OUTPUT"
           echo "security_group=$(terraform output -raw ecs_security_group_id)" >> "$GITHUB_OUTPUT"
           echo "subnets=$(terraform output -json ecs_subnet_ids | jq -c '.')" >> "$GITHUB_OUTPUT"
-          echo "frontend_bucket=$(terraform output -raw frontend_bucket_name)" >> "$GITHUB_OUTPUT"
-          echo "distribution=$(terraform output -raw cloudfront_distribution_id)" >> "$GITHUB_OUTPUT"
-          echo "application_url=$(terraform output -raw application_url)" >> "$GITHUB_OUTPUT"
-          echo "cognito_domain=$(terraform output -raw cognito_hosted_ui_domain)" >> "$GITHUB_OUTPUT"
-          echo "cognito_client_id=$(terraform output -raw cognito_client_id)" >> "$GITHUB_OUTPUT"
           echo "database_identifier=$(terraform output -raw database_identifier)" >> "$GITHUB_OUTPUT"
 
       - name: Preserve pre-cleanup database snapshot
@@ -410,8 +449,8 @@ jobs:
 
   frontend-deploy:
     name: Frontend deployment
-    needs: [aws-ready, changes, backend-deploy]
-    if: ${{ always() && needs.aws-ready.outputs.ready == 'true' && needs.changes.outputs.frontend == 'true' && (needs.backend-deploy.result == 'success' || needs.backend-deploy.result == 'skipped') }}
+    needs: [aws-ready, changes, infrastructure-deploy, backend-deploy]
+    if: ${{ always() && needs.aws-ready.outputs.ready == 'true' && needs.changes.outputs.frontend == 'true' && (needs.infrastructure-deploy.result == 'success' || needs.infrastructure-deploy.result == 'skipped') && (needs.backend-deploy.result == 'success' || needs.backend-deploy.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
