@@ -52,7 +52,7 @@ public class InvoiceService {
     @Transactional
     public List<Invoice> createRegistrationInvoices(Student student) {
         var created = new java.util.ArrayList<Invoice>();
-        created.add(createDeposit(student));
+        if (student.getDepositPayable().signum() > 0) created.add(createDeposit(student));
         var today = LocalDate.now(BUSINESS_ZONE);
         var month = YearMonth.from(student.getStartDate());
         var endDate = student.getVacatedDate() == null ? today : student.getVacatedDate().isBefore(today) ? student.getVacatedDate() : today;

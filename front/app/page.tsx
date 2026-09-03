@@ -17357,6 +17357,8 @@ function Register({
       );
     const f = new FormData(e.currentTarget),
       v = (k: string) => String(f.get(k) || ""),
+      inactiveRegistration = registrationStatus === "INACTIVE",
+      registrationNoHint = `backlog-${Date.now()}`,
       phone = (prefix: string) =>
         combinePhone(v(`${prefix}CountryCode`), v(`${prefix}Number`)),
       r = rooms.find((x) => x.roomNo === v("roomNo"));
@@ -17367,10 +17369,10 @@ function Register({
       middleNames: v("middleNames"),
       lastName: v("lastName"),
       dateOfBirth: v("dateOfBirth"),
-      idNo: v("idNo"),
+      idNo: v("idNo") || (inactiveRegistration ? `NOT-PROVIDED-${registrationNoHint}` : ""),
       mobile: phone("mobile"),
       whatsapp: phone("whatsapp"),
-      email: v("email"),
+      email: v("email") || (inactiveRegistration ? `${registrationNoHint}@invalid.perkhaven.local` : ""),
       university: v("university"),
       currentYear: v("currentYear"),
       address: v("address"),
@@ -17384,8 +17386,8 @@ function Register({
       emergency2Contact: phone("emergency2Contact"),
       emergency2Relationship: v("emergency2Relationship"),
       emergency2Address: v("emergency2Address"),
-      registeredDate: v("registeredDate"),
-      startDate: v("startDate"),
+      registeredDate: v("registeredDate") || (inactiveRegistration ? new Date().toISOString().slice(0, 10) : ""),
+      startDate: v("startDate") || (inactiveRegistration ? new Date().toISOString().slice(0, 10) : ""),
       noticeToVacateDate: v("noticeToVacateDate") || "",
       vacatedDate: v("vacatedDate") || "",
       allSettled: false,
@@ -17403,7 +17405,7 @@ function Register({
       s.emergency2Address, s.registeredDate, s.startDate, s.roomNo,
       String(s.monthlyRent || ""), String(s.depositPayable || ""),
     ];
-    if (!managementCreator && delegatedRequired.some((entry) => !String(entry).trim()))
+    if (!inactiveRegistration && !managementCreator && delegatedRequired.some((entry) => !String(entry).trim()))
       return setRegistrationError("Delegated users must complete every resident detail before saving. Only the check-out date may remain blank.");
     const response = await fetch("/api/v1/students", {
       method: "POST",
@@ -17442,23 +17444,23 @@ function Register({
           <Field name="middleNames" label="Middle name(s)" />
           <Field name="lastName" label="Last name" required />
           <Field name="dateOfBirth" label="Date of birth" type="date" />
-          <Field name="idNo" label="National ID no." required={!managementCreator} />
-          <PhoneField prefix="mobile" label="Mobile no." required={!managementCreator} />
-          <PhoneField prefix="whatsapp" label="WhatsApp no." required={!managementCreator} />
-          <Field name="email" label="Email address" type="email" required />
-          <Field name="university" label="University" required={!managementCreator} />
-          <Field name="currentYear" label="Current year" required={!managementCreator} />
-          <Field name="address" label="Permanent address" wide required={!managementCreator} />
+          <Field name="idNo" label="National ID no." required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <PhoneField prefix="mobile" label="Mobile no." required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <PhoneField prefix="whatsapp" label="WhatsApp no." required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="email" label="Email address" type="email" required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="university" label="University" required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="currentYear" label="Current year" required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="address" label="Permanent address" wide required={!managementCreator && registrationStatus === "ACTIVE"} />
         </FormSection>
         <FormSection title="Emergency contacts">
-          <Field name="emergency1Name" label="Contact 1 · name" required={!managementCreator} />
-          <PhoneField prefix="emergency1Contact" label="Contact 1 · phone" required={!managementCreator} />
-          <Field name="emergency1Relationship" label="Relationship" required={!managementCreator} />
-          <Field name="emergency1Address" label="Contact 1 · address" wide required={!managementCreator} />
-          <Field name="emergency2Name" label="Contact 2 · name" startRow required={!managementCreator} />
-          <PhoneField prefix="emergency2Contact" label="Contact 2 · phone" required={!managementCreator} />
-          <Field name="emergency2Relationship" label="Relationship" required={!managementCreator} />
-          <Field name="emergency2Address" label="Contact 2 · address" wide required={!managementCreator} />
+          <Field name="emergency1Name" label="Contact 1 · name" required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <PhoneField prefix="emergency1Contact" label="Contact 1 · phone" required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="emergency1Relationship" label="Relationship" required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="emergency1Address" label="Contact 1 · address" wide required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="emergency2Name" label="Contact 2 · name" startRow required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <PhoneField prefix="emergency2Contact" label="Contact 2 · phone" required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="emergency2Relationship" label="Relationship" required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="emergency2Address" label="Contact 2 · address" wide required={!managementCreator && registrationStatus === "ACTIVE"} />
         </FormSection>
         <FormSection title="Medical condition">
           <fieldset className="medical-condition-choice">
@@ -17488,7 +17490,7 @@ function Register({
             label="Registration date"
             type="date"
             defaultValue={new Date().toISOString().slice(0, 10)}
-            required={!managementCreator}
+            required={!managementCreator && registrationStatus === "ACTIVE"}
           />
           <label>
 
@@ -17498,7 +17500,7 @@ function Register({
               type="date"
               value={startDate}
               onChange={(event) => setStartDate(event.target.value)}
-              required={!managementCreator}
+              required={!managementCreator && registrationStatus === "ACTIVE"}
             />
           </label>
           <Field name="noticeToVacateDate" label="Notice to Check-Out date (optional)" type="date" />
@@ -17519,7 +17521,7 @@ function Register({
                 setDepositPayable(rent ? String(rent * 3) : "");
                 setDepositAdjusted(false);
               }}
-              required={!managementCreator}
+              required={!managementCreator && registrationStatus === "ACTIVE"}
             >
               <option value="">Select hostel room</option>
               {rooms.map((room) => (
@@ -17546,7 +17548,7 @@ function Register({
                   );
                 }
               }}
-              required={!managementCreator}
+              required={!managementCreator && registrationStatus === "ACTIVE"}
             />
           </label>
           <label>
@@ -17612,12 +17614,14 @@ function EditStudent({
   save: (student: Student) => void;
 }) {
   const [error, setError] = useState("");
+  const [status, setStatus] = useState<"Active" | "Inactive">(student.status);
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
     const form = new FormData(event.currentTarget);
     const value = (name: string) => String(form.get(name) || "");
     const phone = (prefix: string) => combinePhone(value(`${prefix}CountryCode`), value(`${prefix}Number`));
+    const makingActive = student.status === "Inactive" && status === "Active";
     const response = await fetch(`/api/v1/students/${encodeURIComponent(student.registrationNo)}`, {
       method: "PUT",
       headers: { "content-type": "application/json" },
@@ -17629,9 +17633,9 @@ function EditStudent({
         university: value("university"), currentYear: value("currentYear"), address: value("address"),
         hasMedicalCondition: value("hasMedicalCondition") === "yes",
         medicalConditionDetails: value("medicalConditionDetails"),
-        registeredDate: value("registeredDate"), startDate: value("startDate"), vacatedDate: value("vacatedDate") || null, noticeToVacateDate: value("noticeToVacateDate") || null, roomNo: value("roomNo"),
+        registeredDate: value("registeredDate"), startDate: value("startDate"), vacatedDate: makingActive ? null : (value("vacatedDate") || null), noticeToVacateDate: makingActive ? null : (value("noticeToVacateDate") || null), roomNo: value("roomNo"),
         monthlyRent: Number(value("monthlyRent")), depositPayable: Number(value("depositPayable")),
-        status: student.status.toUpperCase(),
+        status: status.toUpperCase(),
         emergencyContacts: [
           { name: value("emergency1Name"), phone: phone("emergency1Contact"), relationship: value("emergency1Relationship"), address: value("emergency1Address") },
           { name: value("emergency2Name"), phone: phone("emergency2Contact"), relationship: value("emergency2Relationship"), address: value("emergency2Address") },
@@ -17768,6 +17772,14 @@ function EditStudent({
           <label className="wide">Medical condition details<textarea name="medicalConditionDetails" maxLength={2000} defaultValue={student.medicalConditionDetails || ""} /></label>
         </FormSection>
         <FormSection title="Registration and hostel room">
+          <label>
+            Student status
+            <select name="status" value={status} onChange={(event) => setStatus(event.target.value as "Active" | "Inactive")}>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+            <small>{status === "Inactive" ? "Enter both checkout dates when marking a resident inactive." : "Reactivating a resident clears previous checkout dates."}</small>
+          </label>
           <Field
             name="registeredDate"
             label="Registration date"
@@ -17782,8 +17794,8 @@ function EditStudent({
             defaultValue={student.startDate}
             required
           />
-          <Field name="noticeToVacateDate" label="Notice to Check-Out date (optional)" type="date" defaultValue={student.noticeToVacateDate || ""} />
-          <Field name="vacatedDate" label="Check-Out date (optional)" type="date" defaultValue={student.vacatedDate || ""} />
+          <Field name="noticeToVacateDate" label="Notice to Check-Out date (optional)" type="date" defaultValue={student.noticeToVacateDate || ""} required={status === "Inactive"} />
+          <Field name="vacatedDate" label="Check-Out date (optional)" type="date" defaultValue={student.vacatedDate || ""} required={status === "Inactive"} />
           <label>
 
             Hostel Room
