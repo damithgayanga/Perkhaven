@@ -32,18 +32,18 @@ public class Student extends AuditedEntity {
     private String lastName;
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
-    @Column(name = "id_no", nullable = false, length = 80)
+    @Column(name = "id_no", length = 80)
     private String idNo;
-    @Column(nullable = false, length = 40)
+    @Column(length = 40)
     private String mobile;
     @Column(length = 40)
     private String whatsapp;
-    @Column(nullable = false, unique = true)
+    @Column(unique = true)
     private String email;
     private String university;
     @Column(name = "current_year", length = 80)
     private String currentYear;
-    @Column(nullable = false, length = 600)
+    @Column(length = 600)
     private String address;
     @Column(name = "has_medical_condition", nullable = false)
     private boolean hasMedicalCondition;

@@ -183,18 +183,39 @@ public class StudentController {
     }
 
     private void apply(Student student, StudentRequest request) {
-        if (students.existsByEmailIgnoreCaseAndRegistrationNoNot(request.email(), request.registrationNo())) throw new ConflictException("Email is already assigned to another student.");
+        validateProfileRequirements(request);
+        if (request.email() != null && !request.email().isBlank()
+                && students.existsByEmailIgnoreCaseAndRegistrationNoNot(request.email(), request.registrationNo())) {
+            throw new ConflictException("Email is already assigned to another student.");
+        }
         Room room = request.roomNo() == null || request.roomNo().isBlank() ? null : rooms.findByRoomNoIgnoreCase(request.roomNo()).orElseThrow(() -> new NotFoundException("Room not found."));
         if (room != null && student.getRoom() != room && request.status() == RecordStatus.ACTIVE && students.countByRoomIdAndStatus(room.getId(), RecordStatus.ACTIVE) >= room.getBeds()) {
             throw new ConflictException("Room has no available beds.");
         }
         var contacts = request.emergencyContacts() == null ? List.<Student.EmergencyContactData>of() : request.emergencyContacts().stream()
                 .map(c -> new Student.EmergencyContactData(c.name(), c.phone(), c.relationship(), c.address())).toList();
+        var registeredDate = request.registeredDate() == null ? request.startDate() : request.registeredDate();
         student.update(new Student.StudentData(request.firstName(), request.middleNames(), request.lastName(), request.dateOfBirth(),
                 request.idNo(), request.mobile(), request.whatsapp(), request.email(),
                 request.university(), request.currentYear(), request.address(), request.hasMedicalCondition(),
-                request.medicalConditionDetails(), request.registeredDate(), request.startDate(), request.vacatedDate(), request.noticeToVacateDate(), request.monthlyRent(),
+                request.medicalConditionDetails(), registeredDate, request.startDate(), request.vacatedDate(), request.noticeToVacateDate(), request.monthlyRent(),
                 request.depositPayable(), request.vacatedDate() != null && request.vacatedDate().isBefore(LocalDate.now()) ? RecordStatus.INACTIVE : request.status(), contacts), room);
+    }
+
+    private void validateProfileRequirements(StudentRequest request) {
+        if (request.status() == RecordStatus.INACTIVE && request.vacatedDate() == null) {
+            throw new IllegalArgumentException("Check-Out date is required for an inactive student.");
+        }
+        if (request.vacatedDate() != null && request.vacatedDate().isBefore(request.startDate())) {
+            throw new IllegalArgumentException("Check-Out date cannot be before the accommodation start date.");
+        }
+        if (request.status() != RecordStatus.ACTIVE) return;
+        var missing = new ArrayList<String>();
+        if (request.idNo() == null || request.idNo().isBlank()) missing.add("National ID no.");
+        if (request.mobile() == null || request.mobile().isBlank()) missing.add("Mobile no.");
+        if (request.email() == null || request.email().isBlank()) missing.add("Email address");
+        if (request.address() == null || request.address().isBlank()) missing.add("Permanent address");
+        if (!missing.isEmpty()) throw new IllegalArgumentException("Active students require: " + String.join(", ", missing) + ".");
     }
 
     private Student find(String registrationNo) { return students.findByRegistrationNoIgnoreCase(registrationNo).orElseThrow(() -> new NotFoundException("Student not found.")); }
@@ -202,9 +223,9 @@ public class StudentController {
     public record EmergencyContactRequest(@NotBlank String name, @NotBlank String phone, @NotBlank String relationship, String address) {}
     public record StudentRequest(String registrationNo, @NotBlank String firstName, String middleNames,
                                  @NotBlank String lastName, LocalDate dateOfBirth,
-                                 @NotBlank String idNo, @NotBlank String mobile, String whatsapp, @Email @NotBlank String email,
-                                 String university, String currentYear, @NotBlank String address, boolean hasMedicalCondition,
-                                 @Size(max = 2000) String medicalConditionDetails, @NotNull LocalDate registeredDate,
+                                 String idNo, String mobile, String whatsapp, @Email String email,
+                                 String university, String currentYear, String address, boolean hasMedicalCondition,
+                                 @Size(max = 2000) String medicalConditionDetails, LocalDate registeredDate,
                                  @NotNull LocalDate startDate, String roomNo, LocalDate vacatedDate, LocalDate noticeToVacateDate, @NotNull @DecimalMin("0.00") BigDecimal monthlyRent,
                                  @NotNull @DecimalMin("0.00") BigDecimal depositPayable, @NotNull RecordStatus status,
                                  @Size(max = 2) List<@Valid EmergencyContactRequest> emergencyContacts) {}

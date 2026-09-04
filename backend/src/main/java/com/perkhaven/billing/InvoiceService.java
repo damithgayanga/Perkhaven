@@ -147,6 +147,11 @@ public class InvoiceService {
 
     private void enqueue(Invoice invoice) {
         var student = invoice.getStudent();
+        if (student.getEmail() == null || student.getEmail().isBlank()
+                || student.getEmail().toLowerCase(java.util.Locale.ROOT).endsWith(".invalid")
+                || student.getEmail().toLowerCase(java.util.Locale.ROOT).contains("@invalid.")) {
+            return;
+        }
         var descriptor = invoice.getInvoiceType() == InvoiceType.DEPOSIT ? "hostel deposit" : "rent for " + invoice.getBillingMonth().format(DISPLAY_MONTH);
         var subject = "Perkhaven invoice " + invoice.getInvoiceNo() + " Rev." + String.format("%02d", invoice.getRevisionNumber());
         var body = "Dear " + student.getFirstName() + ",\n\nAttached is your invoice for " + descriptor +

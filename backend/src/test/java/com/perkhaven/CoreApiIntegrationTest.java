@@ -309,6 +309,31 @@ class CoreApiIntegrationTest {
     }
 
     @Test
+    void minimalInactiveStudentReceivesDepositAndInvoicesThroughCheckoutMonth() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var student = """
+                {"registrationNo":"PH-HISTORY-902","firstName":"Former","lastName":"Resident",
+                 "startDate":"2025-01-01","vacatedDate":"2025-04-30","roomNo":"104",
+                 "monthlyRent":20000.00,"depositPayable":60000.00,"status":"INACTIVE","emergencyContacts":[]}
+                """;
+
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(student))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.registeredDate").value("2025-01-01"))
+                .andExpect(jsonPath("$.status").value("INACTIVE"))
+                .andExpect(jsonPath("$.email").doesNotExist());
+
+        mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-HISTORY-902")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalItems").value(5))
+                .andExpect(jsonPath("$.items[0].invoiceType").value("Rent"))
+                .andExpect(jsonPath("$.items[0].month").value("2025-04"))
+                .andExpect(jsonPath("$.items[4].invoiceType").value("Deposit"));
+    }
+
+    @Test
     void backendAssignsSequentialRegistrationNumbersAndAdminCanDeleteStudentWithFinancialRecords() throws Exception {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
         var firstStudent = """
