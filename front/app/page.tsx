@@ -17371,6 +17371,7 @@ function Register({
   const managementCreator = ["Admin", "Chairman", "Managing Director"].includes(creatorRole);
   const [selectedRoom, setSelectedRoom] = useState("");
   const [registrationStatus, setRegistrationStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
+  const [registeredDate, setRegisteredDate] = useState(new Date().toISOString().slice(0, 10));
   const [startDate, setStartDate] = useState("");
   const [monthlyRent, setMonthlyRent] = useState("");
   const [depositPayable, setDepositPayable] = useState("");
@@ -17402,7 +17403,6 @@ function Register({
     const f = new FormData(e.currentTarget),
       v = (k: string) => String(f.get(k) || ""),
       inactiveRegistration = registrationStatus === "INACTIVE",
-      registrationNoHint = `backlog-${Date.now()}`,
       phone = (prefix: string) =>
         combinePhone(v(`${prefix}CountryCode`), v(`${prefix}Number`)),
       r = rooms.find((x) => x.roomNo === v("roomNo"));
@@ -17413,10 +17413,10 @@ function Register({
       middleNames: v("middleNames"),
       lastName: v("lastName"),
       dateOfBirth: v("dateOfBirth"),
-      idNo: v("idNo") || (inactiveRegistration ? `NOT-PROVIDED-${registrationNoHint}` : ""),
+      idNo: v("idNo"),
       mobile: phone("mobile"),
       whatsapp: phone("whatsapp"),
-      email: v("email") || (inactiveRegistration ? `${registrationNoHint}@invalid.perkhaven.local` : ""),
+      email: v("email"),
       university: v("university"),
       currentYear: v("currentYear"),
       address: v("address"),
@@ -17430,8 +17430,8 @@ function Register({
       emergency2Contact: phone("emergency2Contact"),
       emergency2Relationship: v("emergency2Relationship"),
       emergency2Address: v("emergency2Address"),
-      registeredDate: v("registeredDate") || (inactiveRegistration ? new Date().toISOString().slice(0, 10) : ""),
-      startDate: v("startDate") || (inactiveRegistration ? new Date().toISOString().slice(0, 10) : ""),
+      registeredDate: inactiveRegistration ? v("startDate") : registeredDate,
+      startDate: v("startDate"),
       noticeToVacateDate: v("noticeToVacateDate") || "",
       vacatedDate: v("vacatedDate") || "",
       allSettled: false,
@@ -17479,7 +17479,9 @@ function Register({
           close={close}
         />
         <p className="form-guidance">
-          {managementCreator
+          {registrationStatus === "INACTIVE"
+            ? "For a historical inactive resident, enter the resident name and hostel allocation details. Contact, education, medical and emergency-contact details may remain blank."
+            : managementCreator
             ? "Management may save an incomplete resident record and complete it later through Edit."
             : "All resident details are mandatory when registration is delegated. Only the check-out date may remain blank."}
         </p>
@@ -17520,7 +17522,11 @@ function Register({
             <select
               name="status"
               value={registrationStatus}
-              onChange={(event) => setRegistrationStatus(event.target.value as "ACTIVE" | "INACTIVE")}
+              onChange={(event) => {
+                const nextStatus = event.target.value as "ACTIVE" | "INACTIVE";
+                setRegistrationStatus(nextStatus);
+                setRegisteredDate(nextStatus === "INACTIVE" ? startDate : new Date().toISOString().slice(0, 10));
+              }}
             >
               <option value="ACTIVE">Active student (currently residing)</option>
               <option value="INACTIVE">Inactive student (already checked out)</option>
@@ -17531,9 +17537,11 @@ function Register({
           </label>
           <Field
             name="registeredDate"
-            label="Registration date"
+            label={registrationStatus === "INACTIVE" ? "Registration date (same as start date)" : "Registration date"}
             type="date"
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            value={registrationStatus === "INACTIVE" ? startDate : registeredDate}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setRegisteredDate(event.target.value)}
+            readOnly={registrationStatus === "INACTIVE"}
             required={!managementCreator && registrationStatus === "ACTIVE"}
           />
           <label>
@@ -17543,12 +17551,15 @@ function Register({
               name="startDate"
               type="date"
               value={startDate}
-              onChange={(event) => setStartDate(event.target.value)}
-              required={!managementCreator && registrationStatus === "ACTIVE"}
+              onChange={(event) => {
+                setStartDate(event.target.value);
+                if (registrationStatus === "INACTIVE") setRegisteredDate(event.target.value);
+              }}
+              required={registrationStatus === "INACTIVE" || !managementCreator}
             />
           </label>
           <Field name="noticeToVacateDate" label="Notice to Check-Out date (optional)" type="date" />
-          <Field name="vacatedDate" label="Check-Out date (optional)" type="date" />
+          <Field name="vacatedDate" label={registrationStatus === "INACTIVE" ? "Check-Out date" : "Check-Out date (optional)"} type="date" required={registrationStatus === "INACTIVE"} />
           <label>
 
             Hostel Room no.
@@ -17565,7 +17576,7 @@ function Register({
                 setDepositPayable(rent ? String(rent * 3) : "");
                 setDepositAdjusted(false);
               }}
-              required={!managementCreator && registrationStatus === "ACTIVE"}
+              required={registrationStatus === "INACTIVE" || !managementCreator}
             >
               <option value="">Select hostel room</option>
               {rooms.map((room) => (
@@ -17592,7 +17603,7 @@ function Register({
                   );
                 }
               }}
-              required={!managementCreator && registrationStatus === "ACTIVE"}
+              required={registrationStatus === "INACTIVE" || !managementCreator}
             />
           </label>
           <label>
