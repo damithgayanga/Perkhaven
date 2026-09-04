@@ -72,6 +72,14 @@ data "aws_iam_policy_document" "ecs_task" {
     actions   = ["s3:ListBucket"]
     resources = [aws_s3_bucket.documents.arn]
   }
+  statement {
+    sid = "StudentCognitoInvitations"
+    actions = [
+      "cognito-idp:AdminAddUserToGroup",
+      "cognito-idp:AdminCreateUser"
+    ]
+    resources = [aws_cognito_user_pool.username_main.arn]
+  }
   dynamic "statement" {
     for_each = var.enable_ses_domain ? [1] : []
     content {
@@ -126,6 +134,7 @@ resource "aws_ecs_task_definition" "backend" {
       { name = "PERKHAVEN_STORAGE_BUCKET", value = aws_s3_bucket.documents.id },
       { name = "PERKHAVEN_SECURITY_COGNITO_ISSUER", value = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.username_main.id}" },
       { name = "PERKHAVEN_SECURITY_COGNITO_CLIENT_ID", value = aws_cognito_user_pool_client.username_frontend.id },
+      { name = "PERKHAVEN_SECURITY_COGNITO_USER_POOL_ID", value = aws_cognito_user_pool.username_main.id },
       { name = "PERKHAVEN_MAIL_PROVIDER", value = var.enable_ses_domain ? "ses" : "local" },
       { name = "PERKHAVEN_MAIL_FROM", value = var.enable_ses_domain ? "no-reply@${var.domain_name}" : "no-reply@perkhaven.invalid" },
       { name = "PERKHAVEN_HOSTEL_EMAIL", value = var.hostel_contact_email },

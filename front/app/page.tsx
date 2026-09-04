@@ -1137,6 +1137,7 @@ export default function Home() {
         )}{" "}
         {page === "Admin Controls" && currentUser.role === "Admin" && (
           <AdminControls
+            students={students}
             staff={staffMembers}
             permissions={staffPermissions}
             updatePermissions={setStaffPermissions}
@@ -4913,14 +4914,32 @@ const staffPermissionColumns: { key: StaffPermissionKey; label: string; note: st
 ];
 
 function AdminControls({
+  students,
   staff,
   permissions,
   updatePermissions,
 }: {
+  students: Student[];
   staff: Staff[];
   permissions: StaffPermissionMatrix;
   updatePermissions: Dispatch<SetStateAction<StaffPermissionMatrix>>;
 }) {
+  const [studentAccessBusy, setStudentAccessBusy] = useState("");
+  const [studentAccessMessage, setStudentAccessMessage] = useState("");
+  const enableStudentAccess = async (student: Student) => {
+    setStudentAccessBusy(student.registrationNo);
+    setStudentAccessMessage("");
+    try {
+      const response = await fetch(`/api/v1/admin/students/${encodeURIComponent(student.registrationNo)}/access`, { method: "POST" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail || "Unable to enable student access.");
+      setStudentAccessMessage(`${student.registrationNo}: invitation sent to ${student.email}.`);
+    } catch (reason) {
+      setStudentAccessMessage(reason instanceof Error ? reason.message : "Unable to enable student access.");
+    } finally {
+      setStudentAccessBusy("");
+    }
+  };
   const setPermission = async (staffNo: string, key: StaffPermissionKey, enabled: boolean) => {
     const response = await fetch(`/api/v1/admin/staff/${encodeURIComponent(staffNo)}/permissions/${encodeURIComponent(key)}`, {
       method: "PUT",
@@ -4951,6 +4970,11 @@ function AdminControls({
   );
   return (
     <section className="admin-controls-page">
+      <div className="panel admin-permission-panel">
+        <div className="section-action"><div><p className="tag">RESIDENT ACCESS</p><h2>Student portal accounts</h2><p>Send a Cognito invitation and grant the STUDENT role. Students then see only their own profile, invoices, payments, agreement and check-out settlement.</p></div></div>
+        {studentAccessMessage && <p className="portal-message">{studentAccessMessage}</p>}
+        <div className="tablewrap"><table><thead><tr><th>REGISTRATION</th><th>STUDENT</th><th>EMAIL</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody>{students.map((student) => <tr key={student.registrationNo}><td>{student.registrationNo}</td><td>{student.firstName} {student.lastName}</td><td>{student.email}</td><td><span className={`status ${student.status.toLowerCase()}`}>{student.status}</span></td><td><button className="secondary" disabled={studentAccessBusy === student.registrationNo || !student.email || student.email.endsWith("@invalid.perkhaven.local")} onClick={() => void enableStudentAccess(student)}>{studentAccessBusy === student.registrationNo ? "Sending…" : "Enable student access"}</button></td></tr>)}{!students.length && <tr><td colSpan={5} className="empty-state">No students are registered.</td></tr>}</tbody></table></div>
+      </div>
       <div className="panel admin-controls-summary">
         <div><p className="tag">STAFF ACCESS CONTROL</p><h2>Permission matrix</h2></div>
         <div className="admin-control-stat"><b>{staff.length}</b><span>Staff accounts</span></div>

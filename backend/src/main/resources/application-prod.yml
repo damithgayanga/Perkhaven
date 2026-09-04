@@ -15,6 +15,9 @@ spring:
           issuer-uri: ${PERKHAVEN_SECURITY_COGNITO_ISSUER}
 
 perkhaven:
+  security:
+    cognito:
+      user-pool-id: ${PERKHAVEN_SECURITY_COGNITO_USER_POOL_ID:}
   storage:
     provider: ${STORAGE_PROVIDER:s3}
     bucket: ${PERKHAVEN_STORAGE_BUCKET}

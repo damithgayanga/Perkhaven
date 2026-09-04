@@ -24,8 +24,17 @@ public class AdminUserController {
     private final AppUserRepository users;
     private final StaffPermissionRepository permissions;
     private final AuditService audit;
-    public AdminUserController(AppUserRepository users, StaffPermissionRepository permissions, AuditService audit) {
-        this.users = users; this.permissions = permissions; this.audit = audit;
+    private final CognitoStudentAccessService cognitoStudents;
+    public AdminUserController(AppUserRepository users, StaffPermissionRepository permissions, AuditService audit, CognitoStudentAccessService cognitoStudents) {
+        this.users = users; this.permissions = permissions; this.audit = audit; this.cognitoStudents = cognitoStudents;
+    }
+
+    @PostMapping("/students/{registrationNo}/access")
+    @Transactional
+    public AccessResponse enableStudentAccess(@PathVariable String registrationNo) {
+        var username = cognitoStudents.invite(registrationNo);
+        audit.record("ENABLE_STUDENT_ACCESS", "STUDENT", registrationNo, username);
+        return new AccessResponse(registrationNo, username, "Invitation sent");
     }
 
     @GetMapping("/users")
@@ -84,4 +93,5 @@ public class AdminUserController {
     public record PermissionResponse(Long id, String staffNo, String permissionKey, boolean enabled) {
         static PermissionResponse from(StaffPermission permission) { return new PermissionResponse(permission.getId(), permission.getStaffNo(), permission.getPermissionKey(), permission.isEnabled()); }
     }
+    public record AccessResponse(String registrationNo, String username, String message) {}
 }

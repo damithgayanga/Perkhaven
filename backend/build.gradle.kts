@@ -36,6 +36,7 @@ dependencies {
     implementation(platform("software.amazon.awssdk:bom:${property("awsSdkVersion")}"))
     implementation("software.amazon.awssdk:s3")
     implementation("software.amazon.awssdk:sesv2")
+    implementation("software.amazon.awssdk:cognitoidentityprovider")
 
     runtimeOnly("org.postgresql:postgresql")
     runtimeOnly("com.h2database:h2")
