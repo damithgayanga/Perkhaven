@@ -137,6 +137,9 @@ public class StudentController {
                             && i.getPaidAmount().signum() == 0)
                     .forEach(invoices::delete);
         }
+        // Backlog residents may have been created before historical invoice
+        // generation was enabled. Re-running is idempotent and fills any gaps.
+        if (student.getStatus() == RecordStatus.INACTIVE) invoiceService.createRegistrationInvoices(student);
         audit.record("UPDATE", "STUDENT", registrationNo, null);
         return StudentResponse.from(student);
     }

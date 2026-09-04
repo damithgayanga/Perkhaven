@@ -8413,9 +8413,20 @@ function InvoiceLedger({
   const [editing, setEditing] = useState<StudentInvoice | null>(null),
     [previewing, setPreviewing] = useState<StudentInvoice | null>(null),
     [exportOpen, setExportOpen] = useState(false),
+    [ledgerFilters, setLedgerFilters] = useState({ registration: "", name: "", month: "", type: "All" }),
     [exportFilters, setExportFilters] = useState({ invoice: "", registration: "", name: "", room: "", type: "All", status: "All" }),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const invoiceTypeLabel = (invoice: StudentInvoice) => {
+    if (invoice.invoiceType === "Deposit") return "Deposit";
+    if (invoice.invoiceType === "Rent") return invoice.registrationNo.toUpperCase().startsWith("PH-") ? "Accommodation Fee" : "Rent";
+    return invoice.invoiceType;
+  };
+  const visibleInvoices = invoices.filter((invoice) =>
+    invoice.registrationNo.toLowerCase().includes(ledgerFilters.registration.toLowerCase()) &&
+    invoice.studentName.toLowerCase().includes(ledgerFilters.name.toLowerCase()) &&
+    (!ledgerFilters.month || invoice.month === `${ledgerFilters.month}-01`) &&
+    (ledgerFilters.type === "All" || invoiceTypeLabel(invoice) === ledgerFilters.type));
   const exportRows = invoices.filter((invoice) =>
     invoice.invoiceNo.toLowerCase().includes(exportFilters.invoice.toLowerCase()) &&
     invoice.registrationNo.toLowerCase().includes(exportFilters.registration.toLowerCase()) &&
@@ -8464,6 +8475,13 @@ function InvoiceLedger({
   return (
     <section className="panel payment-section">
       {error && <p className="form-error">⚠ {error}</p>}
+      <div className="ledger-filters">
+        <label>Student / tenant registration<input value={ledgerFilters.registration} onChange={(event) => setLedgerFilters((current) => ({ ...current, registration: event.target.value }))} placeholder="PH-STD-00006 or SH-..." /></label>
+        <label>Name<input value={ledgerFilters.name} onChange={(event) => setLedgerFilters((current) => ({ ...current, name: event.target.value }))} /></label>
+        <label>Month<input type="month" value={ledgerFilters.month} onChange={(event) => setLedgerFilters((current) => ({ ...current, month: event.target.value }))} /></label>
+        <label>Invoice type<select value={ledgerFilters.type} onChange={(event) => setLedgerFilters((current) => ({ ...current, type: event.target.value }))}><option>All</option><option>Deposit</option><option>Accommodation Fee</option><option>Rent</option><option>Shop Electricity</option><option>Shop Water</option></select></label>
+        <button className="secondary" onClick={() => setLedgerFilters({ registration: "", name: "", month: "", type: "All" })}>Clear filters</button>
+      </div>
       <div className="tablewrap">
         <table className="ledger-table">
           <thead>
@@ -8471,6 +8489,7 @@ function InvoiceLedger({
               <th>INVOICE NO.</th>
               <th>ISSUE DATE</th>
               <th>DUE DATE</th>
+              <th>TYPE</th>
               <th>MONTH</th>
               <th>REGISTRATION</th>
               <th>NAME</th>
@@ -8484,7 +8503,7 @@ function InvoiceLedger({
             </tr>
           </thead>
           <tbody>
-            {invoices.map((invoice) => {
+            {visibleInvoices.map((invoice) => {
               const student = students.find(
                 (item) => item.registrationNo === invoice.registrationNo,
               );
@@ -8495,6 +8514,7 @@ function InvoiceLedger({
                   </td>
                   <td>{fmtDate(invoice.issueDate)}</td>
                   <td>{fmtDate(invoice.dueDate)}</td>
+                  <td>{invoiceTypeLabel(invoice)}</td>
                   <td>{invoice.invoiceType === "Deposit" ? "—" : fmtMonth(invoice.month)}</td>
                   <td>
                     <b>{invoice.registrationNo}</b>
@@ -8540,9 +8560,9 @@ function InvoiceLedger({
                 </tr>
               );
             })}
-            {!invoices.length && (
+            {!visibleInvoices.length && (
               <tr>
-                <td colSpan={13}>No invoices have been issued.</td>
+                <td colSpan={14}>No invoices have been issued.</td>
               </tr>
             )}
           </tbody>
