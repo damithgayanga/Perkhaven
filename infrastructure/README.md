@@ -52,9 +52,19 @@ Delete that snapshot only after the empty production registers have been accepte
 required.
 
 The pipeline provisions a username-based Cognito pool named `perkhaven-production-users`. Its initial
-administrator has the actual Cognito username `admin` and email `admin@perkhaven.com`. GitHub Actions
+administrator has the actual Cognito username `admin` and email `admin@perkhaven.lk`. GitHub Actions
 repository variables named `INITIAL_ADMIN_EMAIL` and
 `INITIAL_ADMIN_USERNAME` can override those values for a future environment without a source-code change.
+
+Production email uses exactly two application addresses under the configured domain:
+
+- `no-reply@perkhaven.lk` is the SES/Cognito sender for invitations, password setup and automated notices.
+- `admin@perkhaven.lk` is the administrator identity, reply-to address, hostel contact and DMARC report recipient.
+
+SES domain verification authorizes these sender addresses but does not create mailboxes. Before enabling it,
+verify the domain/DKIM records and obtain SES production access in `ap-south-1`, then set the GitHub Actions
+repository variable `ENABLE_SES_DOMAIN=true`. The `no-reply` address does not require a paid mailbox; only
+`admin@perkhaven.lk` needs a mailbox if replies and DMARC reports should be received.
 Terraform creates the user, assigns the `ADMIN` group, and Cognito emails a temporary password. Both `admin`
 and its email alias can be used to sign in; the application, `/api/v1/me` and audit events use `admin`. Keep any
 overrides set afterward so Terraform continues to manage the account. No production password is stored in

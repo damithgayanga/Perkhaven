@@ -94,6 +94,7 @@ resource "aws_cognito_user" "initial_admin" {
 
   attributes = {
     email              = trimspace(var.initial_admin_email)
+    email_verified     = "true"
     preferred_username = trimspace(var.initial_admin_username)
   }
 }
@@ -142,6 +143,16 @@ resource "aws_cognito_user_pool" "username_main" {
 
   user_attribute_update_settings {
     attributes_require_verification_before_update = ["email"]
+  }
+
+  dynamic "email_configuration" {
+    for_each = var.enable_ses_domain ? [1] : []
+    content {
+      email_sending_account  = "DEVELOPER"
+      source_arn             = aws_ses_domain_identity.main[0].arn
+      from_email_address     = "The Perk Haven <no-reply@${var.domain_name}>"
+      reply_to_email_address = "admin@${var.domain_name}"
+    }
   }
 
   deletion_protection = "ACTIVE"
@@ -201,6 +212,7 @@ resource "aws_cognito_user" "username_initial_admin" {
 
   attributes = {
     email              = trimspace(var.initial_admin_email)
+    email_verified     = "true"
     preferred_username = trimspace(var.initial_admin_username)
   }
 }
@@ -283,5 +295,5 @@ resource "aws_route53_record" "dmarc" {
   type    = "TXT"
   ttl     = 600
   allow_overwrite = true
-  records = ["v=DMARC1; p=none; rua=mailto:dmarc@${var.domain_name}"]
+  records = ["v=DMARC1; p=none; rua=mailto:admin@${var.domain_name}"]
 }

@@ -40,12 +40,12 @@ env:
   TF_INPUT: "false"
   TF_VAR_domain_name: "perkhaven.lk"
   TF_VAR_enable_custom_domain: "true"
-  TF_VAR_enable_ses_domain: "false"
+  TF_VAR_enable_ses_domain: ${{ vars.ENABLE_SES_DOMAIN || 'false' }}
   TF_VAR_create_route53_zone: "false"
   TF_VAR_database_backup_retention_days: ${{ vars.RDS_BACKUP_RETENTION_DAYS || '1' }}
-  TF_VAR_initial_admin_email: ${{ vars.INITIAL_ADMIN_EMAIL || 'admin@perkhaven.com' }}
+  TF_VAR_initial_admin_email: ${{ vars.INITIAL_ADMIN_EMAIL || 'admin@perkhaven.lk' }}
   TF_VAR_initial_admin_username: ${{ vars.INITIAL_ADMIN_USERNAME || 'admin' }}
-  TF_VAR_hostel_contact_email: ${{ vars.HOSTEL_CONTACT_EMAIL || 'hello@perkhaven.example' }}
+  TF_VAR_hostel_contact_email: ${{ vars.HOSTEL_CONTACT_EMAIL || 'admin@perkhaven.lk' }}
   TF_VAR_hostel_contact_telephone: ${{ vars.HOSTEL_CONTACT_TELEPHONE || '+94 11 234 5678' }}
   TF_LOCK_STALE_AFTER_MINUTES: ${{ vars.TF_LOCK_STALE_AFTER_MINUTES || '30' }}
 
