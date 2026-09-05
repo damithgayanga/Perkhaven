@@ -8429,24 +8429,24 @@ function InvoiceLedger({
     [error, setError] = useState("");
   const invoiceTypeLabel = (invoice: StudentInvoice) => {
     if (invoice.invoiceType === "Deposit") return "Deposit";
-    if (invoice.invoiceType === "Rent") return invoice.registrationNo.toUpperCase().startsWith("PH-") ? "Accommodation Fee" : "Rent";
+    if (invoice.invoiceType === "Rent") return invoice.registrationNo.toUpperCase().startsWith("SH-") ? "Rent" : "Accommodation Fee";
     return invoice.invoiceType;
   };
   const visibleInvoices = invoices.filter((invoice) =>
     invoice.registrationNo.toLowerCase().includes(ledgerFilters.registration.toLowerCase()) &&
     invoice.studentName.toLowerCase().includes(ledgerFilters.name.toLowerCase()) &&
-    (!ledgerFilters.month || invoice.month === `${ledgerFilters.month}-01`) &&
+    (!ledgerFilters.month || invoice.month.slice(0, 7) === ledgerFilters.month) &&
     (ledgerFilters.type === "All" || invoiceTypeLabel(invoice) === ledgerFilters.type));
   const exportRows = invoices.filter((invoice) =>
     invoice.invoiceNo.toLowerCase().includes(exportFilters.invoice.toLowerCase()) &&
     invoice.registrationNo.toLowerCase().includes(exportFilters.registration.toLowerCase()) &&
     invoice.studentName.toLowerCase().includes(exportFilters.name.toLowerCase()) &&
     invoice.roomNo.toLowerCase().includes(exportFilters.room.toLowerCase()) &&
-    (exportFilters.type === "All" || invoice.invoiceType === exportFilters.type) &&
+    (exportFilters.type === "All" || invoiceTypeLabel(invoice) === exportFilters.type) &&
     (exportFilters.status === "All" || invoice.status === exportFilters.status));
   const exportInvoicesSpreadsheet = async () => {
     const XLSX = await import("xlsx");
-    const data = exportRows.map((invoice) => ({ "INVOICE NO.": invoice.invoiceNo, "ISSUE DATE": fmtCompactDate(invoice.issueDate), "DUE DATE": fmtCompactDate(invoice.dueDate), TYPE: invoice.invoiceType, MONTH: invoice.invoiceType === "Deposit" ? "" : fmtMonth(invoice.month), REGISTRATION: invoice.registrationNo, NAME: invoice.studentName, ROOM: invoice.roomNo, AMOUNT: invoice.amount, STATUS: invoice.status, REVISION: `Rev.${invoiceRevision(invoice)}` }));
+    const data = exportRows.map((invoice) => ({ "INVOICE NO.": invoice.invoiceNo, "ISSUE DATE": fmtCompactDate(invoice.issueDate), "DUE DATE": fmtCompactDate(invoice.dueDate), TYPE: invoiceTypeLabel(invoice), MONTH: invoice.invoiceType === "Deposit" ? "" : fmtMonth(invoice.month), REGISTRATION: invoice.registrationNo, NAME: invoice.studentName, ROOM: invoice.roomNo, AMOUNT: invoice.amount, STATUS: invoice.status, REVISION: `Rev.${invoiceRevision(invoice)}` }));
     const sheet = XLSX.utils.json_to_sheet(data); sheet["!autofilter"] = { ref: `A1:K${Math.max(1, data.length + 1)}` }; sheet["!cols"] = [{wch:20},{wch:14},{wch:14},{wch:18},{wch:16},{wch:20},{wch:28},{wch:10},{wch:16},{wch:14},{wch:12}];
     const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, sheet, "Invoice Ledger"); XLSX.writeFile(book, `Perk-Haven-Invoice-Ledger-${new Date().toISOString().slice(0,10)}.xlsx`);
   };
@@ -8454,7 +8454,7 @@ function InvoiceLedger({
     const { jsPDF } = await import("jspdf"); const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" }); const pageWidth = pdf.internal.pageSize.getWidth(), pageHeight = pdf.internal.pageSize.getHeight(), margin = 8;
     const headers = ["INVOICE NO.","ISSUED","DUE","TYPE","MONTH","REGISTRATION","NAME","HOSTEL ROOM","AMOUNT","STATUS","REV."]; const widths = [28,19,19,20,20,28,40,15,24,20,14];
     const drawHeader = (page:number) => { pdf.setFillColor(15,48,78); pdf.rect(0,0,pageWidth,22,"F"); pdf.setTextColor(255,255,255); pdf.setFont("helvetica","bold"); pdf.setFontSize(13); pdf.text("THE PERK HAVEN HOSTEL",margin,9); pdf.setFontSize(9); pdf.text("INVOICE LEDGER",margin,16); pdf.setFontSize(7); pdf.text(`Page ${page}`,pageWidth-margin,16,{align:"right"}); let x=margin; pdf.setFillColor(229,237,246); pdf.rect(margin,26,widths.reduce((a,b)=>a+b,0),10,"F"); pdf.setTextColor(15,48,78); pdf.setFontSize(6.2); headers.forEach((h,i)=>{pdf.text(h,x+widths[i]/2,32,{align:"center",maxWidth:widths[i]-2});x+=widths[i];}); return 36; };
-    let page=1,y=drawHeader(page); exportRows.forEach((invoice,index)=>{ if(y+8>pageHeight-10){pdf.addPage("a4","landscape");page++;y=drawHeader(page);} if(index%2){pdf.setFillColor(247,249,252);pdf.rect(margin,y,widths.reduce((a,b)=>a+b,0),8,"F");} const values=[invoice.invoiceNo,fmtCompactDate(invoice.issueDate),fmtCompactDate(invoice.dueDate),invoice.invoiceType,invoice.invoiceType==="Deposit"?"—":fmtMonth(invoice.month),invoice.registrationNo,invoice.studentName,invoice.roomNo,`LKR ${invoice.amount.toLocaleString("en-LK")}`,invoice.status,`Rev.${invoiceRevision(invoice)}`]; let x=margin; pdf.setTextColor(20,39,61);pdf.setFont("helvetica","normal");pdf.setFontSize(6.2);values.forEach((v,i)=>{pdf.text(String(v),x+1,y+5,{maxWidth:widths[i]-2});x+=widths[i];});y+=8; }); downloadBlob(pdf.output("blob"),`Perk-Haven-Invoice-Ledger-${new Date().toISOString().slice(0,10)}.pdf`);
+    let page=1,y=drawHeader(page); exportRows.forEach((invoice,index)=>{ if(y+8>pageHeight-10){pdf.addPage("a4","landscape");page++;y=drawHeader(page);} if(index%2){pdf.setFillColor(247,249,252);pdf.rect(margin,y,widths.reduce((a,b)=>a+b,0),8,"F");} const values=[invoice.invoiceNo,fmtCompactDate(invoice.issueDate),fmtCompactDate(invoice.dueDate),invoiceTypeLabel(invoice),invoice.invoiceType==="Deposit"?"—":fmtMonth(invoice.month),invoice.registrationNo,invoice.studentName,invoice.roomNo,`LKR ${invoice.amount.toLocaleString("en-LK")}`,invoice.status,`Rev.${invoiceRevision(invoice)}`]; let x=margin; pdf.setTextColor(20,39,61);pdf.setFont("helvetica","normal");pdf.setFontSize(6.2);values.forEach((v,i)=>{pdf.text(String(v),x+1,y+5,{maxWidth:widths[i]-2});x+=widths[i];});y+=8; }); downloadBlob(pdf.output("blob"),`Perk-Haven-Invoice-Ledger-${new Date().toISOString().slice(0,10)}.pdf`);
   };
   const generate = async (month?: string) => {
     setBusy(true);
@@ -8490,7 +8490,7 @@ function InvoiceLedger({
         <label>Name<input value={ledgerFilters.name} onChange={(event) => setLedgerFilters((current) => ({ ...current, name: event.target.value }))} /></label>
         <label>Month<input type="month" value={ledgerFilters.month} onChange={(event) => setLedgerFilters((current) => ({ ...current, month: event.target.value }))} /></label>
         <label>Invoice type<select value={ledgerFilters.type} onChange={(event) => setLedgerFilters((current) => ({ ...current, type: event.target.value }))}><option>All</option><option>Deposit</option><option>Accommodation Fee</option><option>Rent</option><option>Shop Electricity</option><option>Shop Water</option></select></label>
-        <button className="secondary" onClick={() => setLedgerFilters({ registration: "", name: "", month: "", type: "All" })}>Clear filters</button>
+        <button className="secondary ledger-filter-clear" onClick={() => setLedgerFilters({ registration: "", name: "", month: "", type: "All" })}>Clear filters</button>
       </div>
       <div className="tablewrap">
         <table className="ledger-table">
@@ -8572,7 +8572,7 @@ function InvoiceLedger({
             })}
             {!visibleInvoices.length && (
               <tr>
-                <td colSpan={14}>No invoices have been issued.</td>
+                <td colSpan={14}>{invoices.length ? "No invoices match the selected filters." : "No invoices have been issued."}</td>
               </tr>
             )}
           </tbody>
@@ -8583,7 +8583,7 @@ function InvoiceLedger({
         <label>Registration<input value={exportFilters.registration} onChange={(e)=>setExportFilters(c=>({...c,registration:e.target.value}))}/></label>
         <label>Name<input value={exportFilters.name} onChange={(e)=>setExportFilters(c=>({...c,name:e.target.value}))}/></label>
         <label>Hostel Room<input value={exportFilters.room} onChange={(e)=>setExportFilters(c=>({...c,room:e.target.value}))}/></label>
-        <label>Invoice type<select value={exportFilters.type} onChange={(e)=>setExportFilters(c=>({...c,type:e.target.value}))}><option>All</option><option value="Deposit">Security Deposit</option><option value="Rent">Monthly Accommodation Fee</option><option>Shop Electricity</option><option>Shop Water</option></select></label>
+        <label>Invoice type<select value={exportFilters.type} onChange={(e)=>setExportFilters(c=>({...c,type:e.target.value}))}><option>All</option><option>Deposit</option><option>Accommodation Fee</option><option>Rent</option><option>Shop Electricity</option><option>Shop Water</option></select></label>
         <label>Status<select value={exportFilters.status} onChange={(e)=>setExportFilters(c=>({...c,status:e.target.value}))}><option>All</option><option>Issued</option><option>Partially Paid</option><option>Paid</option><option>Cancelled</option></select></label>
         <button className="secondary" onClick={()=>setExportFilters({invoice:"",registration:"",name:"",room:"",type:"All",status:"All"})}>Clear filters</button>
       </section><div className="modalactions"><button onClick={()=>setExportOpen(false)}>Cancel</button><button className="secondary" disabled={!exportRows.length} onClick={()=>void exportInvoicesPdf()}>Download PDF</button><button className="primary" disabled={!exportRows.length} onClick={()=>void exportInvoicesSpreadsheet()}>Export Spreadsheet</button></div></div></div>}
