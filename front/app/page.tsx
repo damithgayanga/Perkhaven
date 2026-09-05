@@ -5094,13 +5094,15 @@ function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
       textNodes[finalDateLabel + 1].textContent = data.agreementDate ? fmtDate(data.agreementDate) : "";
     }
     const wordNamespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-    const pageMargins = parsed.getElementsByTagNameNS(wordNamespace, "pgMar")[0];
-    if (pageMargins) {
-      pageMargins.setAttributeNS(wordNamespace, "w:top", "850");
-      pageMargins.setAttributeNS(wordNamespace, "w:bottom", "567");
+    Array.from(parsed.getElementsByTagNameNS(wordNamespace, "pgMar")).forEach((pageMargins) => {
+      // The template header is approximately 23 mm high. Keep every section's
+      // body at least 40 mm from the page top so neither the preview nor PDF
+      // renderer can place agreement text over the header.
+      pageMargins.setAttributeNS(wordNamespace, "w:top", "2268");
+      pageMargins.setAttributeNS(wordNamespace, "w:bottom", "1134");
       pageMargins.setAttributeNS(wordNamespace, "w:header", "283");
       pageMargins.setAttributeNS(wordNamespace, "w:footer", "283");
-    }
+    });
     Array.from(parsed.getElementsByTagNameNS(wordNamespace, "spacing")).forEach((spacing) => {
       spacing.setAttributeNS(wordNamespace, "w:before", "0");
       spacing.setAttributeNS(wordNamespace, "w:after", "0");
