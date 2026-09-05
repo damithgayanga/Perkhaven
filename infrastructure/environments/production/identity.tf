@@ -21,7 +21,7 @@ resource "aws_cognito_user_pool" "main" {
     allow_admin_create_user_only = true
     invite_message_template {
       email_subject = "Your Perkhaven account"
-      email_message = "Your username is {username} and temporary password is {####}. Visit ${local.application_public_url} to sign in."
+      email_message = "Welcome to Perkhaven. Your registration username is {username} and your temporary password is {####}. Open ${local.application_public_url} to sign in and set your permanent password. This temporary password expires in 7 days."
       sms_message   = "Perkhaven username: {username}; temporary password: {####}"
     }
   }
@@ -128,7 +128,7 @@ resource "aws_cognito_user_pool" "username_main" {
     allow_admin_create_user_only = true
     invite_message_template {
       email_subject = "Your Perkhaven account"
-      email_message = "Your username is {username} and temporary password is {####}. Visit ${local.application_public_url} to sign in."
+      email_message = "Welcome to Perkhaven. Your registration username is {username} and your temporary password is {####}. Open ${local.application_public_url} to sign in and set your permanent password. This temporary password expires in 7 days."
       sms_message   = "Perkhaven username: {username}; temporary password: {####}"
     }
   }

@@ -13,6 +13,11 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.InvalidPara
 import software.amazon.awssdk.services.cognitoidentityprovider.model.UsernameExistsException;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminAddUserToGroupRequest;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminCreateUserRequest;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminGetUserRequest;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminUpdateUserAttributesRequest;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.MessageActionType;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.UserNotFoundException;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.UserStatusType;
 
 @Service
 public class CognitoStudentAccessService {
@@ -35,22 +40,37 @@ public class CognitoStudentAccessService {
         if (student.getEmail() == null || student.getEmail().isBlank() || student.getEmail().endsWith("@invalid.perkhaven.local"))
             throw new ConflictException("A valid student email address is required before access can be enabled.");
         var username = student.getRegistrationNo();
+        var attributes = List.of(
+                AttributeType.builder().name("email").value(student.getEmail()).build(),
+                AttributeType.builder().name("email_verified").value("true").build(),
+                AttributeType.builder().name("preferred_username").value(username).build());
         try {
-            cognito.adminCreateUser(AdminCreateUserRequest.builder()
-                    .userPoolId(userPoolId)
-                    .username(username)
-                    .userAttributes(List.of(
-                            AttributeType.builder().name("email").value(student.getEmail()).build(),
-                            AttributeType.builder().name("email_verified").value("true").build()))
-                    .desiredDeliveryMediumsWithStrings("EMAIL")
-                    .build());
+            var existing = cognito.adminGetUser(AdminGetUserRequest.builder()
+                    .userPoolId(userPoolId).username(username).build());
+            cognito.adminUpdateUserAttributes(AdminUpdateUserAttributesRequest.builder()
+                    .userPoolId(userPoolId).username(username).userAttributes(attributes).build());
+            if (existing.userStatus() == UserStatusType.FORCE_CHANGE_PASSWORD) {
+                cognito.adminCreateUser(createRequest(username, attributes, MessageActionType.RESEND));
+            }
+        } catch (UserNotFoundException exception) {
+            cognito.adminCreateUser(createRequest(username, attributes, null));
         } catch (UsernameExistsException ignored) {
-            // Re-sending the invitation is intentionally idempotent.
+            // A concurrent request created the same account. Group assignment below is idempotent.
         } catch (InvalidParameterException | CodeDeliveryFailureException exception) {
             throw new IllegalArgumentException("Unable to create the student Cognito account: " + exception.awsErrorDetails().errorMessage());
         }
         cognito.adminAddUserToGroup(AdminAddUserToGroupRequest.builder()
                 .userPoolId(userPoolId).username(username).groupName("STUDENT").build());
         return username;
+    }
+
+    public boolean isConfigured() { return !userPoolId.isBlank(); }
+
+    private AdminCreateUserRequest createRequest(String username, List<AttributeType> attributes, MessageActionType action) {
+        var builder = AdminCreateUserRequest.builder()
+                .userPoolId(userPoolId).username(username).userAttributes(attributes)
+                .desiredDeliveryMediumsWithStrings("EMAIL");
+        if (action != null) builder.messageAction(action);
+        return builder.build();
     }
 }

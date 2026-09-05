@@ -12,6 +12,7 @@ import com.perkhaven.common.audit.AuditEventRepository;
 import com.perkhaven.common.domain.RecordStatus;
 import com.perkhaven.common.error.ConflictException;
 import com.perkhaven.common.error.NotFoundException;
+import com.perkhaven.identity.StudentAccessRequestedEvent;
 import com.perkhaven.storage.StorageService;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.validation.Valid;
@@ -28,6 +29,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.core.io.Resource;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -63,12 +65,15 @@ public class StudentController {
     private final PaymentRepository payments;
     private final StudentRegistrationNumberService registrationNumbers;
     private final AuditEventRepository auditEvents;
+    private final ApplicationEventPublisher events;
     public StudentController(StudentRepository students, RoomRepository rooms, StorageService storage, AuditService audit,
                              InvoiceService invoiceService, InvoiceRepository invoices, PaymentRepository payments,
-                             StudentRegistrationNumberService registrationNumbers, AuditEventRepository auditEvents) {
+                             StudentRegistrationNumberService registrationNumbers, AuditEventRepository auditEvents,
+                             ApplicationEventPublisher events) {
         this.students = students; this.rooms = rooms; this.storage = storage; this.audit = audit; this.invoiceService = invoiceService;
         this.invoices = invoices; this.payments = payments; this.registrationNumbers = registrationNumbers;
         this.auditEvents = auditEvents;
+        this.events = events;
     }
 
     @GetMapping
@@ -132,6 +137,7 @@ public class StudentController {
         var saved = students.save(student);
         invoiceService.createRegistrationInvoices(saved);
         audit.record("CREATE", "STUDENT", saved.getRegistrationNo(), null);
+        requestAccessInvitation(saved);
         return StudentResponse.from(saved);
     }
 
@@ -142,6 +148,7 @@ public class StudentController {
         if (!registrationNo.equalsIgnoreCase(request.registrationNo())) throw new ConflictException("Registration number cannot be changed.");
         var student = find(registrationNo);
         var previous = profileValues(student);
+        var previousEmail = student.getEmail();
         apply(student, request);
         if (student.getVacatedDate() != null) {
             invoices.findByStudentRegistrationNoIgnoreCaseOrderByIssueDateDesc(registrationNo).stream()
@@ -155,6 +162,7 @@ public class StudentController {
         // generation was enabled. Re-running is idempotent and fills any gaps.
         if (student.getStatus() == RecordStatus.INACTIVE) invoiceService.createRegistrationInvoices(student);
         audit.record("UPDATE", "STUDENT", registrationNo, changedFields(previous, student));
+        if (!java.util.Objects.equals(normalizeEmail(previousEmail), normalizeEmail(student.getEmail()))) requestAccessInvitation(student);
         return StudentResponse.from(student);
     }
 
@@ -260,6 +268,16 @@ public class StudentController {
     }
 
     private String text(Object value) { return value == null ? "" : value.toString(); }
+
+    private void requestAccessInvitation(Student student) {
+        if (student.getEmail() != null && !student.getEmail().isBlank()) {
+            events.publishEvent(new StudentAccessRequestedEvent(student.getRegistrationNo()));
+        }
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase(java.util.Locale.ROOT);
+    }
 
     public record EmergencyContactRequest(@NotBlank String name, @NotBlank String phone, @NotBlank String relationship, String address) {}
     public record StudentRequest(String registrationNo, @NotBlank String firstName, String middleNames,

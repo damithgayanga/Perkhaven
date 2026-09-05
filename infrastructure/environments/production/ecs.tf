@@ -76,7 +76,9 @@ data "aws_iam_policy_document" "ecs_task" {
     sid = "StudentCognitoInvitations"
     actions = [
       "cognito-idp:AdminAddUserToGroup",
-      "cognito-idp:AdminCreateUser"
+      "cognito-idp:AdminCreateUser",
+      "cognito-idp:AdminGetUser",
+      "cognito-idp:AdminUpdateUserAttributes"
     ]
     resources = [aws_cognito_user_pool.username_main.arn]
   }

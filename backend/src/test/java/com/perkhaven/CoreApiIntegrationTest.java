@@ -17,6 +17,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.mock.web.MockMultipartFile;
 import java.time.LocalDate;
@@ -31,9 +33,11 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
+@RecordApplicationEvents
 class CoreApiIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
+    @Autowired ApplicationEvents applicationEvents;
 
     @Test
     void adminCanReadCoreRegistersAndOpenApi() throws Exception {
@@ -236,6 +240,10 @@ class CoreApiIntegrationTest {
                 .andExpect(jsonPath("$.dateOfBirth").value("2003-04-15"))
                 .andExpect(jsonPath("$.hasMedicalCondition").value(true))
                 .andExpect(jsonPath("$.medicalConditionDetails").value("Carries an asthma inhaler"));
+        if (applicationEvents.stream(com.perkhaven.identity.StudentAccessRequestedEvent.class)
+                .noneMatch(event -> "PH-TEST-900".equals(event.registrationNo()))) {
+            throw new AssertionError("Expected student access invitation event after registration");
+        }
 
         var response = mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-TEST-900")
                         .header("Authorization", "Bearer " + token))
@@ -396,6 +404,34 @@ class CoreApiIntegrationTest {
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.noticeToVacateDate").doesNotExist())
                 .andExpect(jsonPath("$.vacatedDate").doesNotExist());
+    }
+
+    @Test
+    void addingEmailToIncompleteResidentRequestsCognitoInvitationAfterSave() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var incomplete = """
+                {"registrationNo":"PH-INVITE-905","firstName":"Invite","lastName":"Resident",
+                 "registeredDate":"2025-01-01","startDate":"2025-01-01","vacatedDate":"2025-01-31",
+                 "monthlyRent":0.00,"depositPayable":0.00,"status":"INACTIVE","emergencyContacts":[]}
+                """;
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(incomplete))
+                .andExpect(status().isCreated());
+        if (applicationEvents.stream(com.perkhaven.identity.StudentAccessRequestedEvent.class)
+                .anyMatch(event -> "PH-INVITE-905".equals(event.registrationNo()))) {
+            throw new AssertionError("An incomplete profile without email must not request an invitation");
+        }
+
+        var completed = incomplete.replace("\"lastName\":\"Resident\",",
+                "\"lastName\":\"Resident\",\"email\":\"invite.905@example.com\",");
+        mvc.perform(put("/api/v1/students/PH-INVITE-905").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(completed))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("invite.905@example.com"));
+        if (applicationEvents.stream(com.perkhaven.identity.StudentAccessRequestedEvent.class)
+                .noneMatch(event -> "PH-INVITE-905".equals(event.registrationNo()))) {
+            throw new AssertionError("Expected invitation after a real email address was added");
+        }
     }
 
     @Test
