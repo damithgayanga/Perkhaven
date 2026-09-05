@@ -303,7 +303,10 @@ class CoreApiIntegrationTest {
     @Test
     void migratedStudentReceivesDepositAndEveryHistoricalRentInvoice() throws Exception {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
-        var start = LocalDate.now(ZoneId.of("Asia/Colombo")).withDayOfMonth(1).minusMonths(2);
+        var today = LocalDate.now(ZoneId.of("Asia/Colombo"));
+        var start = today.withDayOfMonth(1).minusMonths(2);
+        var currentMonthIncluded = !today.isBefore(java.time.YearMonth.from(today).atEndOfMonth().minusDays(7));
+        var expectedInvoices = currentMonthIncluded ? 4 : 3;
         var student = """
                 {"registrationNo":"PH-HISTORY-901","firstName":"Historical","lastName":"Student","idNo":"H901",
                  "mobile":"+94770000001","whatsapp":"+94770000001","email":"history@example.com","university":"Test",
@@ -313,7 +316,7 @@ class CoreApiIntegrationTest {
         mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(student))
                 .andExpect(status().isCreated());
         mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-HISTORY-901").header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(4));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(expectedInvoices));
     }
 
     @Test

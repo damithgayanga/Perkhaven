@@ -55,10 +55,9 @@ public class InvoiceService {
         if (student.getDepositPayable().signum() > 0) created.add(createDeposit(student));
         var today = LocalDate.now(BUSINESS_ZONE);
         var month = YearMonth.from(student.getStartDate());
-        var endDate = student.getVacatedDate() == null ? today : student.getVacatedDate().isBefore(today) ? student.getVacatedDate() : today;
-        var current = YearMonth.from(endDate);
+        var cutoffMonth = registrationInvoiceCutoff(student, today);
         if (!student.getStartDate().isAfter(today)) {
-            while (!month.isAfter(current)) {
+            while (!month.isAfter(cutoffMonth)) {
                 created.add(createRent(student, month, historicalIssueDate(student, month, today)));
                 month = month.plusMonths(1);
             }
@@ -69,6 +68,7 @@ public class InvoiceService {
     @Transactional
     public List<Invoice> generateDueRentInvoices() {
         var today = LocalDate.now(BUSINESS_ZONE);
+        if (!isAutomaticInvoiceWindow(today)) return invoices.findAll();
         var month = YearMonth.from(today);
         for (var student : students.findByStatusOrderByRegistrationNo(RecordStatus.ACTIVE)) {
             if (eligibleForMonth(student, month)) createRent(student, month, today);
@@ -90,7 +90,23 @@ public class InvoiceService {
     @Transactional
     public void scheduledRentGeneration() {
         var today = LocalDate.now(BUSINESS_ZONE);
-        if (!today.isBefore(YearMonth.from(today).atEndOfMonth().minusDays(7))) generateDueRentInvoices();
+        if (isAutomaticInvoiceWindow(today)) generateDueRentInvoices();
+    }
+
+    static boolean isAutomaticInvoiceWindow(LocalDate date) {
+        return !date.isBefore(YearMonth.from(date).atEndOfMonth().minusDays(7));
+    }
+
+    static YearMonth automaticInvoiceCutoff(LocalDate date) {
+        var current = YearMonth.from(date);
+        return isAutomaticInvoiceWindow(date) ? current : current.minusMonths(1);
+    }
+
+    private YearMonth registrationInvoiceCutoff(Student student, LocalDate today) {
+        if (student.getVacatedDate() != null && !student.getVacatedDate().isAfter(today)) {
+            return YearMonth.from(student.getVacatedDate());
+        }
+        return automaticInvoiceCutoff(today);
     }
 
     private Invoice createRent(Student student, YearMonth month, LocalDate issueDate) {
