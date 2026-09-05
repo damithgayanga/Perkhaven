@@ -106,6 +106,13 @@ type StudentProfileRequest = {
   emailStatus: string;
   createdAt: string;
 };
+type StudentAuditEntry = {
+  id: number;
+  createdAt: string;
+  actor: string;
+  action: string;
+  detail: string;
+};
 type StudentInvoice = {
   id: number;
   invoiceNo: string;
@@ -1566,6 +1573,7 @@ export default function Home() {
       {profile && (
         <Profile
           student={profile}
+          rooms={rooms}
           payments={payments.filter(
             (p) => p.registrationNo === profile.registrationNo,
           )}
@@ -17739,12 +17747,13 @@ function EditStudent({
             name="idNo"
             label="National ID no."
             defaultValue={student.idNo}
-            required
+            required={status === "Active"}
           />
           <PhoneField
             prefix="mobile"
             label="Mobile no."
             defaultValue={student.mobile}
+            required={status === "Active"}
           />
           <PhoneField
             prefix="whatsapp"
@@ -17756,12 +17765,14 @@ function EditStudent({
             label="Email address"
             type="email"
             defaultValue={student.email}
+            required={status === "Active"}
           />
           <Field
             name="address"
             label="Address"
             defaultValue={student.address}
             wide
+            required={status === "Active"}
           />
         </FormSection>
         <FormSection title="Education">
@@ -17781,7 +17792,6 @@ function EditStudent({
             name="emergency1Name"
             label="Contact 1 · name"
             defaultValue={student.emergency1Name}
-            required
           />
           <PhoneField
             prefix="emergency1Contact"
@@ -18735,6 +18745,7 @@ async function downloadStudentProfilePdf(student: Student) {
 
 function Profile({
   student,
+  rooms,
   payments,
   adjustments,
   profileRequests,
@@ -18745,6 +18756,7 @@ function Profile({
   studentUpdated,
 }: {
   student: Student;
+  rooms: Room[];
   payments: Payment[];
   adjustments: MonthlyAdjustment[];
   profileRequests: StudentProfileRequest[];
@@ -18755,9 +18767,10 @@ function Profile({
   studentUpdated: (student: Student) => void;
 }) {
   const [photoBusy, setPhotoBusy] = useState(false);
-  const [editingStayDates, setEditingStayDates] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
   const [profileAgreements, setProfileAgreements] = useState<AgreementRecord[]>([]);
   const [profileSettlements, setProfileSettlements] = useState<SettlementRecord[]>([]);
+  const [profileAudit, setProfileAudit] = useState<StudentAuditEntry[]>([]);
   const [agreementPreview, setAgreementPreview] = useState<{ entry: AgreementRecord; data: AgreementData } | null>(null);
   const [settlementPreview, setSettlementPreview] = useState<SettlementRecord | null>(null);
   const [settlementPreviewUrl, setSettlementPreviewUrl] = useState<string | null>(null);
@@ -18767,11 +18780,13 @@ function Profile({
     Promise.all([
       fetch("/api/v1/agreements").then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load agreements"))),
       fetch("/api/v1/checkout-settlements").then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load check-out settlements"))),
-    ]).then(([agreementResult, settlementResult]) => {
+      fetch(`/api/v1/students/${encodeURIComponent(student.registrationNo)}/history`).then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load resident edit history"))),
+    ]).then(([agreementResult, settlementResult, auditResult]) => {
       if (!active) return;
       setProfileAgreements((agreementResult.agreements || []).filter((entry: AgreementRecord) => entry.registrationNo === student.registrationNo));
       setProfileSettlements((settlementResult.settlements || []).filter((entry: SettlementRecord) => entry.registrationNo === student.registrationNo));
-    }).catch(() => { if (active) { setProfileAgreements([]); setProfileSettlements([]); } });
+      setProfileAudit(auditResult || []);
+    }).catch(() => { if (active) { setProfileAgreements([]); setProfileSettlements([]); setProfileAudit([]); } });
     return () => { active = false; };
   }, [student.registrationNo]);
   const latestTransfer = [...roomTransferRequests]
@@ -18826,7 +18841,7 @@ function Profile({
           <button onClick={() => void downloadStudentProfilePdf(student)}>
             ⇩ Download profile PDF
           </button>
-          <button onClick={() => setEditingStayDates(true)}>
+          <button onClick={() => setEditingProfile(true)}>
             Edit profile
           </button>
         </div>
@@ -19020,6 +19035,21 @@ function Profile({
         )}
         {tab === "Profile Change History" && (
           <div className="profile-change-history">
+            <div className="section-heading history-section-heading">
+              <div>
+                <p className="tag">ADMIN EDIT HISTORY</p>
+                <h2>Direct profile updates</h2>
+              </div>
+            </div>
+            <div className="tablewrap">
+              <table>
+                <thead><tr><th>DATE</th><th>USER</th><th>ACTION</th><th>CHANGES</th></tr></thead>
+                <tbody>
+                  {profileAudit.map((entry) => <tr key={entry.id}><td>{fmtDateTime(entry.createdAt)}</td><td>{entry.actor}</td><td>{entry.action}</td><td>{entry.detail || "—"}</td></tr>)}
+                  {!profileAudit.length && <tr><td colSpan={4}>No direct administrator edits have been recorded.</td></tr>}
+                </tbody>
+              </table>
+            </div>
             <ProfileRequestHistory requests={profileRequests} />
             <div className="section-heading history-section-heading">
               <div>
@@ -19076,13 +19106,14 @@ function Profile({
           </div>
         )}
       </div>
-      {editingStayDates && (
-        <StayDatesModal
+      {editingProfile && (
+        <EditStudent
           student={student}
-          close={() => setEditingStayDates(false)}
-          save={(updated) => {
+          rooms={rooms}
+          close={() => setEditingProfile(false)}
+          save={(updated: Student) => {
             studentUpdated(updated);
-            setEditingStayDates(false);
+            setEditingProfile(false);
           }}
         />
       )}
@@ -20028,124 +20059,6 @@ function StudentPaymentProfile({
   );
 }
 
-function StayDatesModal({
-  student,
-  close,
-  save,
-}: {
-  student: Student;
-  close: () => void;
-  save: (student: Student) => void;
-}) {
-  const [error, setError] = useState("");
-  const [noticeDate, setNoticeDate] = useState(
-    student.noticeToVacateDate || "",
-  );
-  const [vacatedDate, setVacatedDate] = useState(student.vacatedDate || "");
-  const [allSettled, setAllSettled] = useState(Boolean(student.allSettled));
-  const [contractAgreementStatus, setContractAgreementStatus] = useState<
-    "Signed" | "Not signed"
-  >(student.contractAgreementStatus === "Signed" ? "Signed" : "Not signed");
-  const canSettle = Boolean(noticeDate && vacatedDate);
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError("");
-    const response = await fetch("/api/students", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        registrationNo: student.registrationNo,
-        noticeToVacateDate: noticeDate,
-        vacatedDate,
-        allSettled,
-        contractAgreementStatus,
-      }),
-    });
-    const result = await response.json();
-    if (!response.ok)
-      return setError(result.error || "Unable to update stay dates");
-    save(result.student);
-  };
-  return (
-    <div className="backdrop">
-      <form className="modal paymentmodal" onSubmit={submit}>
-        <ModalHead
-          tag="RESIDENT PROFILE"
-          title="Update stay dates"
-          text={`${student.registrationNo} · ${student.firstName} ${student.lastName}`}
-          close={close}
-        />
-        <FormSection title="Check-Out details">
-          <Field
-            name="noticeToVacateDate"
-            label="Notice to Check-Out date"
-            type="date"
-            value={noticeDate}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-              setNoticeDate(event.target.value);
-              if (!event.target.value) setAllSettled(false);
-            }}
-          />
-          <Field
-            name="vacatedDate"
-            label="Check-Out date"
-            type="date"
-            value={vacatedDate}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-              setVacatedDate(event.target.value);
-              if (!event.target.value) setAllSettled(false);
-            }}
-          />
-          <label>
-            Contract agreement status
-            <select
-              value={contractAgreementStatus}
-              onChange={(event) =>
-                setContractAgreementStatus(
-                  event.target.value as "Signed" | "Not signed",
-                )
-              }
-            >
-              <option value="Not signed">Not signed</option>
-              <option value="Signed">Signed</option>
-            </select>
-          </label>
-          <label className="settlement-check">
-            <input
-              type="checkbox"
-              checked={allSettled}
-              disabled={!canSettle}
-              onChange={(event) => setAllSettled(event.target.checked)}
-            />
-            <span>
-              <b>All settled</b>
-              <small>
-                Confirm only after the resident has vacated and every account is
-                settled.
-              </small>
-            </span>
-          </label>
-          <div className="departure-preview">
-            <small>STATUS AFTER SAVING</small>
-            <span
-              className={`status ${
-                allSettled && canSettle
-                  ? "inactive"
-                  : noticeDate
-                    ? "notice"
-                    : "active"
-              }`}
-            >
-              ● {allSettled && canSettle ? "Inactive" : "Active"}
-            </span>
-          </div>
-          {error && <p className="form-error">{error}</p>}
-        </FormSection>
-        <Actions close={close} text="Save departure status" />
-      </form>
-    </div>
-  );
-}
 function Detail({ title, rows }: { title: string; rows: string[][] }) {
   return (
     <article className="detail">

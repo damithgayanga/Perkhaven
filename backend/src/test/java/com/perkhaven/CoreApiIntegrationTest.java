@@ -43,7 +43,7 @@ class CoreApiIntegrationTest {
                 .andExpect(jsonPath("$.telephone").value("+94 11 234 5678"))
                 .andExpect(jsonPath("$.email").value("hello@perkhaven.example"));
         mvc.perform(get("/api/v1/students").header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(3));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].registrationNo").value("PH-2026-001"));
         mvc.perform(get("/api/v1/rooms").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].roomNo").value("101"));
         mvc.perform(get("/api-docs")).andExpect(status().isOk())
@@ -331,6 +331,34 @@ class CoreApiIntegrationTest {
                 .andExpect(jsonPath("$.items[0].invoiceType").value("Rent"))
                 .andExpect(jsonPath("$.items[0].month").value("2025-04"))
                 .andExpect(jsonPath("$.items[4].invoiceType").value("Deposit"));
+    }
+
+    @Test
+    void adminProfileEditRecordsChangedFieldsInResidentHistory() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var original = """
+                {"registrationNo":"PH-EDIT-903","firstName":"Edit","lastName":"Original","idNo":"EDIT903",
+                 "mobile":"+94770000903","email":"edit.903@example.com","address":"Original address",
+                 "registeredDate":"2026-08-01","startDate":"2099-08-01","monthlyRent":20000.00,
+                 "depositPayable":0.00,"status":"ACTIVE","emergencyContacts":[]}
+                """;
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(original))
+                .andExpect(status().isCreated());
+
+        var updated = original.replace("\"Original\"", "\"Updated\"")
+                .replace("Original address", "Updated address");
+        mvc.perform(put("/api/v1/students/PH-EDIT-903").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(updated))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lastName").value("Updated"))
+                .andExpect(jsonPath("$.address").value("Updated address"));
+
+        mvc.perform(get("/api/v1/students/PH-EDIT-903/history").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].action").value("UPDATE"))
+                .andExpect(jsonPath("$[0].detail").value(org.hamcrest.Matchers.containsString("Last name")))
+                .andExpect(jsonPath("$[0].detail").value(org.hamcrest.Matchers.containsString("Permanent address")));
     }
 
     @Test

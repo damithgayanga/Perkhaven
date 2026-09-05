@@ -8,6 +8,7 @@ import com.perkhaven.billing.InvoiceType;
 import com.perkhaven.billing.PaymentRepository;
 import com.perkhaven.common.api.PageResponse;
 import com.perkhaven.common.audit.AuditService;
+import com.perkhaven.common.audit.AuditEventRepository;
 import com.perkhaven.common.domain.RecordStatus;
 import com.perkhaven.common.error.ConflictException;
 import com.perkhaven.common.error.NotFoundException;
@@ -61,11 +62,13 @@ public class StudentController {
     private final InvoiceRepository invoices;
     private final PaymentRepository payments;
     private final StudentRegistrationNumberService registrationNumbers;
+    private final AuditEventRepository auditEvents;
     public StudentController(StudentRepository students, RoomRepository rooms, StorageService storage, AuditService audit,
                              InvoiceService invoiceService, InvoiceRepository invoices, PaymentRepository payments,
-                             StudentRegistrationNumberService registrationNumbers) {
+                             StudentRegistrationNumberService registrationNumbers, AuditEventRepository auditEvents) {
         this.students = students; this.rooms = rooms; this.storage = storage; this.audit = audit; this.invoiceService = invoiceService;
         this.invoices = invoices; this.payments = payments; this.registrationNumbers = registrationNumbers;
+        this.auditEvents = auditEvents;
     }
 
     @GetMapping
@@ -96,6 +99,15 @@ public class StudentController {
     @PreAuthorize("@authorizationService.canAccessStudent(#registrationNo, authentication)")
     @Transactional(readOnly = true)
     public StudentResponse get(@PathVariable String registrationNo) { return StudentResponse.from(find(registrationNo)); }
+
+    @GetMapping("/{registrationNo}/history")
+    @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN')")
+    @Transactional(readOnly = true)
+    public List<HistoryResponse> history(@PathVariable String registrationNo) {
+        find(registrationNo);
+        return auditEvents.findByEntityTypeAndEntityReferenceIgnoreCaseOrderByCreatedAtDesc("STUDENT", registrationNo)
+                .stream().map(HistoryResponse::from).toList();
+    }
 
     @GetMapping("/me")
     @PreAuthorize("hasRole('STUDENT')")
@@ -128,7 +140,9 @@ public class StudentController {
     @Transactional
     public StudentResponse update(@PathVariable String registrationNo, @Valid @RequestBody StudentRequest request) {
         if (!registrationNo.equalsIgnoreCase(request.registrationNo())) throw new ConflictException("Registration number cannot be changed.");
-        var student = find(registrationNo); apply(student, request);
+        var student = find(registrationNo);
+        var previous = profileValues(student);
+        apply(student, request);
         if (student.getVacatedDate() != null) {
             invoices.findByStudentRegistrationNoIgnoreCaseOrderByIssueDateDesc(registrationNo).stream()
                     .filter(i -> i.getInvoiceType() == InvoiceType.RENT && i.getBillingMonth() != null
@@ -140,7 +154,7 @@ public class StudentController {
         // Backlog residents may have been created before historical invoice
         // generation was enabled. Re-running is idempotent and fills any gaps.
         if (student.getStatus() == RecordStatus.INACTIVE) invoiceService.createRegistrationInvoices(student);
-        audit.record("UPDATE", "STUDENT", registrationNo, null);
+        audit.record("UPDATE", "STUDENT", registrationNo, changedFields(previous, student));
         return StudentResponse.from(student);
     }
 
@@ -220,6 +234,33 @@ public class StudentController {
 
     private Student find(String registrationNo) { return students.findByRegistrationNoIgnoreCase(registrationNo).orElseThrow(() -> new NotFoundException("Student not found.")); }
 
+    private java.util.Map<String, String> profileValues(Student student) {
+        var values = new java.util.LinkedHashMap<String, String>();
+        values.put("First name", text(student.getFirstName())); values.put("Middle names", text(student.getMiddleNames()));
+        values.put("Last name", text(student.getLastName())); values.put("Date of birth", text(student.getDateOfBirth()));
+        values.put("National ID no.", text(student.getIdNo())); values.put("Mobile no.", text(student.getMobile()));
+        values.put("WhatsApp no.", text(student.getWhatsapp())); values.put("Email address", text(student.getEmail()));
+        values.put("University", text(student.getUniversity())); values.put("Current year", text(student.getCurrentYear()));
+        values.put("Permanent address", text(student.getAddress())); values.put("Medical condition", text(student.getMedicalConditionDetails()));
+        values.put("Registration date", text(student.getRegisteredDate())); values.put("Accommodation start date", text(student.getStartDate()));
+        values.put("Notice to Check-Out date", text(student.getNoticeToVacateDate())); values.put("Check-Out date", text(student.getVacatedDate()));
+        values.put("Hostel Room", student.getRoom() == null ? "" : student.getRoom().getRoomNo());
+        values.put("Monthly accommodation fee", text(student.getMonthlyRent())); values.put("Security Deposit", text(student.getDepositPayable()));
+        values.put("Status", text(student.getStatus()));
+        values.put("Emergency contacts", student.getEmergencyContacts().stream()
+                .map(contact -> String.join(" / ", text(contact.getName()), text(contact.getPhone()), text(contact.getRelationship()), text(contact.getAddress())))
+                .reduce((left, right) -> left + "; " + right).orElse(""));
+        return values;
+    }
+
+    private String changedFields(java.util.Map<String, String> previous, Student student) {
+        var current = profileValues(student);
+        var changed = previous.keySet().stream().filter(key -> !previous.get(key).equals(current.get(key))).toList();
+        return changed.isEmpty() ? "No profile values changed" : "Updated: " + String.join(", ", changed);
+    }
+
+    private String text(Object value) { return value == null ? "" : value.toString(); }
+
     public record EmergencyContactRequest(@NotBlank String name, @NotBlank String phone, @NotBlank String relationship, String address) {}
     public record StudentRequest(String registrationNo, @NotBlank String firstName, String middleNames,
                                  @NotBlank String lastName, LocalDate dateOfBirth,
@@ -231,6 +272,11 @@ public class StudentController {
                                  @Size(max = 2) List<@Valid EmergencyContactRequest> emergencyContacts) {}
     public record EmergencyContactResponse(int order, String name, String phone, String relationship, String address) {
         static EmergencyContactResponse from(StudentEmergencyContact contact) { return new EmergencyContactResponse(contact.getOrder(), contact.getName(), contact.getPhone(), contact.getRelationship(), contact.getAddress()); }
+    }
+    public record HistoryResponse(Long id, Instant createdAt, String actor, String action, String detail) {
+        static HistoryResponse from(com.perkhaven.common.audit.AuditEvent event) {
+            return new HistoryResponse(event.getId(), event.getCreatedAt(), event.getActor(), event.getAction(), event.getDetail());
+        }
     }
     public record StudentResponse(Long id, long version, Instant createdAt, Instant updatedAt, String registrationNo,
                                   String firstName, String middleNames, String lastName, LocalDate dateOfBirth,

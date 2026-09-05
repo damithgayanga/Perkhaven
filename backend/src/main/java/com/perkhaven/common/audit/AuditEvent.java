@@ -25,4 +25,8 @@ public class AuditEvent extends AuditedEntity {
     }
 
     public String getActor() { return actor; }
+    public String getAction() { return action; }
+    public String getEntityType() { return entityType; }
+    public String getEntityReference() { return entityReference; }
+    public String getDetail() { return detail; }
 }
