@@ -362,6 +362,43 @@ class CoreApiIntegrationTest {
     }
 
     @Test
+    void adminCanChangeResidentLifecycleStatusAndReactivateWithoutCheckoutDates() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var activeWithFutureCheckout = """
+                {"registrationNo":"PH-STATUS-904","firstName":"Status","lastName":"Resident","idNo":"STATUS904",
+                 "mobile":"+94770000904","email":"status.904@example.com","address":"Test address",
+                 "registeredDate":"2026-08-01","startDate":"2098-01-01","noticeToVacateDate":"2099-03-01",
+                 "vacatedDate":"2099-04-01","monthlyRent":20000.00,"depositPayable":0.00,
+                 "status":"ACTIVE","emergencyContacts":[]}
+                """;
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(activeWithFutureCheckout))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.vacatedDate").value("2099-04-01"));
+
+        var inactive = activeWithFutureCheckout.replace("\"status\":\"ACTIVE\"", "\"status\":\"INACTIVE\"");
+        mvc.perform(put("/api/v1/students/PH-STATUS-904").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(inactive))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("INACTIVE"));
+
+        var reactivated = """
+                {"registrationNo":"PH-STATUS-904","firstName":"Status","lastName":"Resident","idNo":"STATUS904",
+                 "mobile":"+94770000904","email":"status.904@example.com","address":"Test address",
+                 "registeredDate":"2026-08-01","startDate":"2098-01-01","noticeToVacateDate":null,
+                 "vacatedDate":null,"monthlyRent":20000.00,"depositPayable":0.00,
+                 "status":"ACTIVE","emergencyContacts":[]}
+                """;
+        mvc.perform(put("/api/v1/students/PH-STATUS-904").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(reactivated))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.noticeToVacateDate").doesNotExist())
+                .andExpect(jsonPath("$.vacatedDate").doesNotExist());
+    }
+
+    @Test
     void backendAssignsSequentialRegistrationNumbersAndAdminCanDeleteStudentWithFinancialRecords() throws Exception {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
         var firstStudent = """
