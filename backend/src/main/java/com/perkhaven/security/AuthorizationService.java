@@ -8,12 +8,15 @@ import org.springframework.stereotype.Service;
 @Service("authorizationService")
 public class AuthorizationService {
     private static final Set<String> MANAGEMENT = Set.of("ROLE_ADMIN", "ROLE_CHAIRMAN", "ROLE_MANAGING_DIRECTOR");
+    private final StudentIdentityResolver studentIdentity;
+
+    public AuthorizationService(StudentIdentityResolver studentIdentity) {
+        this.studentIdentity = studentIdentity;
+    }
 
     public boolean canAccessStudent(String registrationNo, Authentication authentication) {
         if (hasAny(authentication, MANAGEMENT)) return true;
-        return authentication instanceof JwtAuthenticationToken token
-                && "STUDENT".equals(token.getToken().getClaimAsString("subject_type"))
-                && registrationNo.equalsIgnoreCase(token.getToken().getClaimAsString("subject_reference"));
+        return studentIdentity.canAccess(registrationNo, authentication);
     }
 
     public boolean canAccessStaff(String staffNo, Authentication authentication) {

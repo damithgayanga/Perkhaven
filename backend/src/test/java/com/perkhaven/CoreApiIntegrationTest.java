@@ -90,6 +90,28 @@ class CoreApiIntegrationTest {
     }
 
     @Test
+    void cognitoAccessTokenUsernameLinksStudentWithoutEmailClaim() throws Exception {
+        var cognitoAccessToken = jwt()
+                .jwt(value -> value.claim("username", "PH-2026-001")
+                        .claim("cognito:groups", java.util.List.of("STUDENT")))
+                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+
+        mvc.perform(get("/api/v1/students/me").with(cognitoAccessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.registrationNo").value("PH-2026-001"));
+        mvc.perform(get("/api/v1/students/PH-2026-001").with(cognitoAccessToken))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/students/PH-2026-002").with(cognitoAccessToken))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(get("/api/v1/students/me").with(jwt()
+                        .jwt(value -> value.claim("username", "nethmi.p@email.com"))
+                        .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.registrationNo").value("PH-2026-001"));
+    }
+
+    @Test
     void staffCanReadOwnProfileButNotAnotherProfile() throws Exception {
         var token = token("staff@perkhaven.demo", "PerkStaff#2026");
         mvc.perform(get("/api/v1/staff/STF-2026-002").header("Authorization", "Bearer " + token))

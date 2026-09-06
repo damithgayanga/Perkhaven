@@ -1,30 +1,25 @@
 package com.perkhaven.billing;
 
+import com.perkhaven.security.StudentIdentityResolver;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service("paymentAuthorizationService")
 public class PaymentAuthorizationService {
     private final PaymentRepository payments;
+    private final StudentIdentityResolver studentIdentity;
 
-    public PaymentAuthorizationService(PaymentRepository payments) {
+    public PaymentAuthorizationService(PaymentRepository payments, StudentIdentityResolver studentIdentity) {
         this.payments = payments;
+        this.studentIdentity = studentIdentity;
     }
 
     @Transactional(readOnly = true)
     public boolean canAccess(long paymentId, Authentication authentication) {
-        if (!(authentication instanceof JwtAuthenticationToken token)
-                || authentication.getAuthorities().stream().noneMatch(authority -> "ROLE_STUDENT".equals(authority.getAuthority()))) {
-            return false;
-        }
-        var reference = token.getToken().getClaimAsString("subject_reference");
-        var email = token.getToken().getClaimAsString("email");
-        return payments.findById(paymentId).map(payment -> {
-            var student = payment.getInvoice().getStudent();
-            return (reference != null && student.getRegistrationNo().equalsIgnoreCase(reference))
-                    || (email != null && student.getEmail().equalsIgnoreCase(email));
-        }).orElse(false);
+        return payments.findById(paymentId)
+                .map(payment -> studentIdentity.canAccess(
+                        payment.getInvoice().getStudent().getRegistrationNo(), authentication))
+                .orElse(false);
     }
 }

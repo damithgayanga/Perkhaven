@@ -13,6 +13,7 @@ import com.perkhaven.common.domain.RecordStatus;
 import com.perkhaven.common.error.ConflictException;
 import com.perkhaven.common.error.NotFoundException;
 import com.perkhaven.identity.StudentAccessRequestedEvent;
+import com.perkhaven.security.StudentIdentityResolver;
 import com.perkhaven.storage.StorageService;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.validation.Valid;
@@ -66,14 +67,16 @@ public class StudentController {
     private final StudentRegistrationNumberService registrationNumbers;
     private final AuditEventRepository auditEvents;
     private final ApplicationEventPublisher events;
+    private final StudentIdentityResolver studentIdentity;
     public StudentController(StudentRepository students, RoomRepository rooms, StorageService storage, AuditService audit,
                              InvoiceService invoiceService, InvoiceRepository invoices, PaymentRepository payments,
                              StudentRegistrationNumberService registrationNumbers, AuditEventRepository auditEvents,
-                             ApplicationEventPublisher events) {
+                             ApplicationEventPublisher events, StudentIdentityResolver studentIdentity) {
         this.students = students; this.rooms = rooms; this.storage = storage; this.audit = audit; this.invoiceService = invoiceService;
         this.invoices = invoices; this.payments = payments; this.registrationNumbers = registrationNumbers;
         this.auditEvents = auditEvents;
         this.events = events;
+        this.studentIdentity = studentIdentity;
     }
 
     @GetMapping
@@ -118,9 +121,8 @@ public class StudentController {
     @PreAuthorize("hasRole('STUDENT')")
     @Transactional(readOnly = true)
     public StudentResponse me(JwtAuthenticationToken authentication) {
-        var email = authentication.getToken().getClaimAsString("email");
-        if (email == null || email.isBlank()) throw new NotFoundException("Student profile not found for this account.");
-        return StudentResponse.from(students.findByEmailIgnoreCase(email).orElseThrow(() -> new NotFoundException("Student profile not found for this account.")));
+        return StudentResponse.from(studentIdentity.resolve(authentication)
+                .orElseThrow(() -> new NotFoundException("Student profile not found for this account.")));
     }
 
     @PostMapping

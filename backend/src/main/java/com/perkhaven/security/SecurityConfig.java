@@ -78,6 +78,7 @@ public class SecurityConfig {
             var principal = firstNonBlank(
                     jwt.getClaimAsString("preferred_username"),
                     jwt.getClaimAsString("cognito:username"),
+                    jwt.getClaimAsString("username"),
                     jwt.getClaimAsString("email"),
                     jwt.getSubject(),
                     "authenticated-user");

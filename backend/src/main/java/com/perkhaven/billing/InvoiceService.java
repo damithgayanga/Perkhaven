@@ -5,6 +5,7 @@ import com.perkhaven.common.sequence.NumberSequenceRepository;
 import com.perkhaven.common.error.NotFoundException;
 import com.perkhaven.student.Student;
 import com.perkhaven.student.StudentRepository;
+import com.perkhaven.security.StudentIdentityResolver;
 import com.perkhaven.storage.StorageService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -15,7 +16,6 @@ import java.util.List;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,13 +30,16 @@ public class InvoiceService {
     private final InvoicePdfService pdf;
     private final NumberSequenceRepository sequences;
     private final StorageService storage;
+    private final StudentIdentityResolver studentIdentity;
     private final String hostelTelephone;
     private final String hostelEmail;
     public InvoiceService(InvoiceRepository invoices, StudentRepository students, NotificationOutboxRepository notifications, InvoicePdfService pdf, NumberSequenceRepository sequences, StorageService storage,
                           @Value("${perkhaven.hostel.telephone}") String hostelTelephone,
-                          @Value("${perkhaven.hostel.email}") String hostelEmail) {
+                          @Value("${perkhaven.hostel.email}") String hostelEmail,
+                          StudentIdentityResolver studentIdentity) {
         this.invoices = invoices; this.students = students; this.notifications = notifications; this.pdf = pdf; this.sequences = sequences; this.storage = storage;
         this.hostelTelephone = hostelTelephone; this.hostelEmail = hostelEmail;
+        this.studentIdentity = studentIdentity;
     }
 
     public Invoice createDeposit(Student student) {
@@ -143,22 +146,14 @@ public class InvoiceService {
 
     @Transactional(readOnly = true)
     public boolean canAccess(long id, Authentication authentication) {
-        if (!(authentication instanceof JwtAuthenticationToken token)) return false;
-        var reference = token.getToken().getClaimAsString("subject_reference");
-        var email = token.getToken().getClaimAsString("email");
-        return invoices.findById(id).map(value ->
-                (reference != null && value.getStudent().getRegistrationNo().equalsIgnoreCase(reference)) ||
-                (email != null && value.getStudent().getEmail().equalsIgnoreCase(email))).orElse(false);
+        return invoices.findById(id)
+                .map(value -> studentIdentity.canAccess(value.getStudent().getRegistrationNo(), authentication))
+                .orElse(false);
     }
 
     @Transactional(readOnly = true)
     public boolean canAccessRegistration(String registrationNo, Authentication authentication) {
-        if (registrationNo == null || !(authentication instanceof JwtAuthenticationToken token)) return false;
-        var reference = token.getToken().getClaimAsString("subject_reference");
-        if (reference != null && registrationNo.equalsIgnoreCase(reference)) return true;
-        var email = token.getToken().getClaimAsString("email");
-        return email != null && students.findByEmailIgnoreCase(email)
-                .map(student -> student.getRegistrationNo().equalsIgnoreCase(registrationNo)).orElse(false);
+        return studentIdentity.canAccess(registrationNo, authentication);
     }
 
     private void enqueue(Invoice invoice) {
