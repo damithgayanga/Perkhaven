@@ -1536,7 +1536,7 @@ export default function Home() {
       )}
       {paymentForm && (
         <AddPayment
-          students={active}
+          students={students}
           shopTenants={shopTenants.filter(
             (tenant) => tenant.status === "Active",
           )}
@@ -1767,6 +1767,7 @@ function LimitedPortal({
       <WardenPortal
         user={user}
         activeStudents={activeStudents}
+        paymentStudents={students}
         shopTenants={shopTenants}
         shopUtilityBills={shopUtilityBills}
         payments={payments}
@@ -1964,7 +1965,7 @@ function LimitedPortal({
       )}
       {paymentForm && (
         <AddPayment
-          students={activeStudents}
+          students={students}
           shopTenants={shopTenants.filter(
             (tenant) => tenant.status === "Active",
           )}
@@ -2030,6 +2031,7 @@ function StaffAccessLocked({
 function WardenPortal({
   user,
   activeStudents,
+  paymentStudents,
   shopTenants,
   shopUtilityBills,
   payments,
@@ -2045,6 +2047,7 @@ function WardenPortal({
 }: {
   user: AuthenticatedUser;
   activeStudents: Student[];
+  paymentStudents: Student[];
   shopTenants: ShopTenant[];
   shopUtilityBills: ShopUtilityBill[];
   payments: Payment[];
@@ -2218,7 +2221,7 @@ function WardenPortal({
       </section>
       {paymentForm && (
         <AddPayment
-          students={activeStudents}
+          students={paymentStudents}
           shopTenants={shopTenants.filter(
             (tenant) => tenant.status === "Active",
           )}
@@ -18094,6 +18097,7 @@ function AddPayment({
   };
   const addAnother = () => {
     setReg("");
+    setDueInvoices([]);
     setShopReg("");
     setType("Rent");
     setMonth("2026-01");
@@ -18193,6 +18197,7 @@ function AddPayment({
                     (item) => item.registrationNo === registrationNo,
                   );
                   setReg(registrationNo);
+                  setDueInvoices([]);
                   if (student) {
                     void fetch(`/api/v1/invoices?registrationNo=${encodeURIComponent(registrationNo)}&size=100`)
                       .then(async (response) => { if (!response.ok) throw new Error("Unable to load due invoices"); return (await response.json()) as ApiPage<StudentInvoice>; })
@@ -18211,7 +18216,10 @@ function AddPayment({
               >
                 <option value="">Select registration no.</option>
                 {students.map((x) => (
-                  <option key={x.id}>{x.registrationNo}</option>
+                  <option key={x.id} value={x.registrationNo}>
+                    {x.registrationNo} · {x.firstName} {x.lastName}
+                    {x.status === "Inactive" ? " · Inactive" : ""}
+                  </option>
                 ))}
               </select>
             </label>
