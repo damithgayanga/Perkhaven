@@ -42,8 +42,20 @@ public class Staff extends AuditedEntity {
         firstName=data.firstName(); lastName=data.lastName(); idNo=data.idNo(); mobile=data.mobile(); whatsapp=data.whatsapp(); email=data.email();
         address=data.address(); this.designation=designation; monthlySalary=data.monthlySalary(); accountHolderName=data.accountHolderName(); accountNo=data.accountNo();
         bank=data.bank(); bankBranch=data.bankBranch(); registeredDate=data.registeredDate(); startDate=data.startDate(); finishDate=data.finishDate(); status=data.status();
-        emergencyContacts.clear();
-        if(data.emergencyContacts()!=null)for(int i=0;i<data.emergencyContacts().size();i++){var c=data.emergencyContacts().get(i);emergencyContacts.add(new StaffEmergencyContact(this,i+1,c.name(),c.phone(),c.relationship(),c.address()));}
+        updateEmergencyContacts(data.emergencyContacts());
+    }
+    private void updateEmergencyContacts(List<ContactData> requestedContacts) {
+        var requested = requestedContacts == null ? List.<ContactData>of() : requestedContacts;
+        var retained = Math.min(emergencyContacts.size(), requested.size());
+        for (int i = 0; i < retained; i++) {
+            var contact = requested.get(i);
+            emergencyContacts.get(i).update(i + 1, contact.name(), contact.phone(), contact.relationship(), contact.address());
+        }
+        for (int i = emergencyContacts.size(); i < requested.size(); i++) {
+            var contact = requested.get(i);
+            emergencyContacts.add(new StaffEmergencyContact(this, i + 1, contact.name(), contact.phone(), contact.relationship(), contact.address()));
+        }
+        while (emergencyContacts.size() > requested.size()) emergencyContacts.remove(emergencyContacts.size() - 1);
     }
     public void updatePhoto(String key, String name, String contentType, long size) { photoKey = key; photoName = name; photoContentType = contentType; photoSize = size; }
     public String getStaffNo(){return staffNo;} public String getFirstName(){return firstName;} public String getLastName(){return lastName;}

@@ -432,6 +432,83 @@ class CoreApiIntegrationTest {
     }
 
     @Test
+    void adminCanChangeCheckoutDatesWithoutRecreatingEmergencyContacts() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var original = """
+                {"registrationNo":"PH-CHECKOUT-906","firstName":"Checkout","lastName":"Resident",
+                 "registeredDate":"2026-01-01","startDate":"2026-01-01","noticeToVacateDate":"2026-11-01",
+                 "vacatedDate":"2026-11-30","monthlyRent":27500.00,"depositPayable":82500.00,
+                 "status":"INACTIVE","emergencyContacts":[
+                   {"name":"First Contact","phone":"+94770000961","relationship":"Mother","address":"First address"},
+                   {"name":"Second Contact","phone":"+94770000962","relationship":"Father","address":"Second address"}
+                 ]}
+                """;
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(original))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.emergencyContacts.length()").value(2));
+
+        var updated = original
+                .replace("2026-11-01", "2026-12-01")
+                .replace("2026-11-30", "2026-12-31");
+        mvc.perform(put("/api/v1/students/PH-CHECKOUT-906").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(updated))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.noticeToVacateDate").value("2026-12-01"))
+                .andExpect(jsonPath("$.vacatedDate").value("2026-12-31"))
+                .andExpect(jsonPath("$.emergencyContacts.length()").value(2))
+                .andExpect(jsonPath("$.emergencyContacts[0].name").value("First Contact"))
+                .andExpect(jsonPath("$.emergencyContacts[1].name").value("Second Contact"));
+    }
+
+    @Test
+    void adminCanEditStaffWithoutRecreatingEmergencyContacts() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var original = """
+                {"staffNo":"STF-CONTACT-907","firstName":"Staff","lastName":"Original","idNo":"STAFF907",
+                 "mobile":"+94770000907","email":"staff.907@example.com","address":"Staff address",
+                 "monthlySalary":50000.00,"registeredDate":"2026-01-01","startDate":"2026-01-01",
+                 "status":"ACTIVE","emergencyContacts":[
+                   {"name":"Staff Contact","phone":"+94770007907","relationship":"Sibling","address":"Contact address"}
+                 ]}
+                """;
+        mvc.perform(post("/api/v1/staff").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(original))
+                .andExpect(status().isCreated());
+
+        mvc.perform(put("/api/v1/staff/STF-CONTACT-907").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(original.replace("Original", "Updated")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lastName").value("Updated"))
+                .andExpect(jsonPath("$.emergencyContacts.length()").value(1))
+                .andExpect(jsonPath("$.emergencyContacts[0].name").value("Staff Contact"));
+    }
+
+    @Test
+    void adminCanEditShopTenantWithoutRecreatingEmergencyContacts() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var original = """
+                {"registrationNo":"SHOP-CONTACT-908","shopNo":"Shop 2","businessName":"Original Business",
+                 "firstName":"Tenant","lastName":"Resident","idNo":"TENANT908","mobile":"+94770000908",
+                 "email":"tenant.908@example.com","address":"Tenant address","registeredDate":"2026-01-01",
+                 "startDate":"2026-01-01","endDate":"2026-12-31","monthlyRent":35000.00,
+                 "depositPayable":105000.00,"status":"INACTIVE","emergencyContacts":[
+                   {"name":"Tenant Contact","phone":"+94770007908","relationship":"Sibling","address":"Contact address"}
+                 ]}
+                """;
+        mvc.perform(post("/api/v1/shop-tenants").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(original))
+                .andExpect(status().isCreated());
+
+        mvc.perform(put("/api/v1/shop-tenants/SHOP-CONTACT-908").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(original.replace("Original Business", "Updated Business")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.businessName").value("Updated Business"))
+                .andExpect(jsonPath("$.emergencyContacts.length()").value(1))
+                .andExpect(jsonPath("$.emergencyContacts[0].name").value("Tenant Contact"));
+    }
+
+    @Test
     void addingEmailToIncompleteResidentRequestsCognitoInvitationAfterSave() throws Exception {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
         var incomplete = """

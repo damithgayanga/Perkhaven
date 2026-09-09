@@ -14,5 +14,6 @@ public class StaffEmergencyContact extends AuditedEntity {
     @Column(length=600) private String address;
     protected StaffEmergencyContact(){}
     StaffEmergencyContact(Staff staff,int order,String name,String phone,String relationship,String address){this.staff=staff;this.order=order;this.name=name;this.phone=phone;this.relationship=relationship;this.address=address;}
+    void update(int order,String name,String phone,String relationship,String address){this.order=order;this.name=name;this.phone=phone;this.relationship=relationship;this.address=address;}
     public int getOrder(){return order;} public String getName(){return name;} public String getPhone(){return phone;} public String getRelationship(){return relationship;} public String getAddress(){return address;}
 }

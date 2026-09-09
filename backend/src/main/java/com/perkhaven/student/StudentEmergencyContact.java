@@ -29,6 +29,13 @@ public class StudentEmergencyContact extends AuditedEntity {
     StudentEmergencyContact(Student student, int order, String name, String phone, String relationship, String address) {
         this.student = student; this.order = order; this.name = name; this.phone = phone; this.relationship = relationship; this.address = address;
     }
+    void update(int order, String name, String phone, String relationship, String address) {
+        this.order = order;
+        this.name = name;
+        this.phone = phone;
+        this.relationship = relationship;
+        this.address = address;
+    }
     public int getOrder() { return order; }
     public String getName() { return name; }
     public String getPhone() { return phone; }

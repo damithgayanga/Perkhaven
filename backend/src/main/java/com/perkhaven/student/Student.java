@@ -86,12 +86,22 @@ public class Student extends AuditedEntity {
         this.medicalConditionDetails = data.hasMedicalCondition() ? data.medicalConditionDetails() : null;
         this.registeredDate = data.registeredDate(); this.startDate = data.startDate(); this.vacatedDate = data.vacatedDate(); this.noticeToVacateDate = data.noticeToVacateDate(); this.room = room;
         this.monthlyRent = data.monthlyRent(); this.depositPayable = data.depositPayable(); this.status = data.status();
-        emergencyContacts.clear();
-        if (data.emergencyContacts() != null) {
-            for (int i = 0; i < data.emergencyContacts().size(); i++) {
-                var contact = data.emergencyContacts().get(i);
-                emergencyContacts.add(new StudentEmergencyContact(this, i + 1, contact.name(), contact.phone(), contact.relationship(), contact.address()));
-            }
+        updateEmergencyContacts(data.emergencyContacts());
+    }
+
+    private void updateEmergencyContacts(List<EmergencyContactData> requestedContacts) {
+        var requested = requestedContacts == null ? List.<EmergencyContactData>of() : requestedContacts;
+        var retained = Math.min(emergencyContacts.size(), requested.size());
+        for (int i = 0; i < retained; i++) {
+            var contact = requested.get(i);
+            emergencyContacts.get(i).update(i + 1, contact.name(), contact.phone(), contact.relationship(), contact.address());
+        }
+        for (int i = emergencyContacts.size(); i < requested.size(); i++) {
+            var contact = requested.get(i);
+            emergencyContacts.add(new StudentEmergencyContact(this, i + 1, contact.name(), contact.phone(), contact.relationship(), contact.address()));
+        }
+        while (emergencyContacts.size() > requested.size()) {
+            emergencyContacts.remove(emergencyContacts.size() - 1);
         }
     }
     public void updatePhoto(String key, String name, String contentType, long size) {
