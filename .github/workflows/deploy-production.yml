@@ -325,6 +325,53 @@ jobs:
         working-directory: infrastructure/environments/production
         run: terraform apply -lock-timeout=10m -auto-approve production.tfplan
 
+  backend-refresh-after-infrastructure:
+    name: Refresh backend after infrastructure deployment
+    needs: [aws-ready, changes, infrastructure-deploy]
+    if: ${{ always() && needs.aws-ready.outputs.ready == 'true' && needs.changes.outputs.infrastructure == 'true' && needs.changes.outputs.backend != 'true' && needs.infrastructure-deploy.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.5"
+
+      - name: Configure Terraform credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ env.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read backend service outputs
+        id: infra
+        working-directory: infrastructure/environments/production
+        shell: bash
+        run: |
+          terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
+          echo "cluster=$(terraform output -raw ecs_cluster_name)" >> "$GITHUB_OUTPUT"
+          echo "service=$(terraform output -raw ecs_service_name)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure application deployment credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Refresh backend tasks with current secrets
+        env:
+          CLUSTER: ${{ steps.infra.outputs.cluster }}
+          SERVICE: ${{ steps.infra.outputs.service }}
+        run: |
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
+            --desired-count 1 \
+            --force-new-deployment >/dev/null
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
+
   backend-deploy:
     name: Migrations and backend deployment
     needs: [aws-ready, changes, test, app-build, infrastructure-deploy]
