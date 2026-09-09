@@ -82,20 +82,13 @@ resource "aws_cloudwatch_event_rule" "database_secret_rotation" {
   count = var.enable_database_secret_rotation_redeploy ? 1 : 0
 
   name        = "${local.name}-database-secret-rotation"
-  description = "Restart ECS after RDS promotes a rotated master password."
+  description = "Restart ECS whenever Secrets Manager promotes a new RDS master password."
   event_pattern = jsonencode({
-    source      = ["aws.secretsmanager"]
-    "detail-type" = ["AWS API Call via CloudTrail"]
+    source        = ["aws.secretsmanager"]
+    "detail-type" = ["Secret Label Updated"]
+    resources     = [aws_db_instance.postgres.master_user_secret[0].secret_arn]
     detail = {
-      eventSource = ["secretsmanager.amazonaws.com"]
-      eventName   = ["UpdateSecretVersionStage"]
-      userIdentity = {
-        invokedBy = ["rds.amazonaws.com"]
-      }
-      requestParameters = {
-        secretId     = [aws_db_instance.postgres.master_user_secret[0].secret_arn]
-        versionStage = ["AWSCURRENT"]
-      }
+      labelUpdated = ["AWSCURRENT"]
     }
   })
 }
