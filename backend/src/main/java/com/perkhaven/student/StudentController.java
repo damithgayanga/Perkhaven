@@ -6,6 +6,7 @@ import com.perkhaven.billing.InvoiceService;
 import com.perkhaven.billing.InvoiceRepository;
 import com.perkhaven.billing.InvoiceType;
 import com.perkhaven.billing.PaymentRepository;
+import com.perkhaven.billing.PaymentEvidenceSubmissionRepository;
 import com.perkhaven.common.api.PageResponse;
 import com.perkhaven.common.audit.AuditService;
 import com.perkhaven.common.audit.AuditEventRepository;
@@ -64,16 +65,18 @@ public class StudentController {
     private final InvoiceService invoiceService;
     private final InvoiceRepository invoices;
     private final PaymentRepository payments;
+    private final PaymentEvidenceSubmissionRepository paymentEvidence;
     private final StudentRegistrationNumberService registrationNumbers;
     private final AuditEventRepository auditEvents;
     private final ApplicationEventPublisher events;
     private final StudentIdentityResolver studentIdentity;
     public StudentController(StudentRepository students, RoomRepository rooms, StorageService storage, AuditService audit,
                              InvoiceService invoiceService, InvoiceRepository invoices, PaymentRepository payments,
+                             PaymentEvidenceSubmissionRepository paymentEvidence,
                              StudentRegistrationNumberService registrationNumbers, AuditEventRepository auditEvents,
                              ApplicationEventPublisher events, StudentIdentityResolver studentIdentity) {
         this.students = students; this.rooms = rooms; this.storage = storage; this.audit = audit; this.invoiceService = invoiceService;
-        this.invoices = invoices; this.payments = payments; this.registrationNumbers = registrationNumbers;
+        this.invoices = invoices; this.payments = payments; this.paymentEvidence = paymentEvidence; this.registrationNumbers = registrationNumbers;
         this.auditEvents = auditEvents;
         this.events = events;
         this.studentIdentity = studentIdentity;
@@ -176,7 +179,8 @@ public class StudentController {
         var student = find(registrationNo);
         var studentId = student.getId();
         var photoKey = student.getPhotoKey();
-        var evidenceKeys = payments.findEvidenceKeysByStudentId(studentId);
+        var evidenceKeys = new java.util.HashSet<>(payments.findEvidenceKeysByStudentId(studentId));
+        evidenceKeys.addAll(paymentEvidence.findEvidenceKeysByStudentId(studentId));
         payments.deleteByStudentId(studentId);
         invoices.deleteByStudentId(studentId);
         students.delete(find(registrationNo));

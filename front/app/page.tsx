@@ -152,9 +152,10 @@ type StudentPaymentEvidence = {
   month: string;
   amount: number;
   submittedDate: string;
+  settlementMethod: string;
   evidenceName: string;
   remarks: string;
-  status: "Pending" | "Approved" | "Rejected";
+  status: "Pending" | "Processed" | "Rejected";
   reviewNote: string;
   reviewedBy: string;
   reviewedAt: string;
@@ -812,6 +813,8 @@ export default function Home() {
         setStudents([student]);
         const response = await fetch(`/api/v1/invoices?registrationNo=${encodeURIComponent(student.registrationNo)}&size=100`);
         if (response.ok) setStudentInvoices(((await response.json()) as ApiPage<StudentInvoice>).items);
+        const evidenceResponse = await fetch("/api/v1/payment-evidence-submissions");
+        if (evidenceResponse.ok) setPaymentEvidence((await evidenceResponse.json()).evidence || []);
       }).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load resident profile"));
       return;
     }
@@ -829,6 +832,7 @@ export default function Home() {
       page<Record<string, unknown>>("/api/v1/shop-tenants").then((result) => setShopTenants(result.items.map(tenantFromApi))),
       page<StudentInvoice>("/api/v1/invoices").then((result) => setStudentInvoices(result.items)),
       fetch("/api/v1/payments").then(async (response) => { if (!response.ok) throw new Error("Unable to load payments"); setPayments(await response.json()); }),
+      fetch("/api/v1/payment-evidence-submissions").then(async (response) => { if (!response.ok) throw new Error("Unable to load payment evidence"); setPaymentEvidence((await response.json()).evidence || []); }),
     ]).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load registers"));
   }, [currentUser]);
   useEffect(() => {
@@ -4097,14 +4101,14 @@ function StudentEvidencePanel({
     form.set("invoiceId", String(nextInvoice.id));
     form.set("registrationNo", student.registrationNo);
     form.set("amount", amount);
-    const response = await fetch("/api/payment-evidence", {
+    const response = await fetch("/api/v1/payment-evidence-submissions", {
       method: "POST",
       body: form,
     });
     const result = await response.json();
     setSaving(false);
     if (!response.ok)
-      return setError(result.error || "Unable to submit evidence");
+      return setError(result.detail || result.error || "Unable to submit evidence");
     evidenceAdded(result.evidence);
     event.currentTarget.reset();
     setPartialAmount("");
@@ -4190,6 +4194,23 @@ function StudentEvidencePanel({
               <small>Enter the total amount shown on the uploaded slip.</small>
             )}
           </label>
+          <label>
+            Payment date
+            <input
+              name="paidDate"
+              type="date"
+              max={new Date().toISOString().slice(0, 10)}
+              defaultValue={new Date().toISOString().slice(0, 10)}
+              required
+            />
+          </label>
+          <label>
+            Settlement method
+            <select name="settlementMethod" defaultValue="Bank Transfer" required>
+              <option>Bank Transfer</option>
+              <option>Cash</option>
+            </select>
+          </label>
           <label className="file">
             Payment slip (PDF or photo)
             <input
@@ -4260,8 +4281,8 @@ function StudentEvidencePanel({
                   <td>
                     <a
                       className="evidence-link"
-                      href={`/api/payment-evidence/file?id=${entry.id}&download=1`}
-                      onClick={(event) => void previewProtectedFile(event, `/api/payment-evidence/file?id=${entry.id}&download=1`)}
+                      href={`/api/v1/payment-evidence-submissions/${entry.id}/file?download=true`}
+                      onClick={(event) => void downloadProtectedFile(event, `/api/v1/payment-evidence-submissions/${entry.id}/file?download=true`, entry.evidenceName)}
                     >
                       ⬇ {entry.evidenceName}
                     </a>
@@ -4344,7 +4365,7 @@ function StudentEvidencePanelPaymentModeLegacy({
     form.set("invoiceId", String(nextInvoice.id));
     form.set("registrationNo", student.registrationNo);
     form.set("amount", amount);
-    const response = await fetch("/api/payment-evidence", {
+    const response = await fetch("/api/v1/payment-evidence-submissions", {
       method: "POST",
       body: form,
     });
@@ -4464,8 +4485,8 @@ function StudentEvidencePanelPaymentModeLegacy({
                   <td>
                     <a
                       className="evidence-link"
-                      href={`/api/payment-evidence/file?id=${entry.id}&download=1`}
-                      onClick={(event) => void previewProtectedFile(event, `/api/payment-evidence/file?id=${entry.id}&download=1`)}
+                      href={`/api/v1/payment-evidence-submissions/${entry.id}/file?download=true`}
+                      onClick={(event) => void downloadProtectedFile(event, `/api/v1/payment-evidence-submissions/${entry.id}/file?download=true`, entry.evidenceName)}
                     >
                       ⬇ {entry.evidenceName}
                     </a>
@@ -4525,7 +4546,7 @@ function StudentEvidencePanelLegacy({
     const form = new FormData(event.currentTarget);
     form.set("invoiceId", String(nextInvoice.id));
     form.set("registrationNo", student.registrationNo);
-    const response = await fetch("/api/payment-evidence", {
+    const response = await fetch("/api/v1/payment-evidence-submissions", {
       method: "POST",
       body: form,
     });
@@ -7042,7 +7063,7 @@ function ActionList(props: ActionListProps) {
   ): "Pending" | "Completed" | "Closed" =>
     entry.status === "Pending"
       ? "Pending"
-      : entry.status === "Approved"
+      : entry.status === "Processed"
         ? "Completed"
         : "Closed";
   const expenseStatus = (entry: Expense): "Pending" | "Completed" | "Closed" =>
@@ -7225,25 +7246,22 @@ function ActionPaymentEvidence({
     [error, setError] = useState("");
   const decide = async (
     entry: StudentPaymentEvidence,
-    decision: "Approved" | "Rejected",
+    decision: "Processed" | "Rejected",
   ) => {
     setBusy(entry.id);
     setError("");
-    const response = await fetch("/api/payment-evidence", {
+    const response = await fetch(`/api/v1/payment-evidence-submissions/${entry.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        id: entry.id,
         decision,
         reviewNote: notes[entry.id] || "",
-        reviewedBy: reviewer,
-        paidDate: entry.submittedDate,
       }),
     });
     const result = await response.json();
     setBusy(0);
     if (!response.ok)
-      return setError(result.error || "Unable to review submission");
+      return setError(result.detail || result.error || "Unable to review submission");
     reviewed(result.evidence, result.payment);
   };
   return (
@@ -7289,8 +7307,8 @@ function ActionPaymentEvidence({
                   <td>
                     <a
                       className="evidence-link"
-                      href={`/api/payment-evidence/file?id=${entry.id}`}
-                      onClick={(event) => void previewProtectedFile(event, `/api/payment-evidence/file?id=${entry.id}`)}
+                      href={`/api/v1/payment-evidence-submissions/${entry.id}/file`}
+                      onClick={(event) => void previewProtectedFile(event, `/api/v1/payment-evidence-submissions/${entry.id}/file`)}
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -7331,9 +7349,9 @@ function ActionPaymentEvidence({
                         <button
                           className="primary compact"
                           disabled={busy === entry.id}
-                          onClick={() => decide(entry, "Approved")}
+                          onClick={() => decide(entry, "Processed")}
                         >
-                          Approve
+                          Mark processed
                         </button>
                       </div>
                     ) : (
@@ -8271,25 +8289,22 @@ function PaymentEvidenceLedger({
     [error, setError] = useState("");
   const decide = async (
     entry: StudentPaymentEvidence,
-    decision: "Approved" | "Rejected",
+    decision: "Processed" | "Rejected",
   ) => {
     setBusy(entry.id);
     setError("");
-    const response = await fetch("/api/payment-evidence", {
+    const response = await fetch(`/api/v1/payment-evidence-submissions/${entry.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        id: entry.id,
         decision,
         reviewNote: notes[entry.id] || "",
-        reviewedBy: reviewer,
-        paidDate: entry.submittedDate,
       }),
     });
     const result = await response.json();
     setBusy(0);
     if (!response.ok)
-      return setError(result.error || "Unable to review submission");
+      return setError(result.detail || result.error || "Unable to review submission");
     reviewed(result.evidence, result.payment);
   };
   return (
@@ -8300,7 +8315,8 @@ function PaymentEvidenceLedger({
           <h2>Payment Evidence</h2>
           <span>
             Evidence remains here until Admin, Chairman or Managing Director
-            verifies it. Approval creates a verified Payment Ledger transaction.
+            processes it. Processing creates an unverified Payment Ledger transaction
+            ready for the normal reconciliation workflow.
           </span>
         </div>
       </div>
@@ -8344,8 +8360,8 @@ function PaymentEvidenceLedger({
                 <td>
                   <a
                     className="review-button"
-                    href={`/api/payment-evidence/file?id=${entry.id}`}
-                    onClick={(event) => void previewProtectedFile(event, `/api/payment-evidence/file?id=${entry.id}`)}
+                    href={`/api/v1/payment-evidence-submissions/${entry.id}/file`}
+                    onClick={(event) => void previewProtectedFile(event, `/api/v1/payment-evidence-submissions/${entry.id}/file`)}
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -8376,9 +8392,9 @@ function PaymentEvidenceLedger({
                       <button
                         className="primary compact"
                         disabled={busy === entry.id}
-                        onClick={() => decide(entry, "Approved")}
+                        onClick={() => decide(entry, "Processed")}
                       >
-                        Approve
+                        Mark processed
                       </button>
                     </div>
                   ) : (
@@ -19458,7 +19474,7 @@ function StudentPaymentProfile({
   const [invoiceEntries, setInvoiceEntries] = useState<StudentInvoice[]>([]);
   const [invoicePreview, setInvoicePreview] = useState<StudentInvoice | null>(null);
   useEffect(() => {
-    fetch("/api/payment-evidence")
+    fetch("/api/v1/payment-evidence-submissions")
       .then((response) => response.json())
       .then((result) =>
         setEvidenceEntries(
@@ -19502,7 +19518,7 @@ function StudentPaymentProfile({
       .map((entry) => [entry.linkedPaymentId, entry]),
   );
   const awaitingEvidence = evidenceEntries
-    .filter((entry) => !entry.linkedPaymentId && entry.status !== "Approved")
+    .filter((entry) => !entry.linkedPaymentId && entry.status !== "Processed")
     .sort((a, b) => b.submittedDate.localeCompare(a.submittedDate));
   const currentMonth = `${new Date().getFullYear()}-${String(
     new Date().getMonth() + 1,
@@ -19995,8 +20011,8 @@ function StudentPaymentProfile({
                     <td>
                       <a
                         className="evidence-link"
-                        href={`/api/payment-evidence/file?id=${entry.id}&download=1`}
-                        onClick={(event) => void previewProtectedFile(event, `/api/payment-evidence/file?id=${entry.id}&download=1`)}
+                        href={`/api/v1/payment-evidence-submissions/${entry.id}/file?download=true`}
+                        onClick={(event) => void downloadProtectedFile(event, `/api/v1/payment-evidence-submissions/${entry.id}/file?download=true`, entry.evidenceName)}
                       >
                         ⬇ {entry.evidenceName}
                       </a>

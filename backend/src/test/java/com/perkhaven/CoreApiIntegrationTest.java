@@ -207,6 +207,89 @@ class CoreApiIntegrationTest {
     }
 
     @Test
+    void studentEvidenceIsOwnedStoredAndProcessedExactlyOnceIntoPaymentLedger() throws Exception {
+        var adminToken = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var today = LocalDate.now(ZoneId.of("Asia/Colombo"));
+        var registrationNo = "PH-EVIDENCE-903";
+        var studentRequest = """
+                {"registrationNo":"%s","firstName":"Evidence","lastName":"Student","idNo":"E903",
+                 "mobile":"+94770000903","whatsapp":"+94770000903","email":"evidence903@example.com",
+                 "university":"Test","currentYear":"Year 1","address":"Test","registeredDate":"%s",
+                 "startDate":"%s","roomNo":"105","monthlyRent":25000.00,"depositPayable":1000.00,
+                 "status":"ACTIVE","emergencyContacts":[]}
+                """.formatted(registrationNo, today, today);
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(studentRequest))
+                .andExpect(status().isCreated());
+
+        var invoiceResponse = mvc.perform(get("/api/v1/invoices").param("registrationNo", registrationNo)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        var invoiceId = mapper.readTree(invoiceResponse).at("/items/0/id").asLong();
+        var studentJwt = jwt().jwt(value -> value.claim("preferred_username", registrationNo)
+                        .claim("cognito:groups", java.util.List.of("STUDENT")))
+                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+        var evidence = new MockMultipartFile("evidence", "bank-slip.pdf", "application/pdf",
+                new byte[]{'%', 'P', 'D', 'F', '-', '1'});
+        var submitted = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .multipart("/api/v1/payment-evidence-submissions").file(evidence)
+                        .param("invoiceId", String.valueOf(invoiceId)).param("amount", "400.00")
+                        .param("paidDate", today.toString()).param("settlementMethod", "Bank Transfer")
+                        .param("remarks", "Student bank transfer").with(studentJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evidence.status").value("Pending"))
+                .andExpect(jsonPath("$.evidence.registrationNo").value(registrationNo))
+                .andExpect(jsonPath("$.evidence.linkedPaymentId").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        var submissionId = mapper.readTree(submitted).at("/evidence/id").asLong();
+
+        var duplicateEvidence = new MockMultipartFile("evidence", "duplicate.pdf", "application/pdf",
+                new byte[]{'%', 'P', 'D', 'F'});
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .multipart("/api/v1/payment-evidence-submissions").file(duplicateEvidence)
+                        .param("invoiceId", String.valueOf(invoiceId)).param("amount", "400.00")
+                        .param("paidDate", today.toString()).param("settlementMethod", "Bank Transfer")
+                        .with(studentJwt))
+                .andExpect(status().isConflict());
+
+        mvc.perform(get("/api/v1/payment-evidence-submissions/{id}/file", submissionId).with(studentJwt))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    if (!MediaType.APPLICATION_PDF_VALUE.equals(result.getResponse().getContentType()))
+                        throw new AssertionError("Expected payment evidence PDF");
+                    if (result.getResponse().getContentAsByteArray().length != 6)
+                        throw new AssertionError("Expected stored evidence bytes");
+                });
+        mvc.perform(get("/api/v1/payment-evidence-submissions").with(studentJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evidence.length()").value(1));
+
+        var processed = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .patch("/api/v1/payment-evidence-submissions/{id}", submissionId)
+                        .header("Authorization", "Bearer " + adminToken).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"decision\":\"Processed\",\"reviewNote\":\"Slip checked\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evidence.status").value("Processed"))
+                .andExpect(jsonPath("$.evidence.linkedPaymentId").isNumber())
+                .andExpect(jsonPath("$.payment.transactionId").isString())
+                .andExpect(jsonPath("$.payment.verified").value(false))
+                .andReturn().getResponse().getContentAsString();
+        var paymentId = mapper.readTree(processed).at("/payment/id").asLong();
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .patch("/api/v1/payment-evidence-submissions/{id}", submissionId)
+                        .header("Authorization", "Bearer " + adminToken).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"decision\":\"Processed\",\"reviewNote\":\"Repeated click\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payment.id").value(paymentId));
+        mvc.perform(get("/api/v1/invoices").param("registrationNo", registrationNo)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].paidAmount").value(400.0))
+                .andExpect(jsonPath("$.items[0].transactionIds.length()").value(1));
+    }
+
+    @Test
     void staffCanReadFinanceRegisters() throws Exception {
         var token = token("staff@perkhaven.demo", "PerkStaff#2026");
         var authorization = "Bearer " + token;
