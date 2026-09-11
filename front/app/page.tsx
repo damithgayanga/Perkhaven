@@ -3893,7 +3893,6 @@ function PdfDocumentPreviewModal({
   useEffect(() => {
     let active = true;
     let createdUrl = "";
-    setPdfUrl(""); setLoadError("");
     fetch(source).then(async (response) => {
       if (!response.ok) throw new Error("Unable to load this PDF.");
       const url = URL.createObjectURL(await response.blob());
@@ -4089,6 +4088,7 @@ function StudentEvidencePanel({
     : 0;
   const [paymentMode, setPaymentMode] = useState<"Full" | "Partial">("Full"),
     [partialAmount, setPartialAmount] = useState(""),
+    [selectedEvidence, setSelectedEvidence] = useState<File | null>(null),
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false);
   const amount = paymentMode === "Full" ? String(fullAmount) : partialAmount;
@@ -4112,6 +4112,7 @@ function StudentEvidencePanel({
     evidenceAdded(result.evidence);
     event.currentTarget.reset();
     setPartialAmount("");
+    setSelectedEvidence(null);
     setPaymentMode("Full");
   };
   return (
@@ -4211,15 +4212,32 @@ function StudentEvidencePanel({
               <option>Cash</option>
             </select>
           </label>
-          <label className="file">
+          <label className={`file evidence-file-picker ${selectedEvidence ? "has-selection" : ""}`}>
             Payment slip (PDF or photo)
             <input
               name="evidence"
               type="file"
-              accept="application/pdf,image/*"
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              onChange={(event) => {
+                setSelectedEvidence(event.target.files?.[0] || null);
+                setError("");
+              }}
               required
             />
-            <span>↑ Choose payment evidence</span>
+            <span aria-live="polite">
+              {selectedEvidence ? (
+                <>
+                  <strong>✓ Evidence attached</strong>
+                  <b>{selectedEvidence.name}</b>
+                  <small>{(selectedEvidence.size / 1024).toFixed(1)} KB · Click to replace</small>
+                </>
+              ) : (
+                <>
+                  <strong>↑ Choose payment evidence</strong>
+                  <small>PDF, JPEG, PNG or WebP</small>
+                </>
+              )}
+            </span>
           </label>
           <label>
             Remarks (optional)

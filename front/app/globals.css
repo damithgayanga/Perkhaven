@@ -2832,6 +2832,32 @@ mark {
   text-align: center;
   color: #2861a2;
 }
+.evidence-file-picker span {
+  display: grid;
+  gap: 5px;
+  cursor: pointer;
+}
+.evidence-file-picker span strong,
+.evidence-file-picker span b,
+.evidence-file-picker span small {
+  display: block;
+}
+.evidence-file-picker span b {
+  color: #173651;
+  overflow-wrap: anywhere;
+}
+.evidence-file-picker span small {
+  color: #6f7f91;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.evidence-file-picker.has-selection span {
+  border-color: #4d9c75;
+  background: #edf9f2;
+}
+.evidence-file-picker.has-selection span strong {
+  color: #197044;
+}
 .modalactions {
   position: sticky;
   bottom: 0;
