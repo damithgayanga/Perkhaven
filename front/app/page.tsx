@@ -5155,13 +5155,16 @@ function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
     // docx-preview cannot preserve those anchors reliably when the page is scaled,
     // so remove them here and add one shared, flow-based signature layout after
     // rendering. The same layout is then used by both preview and PDF export.
-    ["drawing", "pict"].forEach((tagName) => {
-      Array.from(parsed.getElementsByTagNameNS(wordNamespace, tagName)).forEach((node) => {
-        const text = node.textContent || "";
-        if (text.includes("Signature of the Proprietor") || text.includes("Signature of the Resident")) {
-          node.parentNode?.removeChild(node);
-        }
-      });
+    // Both modern DrawingML and legacy VML versions of each text box live in
+    // one mc:AlternateContent block. Removing only w:drawing/w:pict leaves an
+    // empty Choice/Fallback container, which docx-preview cannot parse (it
+    // dereferences the missing child's localName). Remove the complete wrapper
+    // so the package remains valid before the shared HTML signature is added.
+    Array.from(parsed.getElementsByTagNameNS("*", "AlternateContent")).forEach((alternateContent) => {
+      const text = alternateContent.textContent || "";
+      if (text.includes("Signature of the Proprietor") || text.includes("Signature of the Resident")) {
+        alternateContent.parentNode?.removeChild(alternateContent);
+      }
     });
     // Keep inventory rows intact across page boundaries and repeat its column
     // headings when a compatible document renderer continues the table.
