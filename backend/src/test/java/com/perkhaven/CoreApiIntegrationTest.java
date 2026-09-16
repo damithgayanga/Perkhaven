@@ -183,6 +183,12 @@ class CoreApiIntegrationTest {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         var otherPaymentId = mapper.readTree(otherPayment).get("id").asLong();
 
+        mvc.perform(get("/api/v1/payments")
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == %d)]".formatted(ownPaymentId)).isNotEmpty())
+                .andExpect(jsonPath("$[?(@.registrationNo != 'PH-2026-001')]").isEmpty());
+
         mvc.perform(get("/api/v1/payments/{id}/receipt", ownPaymentId)
                         .header("Authorization", "Bearer " + studentToken))
                 .andExpect(status().isOk())

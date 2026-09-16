@@ -815,6 +815,8 @@ export default function Home() {
         if (response.ok) setStudentInvoices(((await response.json()) as ApiPage<StudentInvoice>).items);
         const evidenceResponse = await fetch("/api/v1/payment-evidence-submissions");
         if (evidenceResponse.ok) setPaymentEvidence((await evidenceResponse.json()).evidence || []);
+        const paymentResponse = await fetch("/api/v1/payments");
+        if (paymentResponse.ok) setPayments(await paymentResponse.json());
       }).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load resident profile"));
       return;
     }
@@ -19520,6 +19522,7 @@ function StudentPaymentProfile({
   const deposits = payments
     .filter(
       (payment) =>
+        payment.registrationNo === student.registrationNo &&
         canonicalPaymentType(payment.type) === "Deposit" &&
         payment.paidAmount > 0,
     )
@@ -19527,6 +19530,7 @@ function StudentPaymentProfile({
   const rentReceipts = payments
     .filter(
       (payment) =>
+        payment.registrationNo === student.registrationNo &&
         canonicalPaymentType(payment.type) === "Rent" && payment.paidAmount > 0,
     )
     .sort((a, b) => transactionIdFor(b).localeCompare(transactionIdFor(a)));

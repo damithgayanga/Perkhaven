@@ -5,6 +5,7 @@ import com.perkhaven.common.error.NotFoundException;
 import com.perkhaven.common.sequence.NumberSequenceRepository;
 import com.perkhaven.storage.StorageService;
 import com.perkhaven.reconciliation.ReconciliationLinkRepository;
+import com.perkhaven.security.AuthorizationService;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -14,6 +15,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -36,9 +38,11 @@ public class PaymentController {
     private final NumberSequenceRepository sequences;
     private final PaymentReceiptPdfService receipts;
     private final ReconciliationLinkRepository reconciliationLinks;
-    public PaymentController(PaymentRepository payments, InvoiceRepository invoices, StorageService storage, AuditService audit, NumberSequenceRepository sequences, PaymentReceiptPdfService receipts, ReconciliationLinkRepository reconciliationLinks) {
+    private final AuthorizationService authorization;
+    public PaymentController(PaymentRepository payments, InvoiceRepository invoices, StorageService storage, AuditService audit, NumberSequenceRepository sequences, PaymentReceiptPdfService receipts, ReconciliationLinkRepository reconciliationLinks, AuthorizationService authorization) {
         this.payments = payments; this.invoices = invoices; this.storage = storage; this.audit = audit; this.sequences = sequences; this.receipts = receipts;
         this.reconciliationLinks = reconciliationLinks;
+        this.authorization = authorization;
     }
 
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -67,9 +71,19 @@ public class PaymentController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN')")
+    @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN','STUDENT')")
     @Transactional(readOnly = true)
-    public List<Response> list() { return payments.findAllByOrderByPaidDateDescIdDesc().stream().map(p -> Response.from(p, reconciliationLinks.findBySourceTypeAndSourceRecordId("Payment", p.getId()).isPresent())).toList(); }
+    public List<Response> list(Authentication authentication) {
+        var canManagePayments = authentication.getAuthorities().stream().anyMatch(authority ->
+                List.of("ROLE_ADMIN", "ROLE_CHAIRMAN", "ROLE_MANAGING_DIRECTOR", "ROLE_WARDEN")
+                        .contains(authority.getAuthority()));
+        return payments.findAllByOrderByPaidDateDescIdDesc().stream()
+                .filter(payment -> canManagePayments || authorization.canAccessStudent(
+                        payment.getInvoice().getStudent().getRegistrationNo(), authentication))
+                .map(payment -> Response.from(payment,
+                        reconciliationLinks.findBySourceTypeAndSourceRecordId("Payment", payment.getId()).isPresent()))
+                .toList();
+    }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
@@ -112,7 +126,7 @@ public class PaymentController {
     }
 
     @GetMapping("/{id}/evidence")
-    @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN')")
+    @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN') or @paymentAuthorizationService.canAccess(#id, authentication)")
     @Transactional(readOnly = true)
     public ResponseEntity<Resource> evidence(@PathVariable long id, @RequestParam(required = false) String invoiceNo) {
         var payment = payments.findById(id).orElseThrow(() -> new NotFoundException("Payment not found."));
