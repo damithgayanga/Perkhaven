@@ -5151,6 +5151,37 @@ function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
       spacing.setAttributeNS(wordNamespace, "w:before", "0");
       spacing.setAttributeNS(wordNamespace, "w:after", "0");
     });
+    // Word stores the two signature panels as absolutely positioned text boxes.
+    // docx-preview cannot preserve those anchors reliably when the page is scaled,
+    // so remove them here and add one shared, flow-based signature layout after
+    // rendering. The same layout is then used by both preview and PDF export.
+    ["drawing", "pict"].forEach((tagName) => {
+      Array.from(parsed.getElementsByTagNameNS(wordNamespace, tagName)).forEach((node) => {
+        const text = node.textContent || "";
+        if (text.includes("Signature of the Proprietor") || text.includes("Signature of the Resident")) {
+          node.parentNode?.removeChild(node);
+        }
+      });
+    });
+    // Keep inventory rows intact across page boundaries and repeat its column
+    // headings when a compatible document renderer continues the table.
+    Array.from(parsed.getElementsByTagNameNS(wordNamespace, "tbl")).forEach((table) => {
+      const rows = Array.from(table.children).filter((child) => child.localName === "tr");
+      rows.forEach((row, index) => {
+        let properties = Array.from(row.children).find((child) => child.localName === "trPr");
+        if (!properties) {
+          properties = parsed.createElementNS(wordNamespace, "w:trPr");
+          row.insertBefore(properties, row.firstChild);
+        }
+        Array.from(properties.children)
+          .filter((child) => child.localName === "trHeight")
+          .forEach((height) => properties!.removeChild(height));
+        if (!Array.from(properties.children).some((child) => child.localName === "cantSplit"))
+          properties.appendChild(parsed.createElementNS(wordNamespace, "w:cantSplit"));
+        if (index === 0 && !Array.from(properties.children).some((child) => child.localName === "tblHeader"))
+          properties.appendChild(parsed.createElementNS(wordNamespace, "w:tblHeader"));
+      });
+    });
     Array.from(parsed.getElementsByTagNameNS("http://schemas.openxmlformats.org/wordprocessingml/2006/main", "highlight")).forEach((node) => node.parentNode?.removeChild(node));
     const normalized = new XMLSerializer().serializeToString(parsed).replace(">single/<", single ? ">single<" : "><").replace(">sharing<", single ? "><" : ">sharing<").replace("haring basis shall be SLRS", single ? "ingle basis shall be SLRS" : "haring basis shall be SLRS");
     return normalized;
@@ -5167,6 +5198,148 @@ function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
   return xml;
 }
 async function buildAgreementBlob(data: AgreementData, signature?: AgreementSignature) { const [{ default: PizZip }, { default: Docxtemplater }] = await Promise.all([import("pizzip"), import("docxtemplater")]); const template = await fetch("/Agreement-Template.docx").then((response) => response.arrayBuffer()); const zip = new PizZip(template); ["word/document.xml", "word/footer1.xml", "word/footer2.xml"].forEach((path) => { const file = zip.file(path); if (file) zip.file(path, normalizeAgreementXml(file.asText(), path, data)); }); const document = new Docxtemplater(zip, { delimiters: { start: "[", end: "]" }, paragraphLoop: true, linebreaks: true }); document.render(agreementTemplateData(data, signature)); return document.getZip().generate({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }); }
+
+const agreementRenderedStyles = `
+  .docx table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
+  .docx table thead { display: table-header-group !important; }
+  .docx table tr { height: auto !important; break-inside: avoid !important; page-break-inside: avoid !important; }
+  .docx table td, .docx table th { height: auto !important; min-height: 0 !important; padding: 5px 6px !important; white-space: normal !important; overflow: visible !important; overflow-wrap: anywhere !important; vertical-align: top !important; line-height: 1.3 !important; }
+  .docx table td p, .docx table th p { margin-top: 0 !important; margin-bottom: 0 !important; line-height: 1.3 !important; }
+  .docx table tr.agreement-category-row td { font-weight: 700 !important; vertical-align: middle !important; background: #f3f5f7 !important; }
+  .agreement-signature-layout { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; gap: 42px !important; margin: 42px 0 8px !important; break-inside: avoid !important; page-break-inside: avoid !important; color: #000 !important; font-family: Arial, sans-serif !important; }
+  .agreement-signature-panel { min-width: 0 !important; font-size: 10px !important; line-height: 1.45 !important; }
+  .agreement-signature-panel > strong { display: block !important; min-height: 30px !important; font-size: 11px !important; }
+  .agreement-signature-line { height: 34px !important; border-bottom: 1px solid #000 !important; margin-bottom: 8px !important; }
+  .agreement-signature-panel p { margin: 0 !important; overflow-wrap: anywhere !important; }
+`;
+
+function prepareAgreementRenderedDocument(root: HTMLElement, data: AgreementData, signature?: AgreementSignature) {
+  if (!root.querySelector("style[data-agreement-render-style]")) {
+    const style = document.createElement("style");
+    style.dataset.agreementRenderStyle = "true";
+    style.textContent = agreementRenderedStyles;
+    root.prepend(style);
+  }
+  root.querySelectorAll<HTMLTableElement>("section.docx table").forEach((table) => {
+    if (!table.tHead && table.rows.length) {
+      const heading = document.createElement("thead");
+      table.insertBefore(heading, table.firstChild);
+      heading.appendChild(table.rows[0]);
+    }
+    Array.from(table.rows).forEach((row) => {
+      const label = (row.textContent || "").trim();
+      if (/^(Items for Personal Use|Sharing Items)$/i.test(label)) row.classList.add("agreement-category-row");
+    });
+  });
+  if (root.querySelector(".agreement-signature-layout")) return;
+  const firstArticle = root.querySelector<HTMLElement>("section.docx > article");
+  if (!firstArticle) return;
+  const layout = document.createElement("div");
+  layout.className = "agreement-signature-layout";
+  const panel = (heading: string, lines: string[]) => {
+    const container = document.createElement("div");
+    container.className = "agreement-signature-panel";
+    const title = document.createElement("strong");
+    title.textContent = heading;
+    const line = document.createElement("div");
+    line.className = "agreement-signature-line";
+    const details = document.createElement("p");
+    details.textContent = lines.join("\n");
+    details.style.whiteSpace = "pre-line";
+    container.append(title, line, details);
+    return container;
+  };
+  layout.append(
+    panel("Signature of the Proprietor's Representative", [
+      "Mahesh Tishantha (NIC 792272428V)",
+      "on behalf of Mrs. Warnakulasooriya Nadeesha Joanne Kumari Fernando",
+      "Date: __________________",
+    ]),
+    panel("Signature of the Resident", [
+      signature ? `${signature.name} (electronically signed)` : data.studentName,
+      `NIC: ${data.studentId || "—"}`,
+      `Date: ${signature ? fmtDate(signature.date) : "__________________"}`,
+    ]),
+  );
+  firstArticle.appendChild(layout);
+}
+
+type AgreementPageRange = {
+  start: number;
+  end: number;
+  repeatedHeader?: { start: number; end: number };
+};
+
+function agreementPageRanges(article: HTMLElement, availableHeight: number): AgreementPageRange[] {
+  const articleRect = article.getBoundingClientRect();
+  const relative = (value: number) => value - articleRect.top;
+  const boundaries: number[] = [];
+  const atomicRegions: Array<{ top: number; bottom: number }> = [];
+  const tables: Array<{ top: number; bottom: number; headerTop: number; headerBottom: number }> = [];
+  const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
+  let textNode = walker.nextNode();
+  while (textNode) {
+    if ((textNode.textContent || "").trim()) {
+      const range = document.createRange();
+      range.selectNodeContents(textNode);
+      Array.from(range.getClientRects()).forEach((rect) => boundaries.push(relative(rect.bottom) + 0.5));
+      range.detach();
+    }
+    textNode = walker.nextNode();
+  }
+  article.querySelectorAll<HTMLElement>("p, h1, h2, h3, h4, h5, h6, .agreement-signature-layout").forEach((element) => {
+    const rect = element.getBoundingClientRect();
+    boundaries.push(relative(rect.top), relative(rect.bottom));
+    if (element.classList.contains("agreement-signature-layout"))
+      atomicRegions.push({ top: relative(rect.top), bottom: relative(rect.bottom) });
+  });
+  article.querySelectorAll<HTMLTableElement>("table").forEach((table) => {
+    const tableRect = table.getBoundingClientRect();
+    const header = table.tHead || table.rows[0];
+    const headerRect = header.getBoundingClientRect();
+    tables.push({
+      top: relative(tableRect.top),
+      bottom: relative(tableRect.bottom),
+      headerTop: relative(headerRect.top),
+      headerBottom: relative(headerRect.bottom),
+    });
+    const rows = Array.from(table.rows);
+    rows.forEach((row, index) => {
+      const rect = row.getBoundingClientRect();
+      const region = { top: relative(rect.top), bottom: relative(rect.bottom) };
+      boundaries.push(region.top, region.bottom);
+      const next = rows[index + 1]?.getBoundingClientRect();
+      atomicRegions.push(row.classList.contains("agreement-category-row") && next
+        ? { top: region.top, bottom: relative(next.bottom) }
+        : region);
+    });
+  });
+  const ordered = [...new Set(boundaries.map((value) => Math.max(0, Math.min(articleRect.height, value)).toFixed(2)))]
+    .map(Number)
+    .sort((left, right) => left - right);
+  const ranges: AgreementPageRange[] = [];
+  let start = 0;
+  while (start < articleRect.height - 0.5) {
+    const continuedTable = tables.find((table) => start >= table.headerBottom - 0.5 && start < table.bottom - 0.5);
+    const repeatedHeader = continuedTable
+      ? { start: continuedTable.headerTop, end: continuedTable.headerBottom }
+      : undefined;
+    const usableHeight = Math.max(1, availableHeight - (repeatedHeader ? repeatedHeader.end - repeatedHeader.start : 0));
+    const limit = Math.min(articleRect.height, start + usableHeight);
+    const safe = ordered.filter((value) => {
+      if (value <= start + 0.75 || value > limit + 0.5) return false;
+      return !atomicRegions.some((region) =>
+        region.bottom - region.top <= usableHeight + 0.5 &&
+        value > region.top + 0.75 && value < region.bottom - 0.75,
+      );
+    }).at(-1);
+    const end = Math.min(articleRect.height, Math.max(start + 1, safe || limit));
+    ranges.push({ start, end, repeatedHeader });
+    start = end;
+  }
+  return ranges;
+}
+
 async function downloadAgreementPdf(data: AgreementData, filename: string, signature?: AgreementSignature) {
   const blob = await buildAgreementBlob(data, signature);
   const host = document.createElement("div");
@@ -5175,9 +5348,10 @@ async function downloadAgreementPdf(data: AgreementData, filename: string, signa
   try {
     const [{ renderAsync }, { default: html2canvas }, { jsPDF }] = await Promise.all([import("docx-preview"), import("html2canvas"), import("jspdf")]);
     await renderAsync(blob, host, undefined, { inWrapper: true, breakPages: true, ignoreWidth: false, ignoreHeight: false });
+    prepareAgreementRenderedDocument(host, data, signature);
     await Promise.all(Array.from(host.querySelectorAll("img")).map((image) => image.complete ? Promise.resolve() : new Promise<void>((resolve) => { image.addEventListener("load", () => resolve(), { once: true }); image.addEventListener("error", () => resolve(), { once: true }); })));
     const exportStyle = document.createElement("style");
-    exportStyle.textContent = ".docx, .docx * { hyphens: none !important; -webkit-hyphens: none !important; }";
+    exportStyle.textContent = ".docx, .docx * { hyphens: none !important; -webkit-hyphens: none !important; }" + agreementRenderedStyles;
     host.appendChild(exportStyle);
     const sections = Array.from(host.querySelectorAll<HTMLElement>("section.docx"));
     if (!sections.length) throw new Error("The agreement did not contain any printable pages.");
@@ -5186,7 +5360,7 @@ async function downloadAgreementPdf(data: AgreementData, filename: string, signa
     const logoImage = `data:image/png;base64,${await blobBase64(logoBlob)}`;
     let outputPage = 0;
 
-    for (const [sectionIndex, section] of sections.entries()) {
+    for (const section of sections) {
       const article = section.querySelector<HTMLElement>(":scope > article");
       if (!article) continue;
       const numbering = new Map<string, { major: number; minor: number }>();
@@ -5229,22 +5403,10 @@ async function downloadAgreementPdf(data: AgreementData, filename: string, signa
       const bodyPageHeight = (pageHeight - topPadding - bottomPadding) * .9;
       const contentWidth = sectionRect.width - leftPadding - rightPadding;
       const bodyCanvas = await html2canvas(article, { scale: 1.35, backgroundColor: "#ffffff", useCORS: true });
-      const boundaries = Array.from(article.querySelectorAll<HTMLElement>("p, table, h1, h2, h3, h4, h5, h6"))
-        .map((child) => child.getBoundingClientRect().bottom - articleRect.top)
-        .filter((value) => value > 0)
-        .sort((a, b) => a - b);
-      const ranges: Array<[number, number]> = [];
-      let start = 0;
-      while (start < articleRect.height - 0.5) {
-        const limit = Math.min(articleRect.height, start + bodyPageHeight);
-        const safeEnd = boundaries.filter((value) => value > start + 0.5 && value <= limit + 0.5).at(-1);
-        const end = safeEnd || limit;
-        ranges.push([start, Math.max(start + 1, end)]);
-        start = end;
-      }
+      const ranges = agreementPageRanges(article, bodyPageHeight);
 
       const scaleY = bodyCanvas.height / articleRect.height;
-      for (const [rangeIndex, [rangeStart, rangeEnd]] of ranges.entries()) {
+      for (const { start: rangeStart, end: rangeEnd, repeatedHeader } of ranges) {
         if (outputPage) pdf.addPage("a4", "portrait");
         pdf.addImage(logoImage, "PNG", 31, 6.5, 22, 22, "agreement-logo", "FAST");
         pdf.setFont("helvetica", "bold");
@@ -5254,36 +5416,34 @@ async function downloadAgreementPdf(data: AgreementData, filename: string, signa
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(7);
         pdf.text("P I T I P A N A   ·   H O M A G A M A", 60, 22.5);
-        const sourceY = Math.max(0, Math.floor(rangeStart * scaleY));
-        const sourceHeight = Math.min(bodyCanvas.height - sourceY, Math.ceil((rangeEnd - rangeStart) * scaleY));
-        const pageBody = document.createElement("canvas");
-        pageBody.width = bodyCanvas.width;
-        pageBody.height = Math.max(1, sourceHeight);
-        const pageContext = pageBody.getContext("2d");
-        if (pageContext) {
-          pageContext.fillStyle = "#ffffff";
-          pageContext.fillRect(0, 0, pageBody.width, pageBody.height);
-          pageContext.drawImage(bodyCanvas, 0, sourceY, bodyCanvas.width, sourceHeight, 0, 0, bodyCanvas.width, sourceHeight);
+        const contentWidthMm = contentWidth * 210 / sectionRect.width;
+        const millimetresPerPixel = contentWidthMm / contentWidth;
+        const bodyTopMm = topPadding * 297 / pageHeight;
+        const xMm = leftPadding * 210 / sectionRect.width;
+        const canvasSlice = (sliceStart: number, sliceEnd: number) => {
+          const sourceY = Math.max(0, Math.floor(sliceStart * scaleY));
+          const sourceHeight = Math.min(bodyCanvas.height - sourceY, Math.ceil((sliceEnd - sliceStart) * scaleY));
+          const slice = document.createElement("canvas");
+          slice.width = bodyCanvas.width;
+          slice.height = Math.max(1, sourceHeight);
+          const context = slice.getContext("2d");
+          if (context) {
+            context.fillStyle = "#ffffff";
+            context.fillRect(0, 0, slice.width, slice.height);
+            context.drawImage(bodyCanvas, 0, sourceY, bodyCanvas.width, sourceHeight, 0, 0, bodyCanvas.width, sourceHeight);
+          }
+          return slice;
+        };
+        let contentTopMm = bodyTopMm;
+        if (repeatedHeader) {
+          const header = canvasSlice(repeatedHeader.start, repeatedHeader.end);
+          const headerHeight = (repeatedHeader.end - repeatedHeader.start) * millimetresPerPixel;
+          pdf.addImage(header.toDataURL("image/jpeg", .92), "JPEG", xMm, contentTopMm, contentWidthMm, headerHeight, undefined, "FAST");
+          contentTopMm += headerHeight;
         }
-        const renderedHeight = (rangeEnd - rangeStart) * (210 - (leftPadding + rightPadding) * 210 / sectionRect.width) / contentWidth;
-        pdf.addImage(pageBody.toDataURL("image/jpeg", .9), "JPEG", leftPadding * 210 / sectionRect.width, topPadding * 297 / pageHeight, contentWidth * 210 / sectionRect.width, renderedHeight, undefined, "FAST");
-        if (sectionIndex === 0 && rangeIndex === ranges.length - 1) {
-          const signatureTop = Math.min(220, Math.max(175, topPadding * 297 / pageHeight + renderedHeight + 30));
-          pdf.setTextColor(0, 0, 0);
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(8);
-          pdf.text("Signature of the Proprietor's Representative", 31, signatureTop);
-          pdf.text("Signature of the Resident", 116, signatureTop);
-          pdf.setLineWidth(.2);
-          pdf.line(31, signatureTop + 12, 94, signatureTop + 12);
-          pdf.line(116, signatureTop + 12, 179, signatureTop + 12);
-          pdf.setFont("helvetica", "normal");
-          pdf.setFontSize(7);
-          pdf.text(["Mahesh Tishantha (NIC 792272428V)", "on behalf of", "Mrs. Warnakulasooriya Nadeesha Joanne", "Kumari Fernando", "Date: __________________"], 31, signatureTop + 18);
-          const residentSignature = signature ? `${signature.name} (electronically signed)` : data.studentName || "Variable 1";
-          const residentDate = signature ? fmtDate(signature.date) : "__________________";
-          pdf.text([residentSignature, `NIC: ${data.studentId || "Variable 2"}`, `Date: ${residentDate}`], 116, signatureTop + 18);
-        }
+        const pageBody = canvasSlice(rangeStart, rangeEnd);
+        const renderedHeight = (rangeEnd - rangeStart) * millimetresPerPixel;
+        pdf.addImage(pageBody.toDataURL("image/jpeg", .92), "JPEG", xMm, contentTopMm, contentWidthMm, renderedHeight, undefined, "FAST");
         outputPage += 1;
       }
     }
@@ -5304,7 +5464,24 @@ async function downloadAgreementPdf(data: AgreementData, filename: string, signa
     host.remove();
   }
 }
-function AgreementDocumentPreview({ data, signature }: { data: AgreementData; signature?: AgreementSignature }) { const target = useRef<HTMLDivElement>(null); const [error, setError] = useState(""); useEffect(() => { let active = true; buildAgreementBlob(data, signature).then(async (blob) => { if (!active || !target.current) return; target.current.innerHTML = ""; const { renderAsync } = await import("docx-preview"); await renderAsync(blob, target.current, undefined, { inWrapper: true, breakPages: true, ignoreWidth: false, ignoreHeight: false }); if (active) setError(""); }).catch((reason) => active && setError(reason instanceof Error ? reason.message : "Unable to preview agreement.")); return () => { active = false; }; }, [data, signature?.name, signature?.date]); return <div className="agreement-preview-shell">{error && <div className="error-banner">{error}</div>}<div ref={target} className="agreement-docx-preview" /></div>; }
+function AgreementDocumentPreview({ data, signature }: { data: AgreementData; signature?: AgreementSignature }) {
+  const target = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    buildAgreementBlob(data, signature).then(async (blob) => {
+      if (!active || !target.current) return;
+      target.current.innerHTML = "";
+      const { renderAsync } = await import("docx-preview");
+      await renderAsync(blob, target.current, undefined, { inWrapper: true, breakPages: true, ignoreWidth: false, ignoreHeight: false });
+      if (!active || !target.current) return;
+      prepareAgreementRenderedDocument(target.current, data, signature);
+      setError("");
+    }).catch((reason) => active && setError(reason instanceof Error ? reason.message : "Unable to preview agreement."));
+    return () => { active = false; };
+  }, [data, signature?.name, signature?.date]);
+  return <div className="agreement-preview-shell">{error && <div className="error-banner">{error}</div>}<div ref={target} className="agreement-docx-preview" /></div>;
+}
 
 function AgreementSettlementView({ students, staff, payments, invoices, studentUpdated }: { students: Student[]; staff: Staff[]; payments: Payment[]; invoices: StudentInvoice[]; studentUpdated: (student: Student) => void }) {
   const [section, setSection] = useState<"Agreement Template" | "Agreement Log" | "Check-Out Settlement Template" | "Check-Out Settlement Log">("Agreement Template");
