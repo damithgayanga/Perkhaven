@@ -26,3 +26,10 @@ same-origin.
 
 Production login uses Cognito's authorization-code flow with PKCE. The prototype screens still need to be
 migrated from their original `/api/*` contracts to the Spring Boot `/api/v1/*` API.
+
+## Agreement rendering
+
+The agreement preview and PDF export share the same post-render layout rules in `app/page.tsx`. Inventory
+rows are kept intact, table headings repeat on continuation pages, and PDF page boundaries are selected from
+complete rendered text lines. Keep preview and export changes in that shared renderer so the two outputs do
+not drift apart.
