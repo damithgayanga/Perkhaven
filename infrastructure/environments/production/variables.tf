@@ -46,6 +46,17 @@ variable "enable_ses_domain" {
   }
 }
 
+variable "enable_mymailportal_mail" {
+  description = "Create the Domain.lk mymailportal.lk email DNS records for domain_name."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.enable_mymailportal_mail || (var.enable_custom_domain && !var.enable_ses_domain)
+    error_message = "enable_mymailportal_mail requires enable_custom_domain and cannot be enabled with enable_ses_domain."
+  }
+}
+
 variable "create_route53_zone" {
   description = "Create a public Route 53 hosted zone. Set false and provide route53_zone_id to reuse an existing zone."
   type        = bool
