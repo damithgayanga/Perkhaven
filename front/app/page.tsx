@@ -5094,8 +5094,20 @@ type AgreementSignature = { name: string; date: string };
 const agreementTemplateData = (data: AgreementData, signature?: AgreementSignature) => ({ "Full Name of the Student": data.studentName, "ID Card No of the Student": data.studentId, "Name of the Warden": data.wardenName, "ID Card of the Warden": data.wardenId, "Start Date of the Student": data.startDate ? fmtDate(data.startDate) : "", "Room No": data.roomNo, "Monthly Rent": data.monthlyRent, "Monthly Rent in words": data.monthlyRentWords, "Deposit Amount": data.depositAmount, "Deposit Amount in Words": data.depositAmountWords, "Hostel Telephone": data.hostelTelephone, "Hostel Email": data.hostelEmail, "Name of the Student": data.studentName, "Student Signature": signature ? `${signature.name} — ${fmtDate(signature.date)}\nSignature of the Resident` : "Signature of the Resident" });
 function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
   const parsed = new DOMParser().parseFromString(xml, "application/xml");
-  const textNodes = Array.from(parsed.getElementsByTagNameNS("http://schemas.openxmlformats.org/wordprocessingml/2006/main", "t"));
+  const wordNamespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+  let textNodes = Array.from(parsed.getElementsByTagNameNS(wordNamespace, "t"));
   if (path === "word/document.xml") {
+    // Remove both signature text boxes before replacing any template text. The
+    // resident heading is itself a template field; replacing it first made the
+    // later signature-text check miss that AlternateContent block and rendered
+    // the old resident panel alongside the shared HTML signature panel.
+    Array.from(parsed.getElementsByTagNameNS("*", "AlternateContent")).forEach((alternateContent) => {
+      const text = alternateContent.textContent || "";
+      if (text.includes("Signature of the Proprietor") || text.includes("Signature of the Resident")) {
+        alternateContent.parentNode?.removeChild(alternateContent);
+      }
+    });
+    textNodes = Array.from(parsed.getElementsByTagNameNS(wordNamespace, "t"));
     const single = data.occupancyBasis.startsWith("Single");
     const values = textNodes.map((node) => node.textContent || "");
     const clauseIndex = values.findIndex((value, index) => value === "Clause" && values.slice(index + 1, index + 5).includes("0"));
@@ -5137,7 +5149,6 @@ function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
     if (finalDateLabel !== undefined && textNodes[finalDateLabel + 1]) {
       textNodes[finalDateLabel + 1].textContent = data.agreementDate ? fmtDate(data.agreementDate) : "";
     }
-    const wordNamespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
     Array.from(parsed.getElementsByTagNameNS(wordNamespace, "pgMar")).forEach((pageMargins) => {
       // The template header is approximately 23 mm high. Keep every section's
       // body at least 40 mm from the page top so neither the preview nor PDF
@@ -5150,21 +5161,6 @@ function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
     Array.from(parsed.getElementsByTagNameNS(wordNamespace, "spacing")).forEach((spacing) => {
       spacing.setAttributeNS(wordNamespace, "w:before", "0");
       spacing.setAttributeNS(wordNamespace, "w:after", "0");
-    });
-    // Word stores the two signature panels as absolutely positioned text boxes.
-    // docx-preview cannot preserve those anchors reliably when the page is scaled,
-    // so remove them here and add one shared, flow-based signature layout after
-    // rendering. The same layout is then used by both preview and PDF export.
-    // Both modern DrawingML and legacy VML versions of each text box live in
-    // one mc:AlternateContent block. Removing only w:drawing/w:pict leaves an
-    // empty Choice/Fallback container, which docx-preview cannot parse (it
-    // dereferences the missing child's localName). Remove the complete wrapper
-    // so the package remains valid before the shared HTML signature is added.
-    Array.from(parsed.getElementsByTagNameNS("*", "AlternateContent")).forEach((alternateContent) => {
-      const text = alternateContent.textContent || "";
-      if (text.includes("Signature of the Proprietor") || text.includes("Signature of the Resident")) {
-        alternateContent.parentNode?.removeChild(alternateContent);
-      }
     });
     // Keep inventory rows intact across page boundaries and repeat its column
     // headings when a compatible document renderer continues the table.
@@ -5203,17 +5199,19 @@ function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
 async function buildAgreementBlob(data: AgreementData, signature?: AgreementSignature) { const [{ default: PizZip }, { default: Docxtemplater }] = await Promise.all([import("pizzip"), import("docxtemplater")]); const template = await fetch("/Agreement-Template.docx").then((response) => response.arrayBuffer()); const zip = new PizZip(template); ["word/document.xml", "word/footer1.xml", "word/footer2.xml"].forEach((path) => { const file = zip.file(path); if (file) zip.file(path, normalizeAgreementXml(file.asText(), path, data)); }); const document = new Docxtemplater(zip, { delimiters: { start: "[", end: "]" }, paragraphLoop: true, linebreaks: true }); document.render(agreementTemplateData(data, signature)); return document.getZip().generate({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }); }
 
 const agreementRenderedStyles = `
+  .docx p { break-inside: avoid !important; page-break-inside: avoid !important; }
   .docx table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
   .docx table thead { display: table-header-group !important; }
   .docx table tr { height: auto !important; break-inside: avoid !important; page-break-inside: avoid !important; }
   .docx table td, .docx table th { height: auto !important; min-height: 0 !important; padding: 5px 6px !important; white-space: normal !important; overflow: visible !important; overflow-wrap: anywhere !important; vertical-align: top !important; line-height: 1.3 !important; }
   .docx table td p, .docx table th p { margin-top: 0 !important; margin-bottom: 0 !important; line-height: 1.3 !important; }
   .docx table tr.agreement-category-row td { font-weight: 700 !important; vertical-align: middle !important; background: #f3f5f7 !important; }
-  .agreement-signature-layout { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; gap: 42px !important; margin: 42px 0 8px !important; break-inside: avoid !important; page-break-inside: avoid !important; color: #000 !important; font-family: Arial, sans-serif !important; }
-  .agreement-signature-panel { min-width: 0 !important; font-size: 10px !important; line-height: 1.45 !important; }
-  .agreement-signature-panel > strong { display: block !important; min-height: 30px !important; font-size: 11px !important; }
-  .agreement-signature-line { height: 34px !important; border-bottom: 1px solid #000 !important; margin-bottom: 8px !important; }
-  .agreement-signature-panel p { margin: 0 !important; overflow-wrap: anywhere !important; }
+  .agreement-signature-layout { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; align-items: start !important; gap: 42px !important; margin: 42px 0 8px !important; break-inside: avoid !important; page-break-inside: avoid !important; color: #000 !important; font-family: Arial, sans-serif !important; }
+  .agreement-signature-panel { display: grid !important; grid-template-rows: 32px 36px auto !important; min-width: 0 !important; font-size: 10px !important; line-height: 1.4 !important; }
+  .agreement-signature-panel > strong { display: block !important; min-width: 0 !important; margin: 0 !important; font-size: 11px !important; line-height: 1.25 !important; overflow-wrap: anywhere !important; }
+  .agreement-signature-line { align-self: start !important; height: 24px !important; border-bottom: 1px solid #000 !important; margin: 0 0 11px !important; }
+  .agreement-signature-details { display: grid !important; align-content: start !important; gap: 3px !important; min-width: 0 !important; margin: 0 !important; }
+  .agreement-signature-detail { display: block !important; min-width: 0 !important; overflow-wrap: anywhere !important; }
 `;
 
 function prepareAgreementRenderedDocument(root: HTMLElement, data: AgreementData, signature?: AgreementSignature) {
@@ -5246,9 +5244,14 @@ function prepareAgreementRenderedDocument(root: HTMLElement, data: AgreementData
     title.textContent = heading;
     const line = document.createElement("div");
     line.className = "agreement-signature-line";
-    const details = document.createElement("p");
-    details.textContent = lines.join("\n");
-    details.style.whiteSpace = "pre-line";
+    const details = document.createElement("div");
+    details.className = "agreement-signature-details";
+    lines.forEach((value) => {
+      const detail = document.createElement("span");
+      detail.className = "agreement-signature-detail";
+      detail.textContent = value;
+      details.appendChild(detail);
+    });
     container.append(title, line, details);
     return container;
   };
@@ -5292,9 +5295,12 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
   }
   article.querySelectorAll<HTMLElement>("p, h1, h2, h3, h4, h5, h6, .agreement-signature-layout").forEach((element) => {
     const rect = element.getBoundingClientRect();
-    boundaries.push(relative(rect.top), relative(rect.bottom));
-    if (element.classList.contains("agreement-signature-layout"))
-      atomicRegions.push({ top: relative(rect.top), bottom: relative(rect.bottom) });
+    const region = { top: relative(rect.top), bottom: relative(rect.bottom) };
+    boundaries.push(region.top, region.bottom);
+    // Keep a paragraph or heading intact whenever it can fit on a fresh page.
+    // A genuinely page-taller paragraph may still break at one of the complete
+    // rendered-line boundaries collected above.
+    atomicRegions.push(region);
   });
   article.querySelectorAll<HTMLTableElement>("table").forEach((table) => {
     const tableRect = table.getBoundingClientRect();
