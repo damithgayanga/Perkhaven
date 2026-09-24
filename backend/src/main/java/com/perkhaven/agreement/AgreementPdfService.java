@@ -120,6 +120,7 @@ public class AgreementPdfService implements DisposableBean {
 
         markHeadingsAndSpacing(doc);
         applyHierarchicalNumbering(doc);
+        wrapHeadingIntros(doc, doc.body());
         wrapExecutionSection(doc);
         wrapAppendixTwo(doc);
         addPrintStyles(doc);
@@ -182,8 +183,6 @@ public class AgreementPdfService implements DisposableBean {
             }
         }
 
-        wrapHeadingIntros(doc, body);
-
         for (Element table : doc.select("table")) {
             table.addClass("agreement-table");
             for (Element row : table.select("tr")) {
@@ -221,6 +220,7 @@ public class AgreementPdfService implements DisposableBean {
                 sectionNumber++;
                 clauseNumber = 0;
                 annotateNumberedBlock(block, heading, sectionNumber + ".0", "agreement-numbered-heading");
+                block.addClass(inAppendixOne ? "appendix-one-numbered" : "main-agreement-numbered");
                 continue;
             }
 
@@ -234,6 +234,7 @@ public class AgreementPdfService implements DisposableBean {
                 annotateNumberedBlock(block, clauseParagraph,
                         sectionNumber + "." + clauseNumber,
                         "agreement-numbered-clause");
+                block.addClass(inAppendixOne ? "appendix-one-numbered" : "main-agreement-numbered");
                 continue;
             }
 
