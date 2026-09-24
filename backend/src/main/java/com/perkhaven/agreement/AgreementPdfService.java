@@ -247,21 +247,36 @@ public class AgreementPdfService implements DisposableBean {
         if ("a".equalsIgnoreCase(block.attr("type"))) return null;
         if (block.hasClass("agreement-numbered-heading")) return null;
 
-        List<Element> directItems = block.select(":scope > li");
+        List<Element> directItems = directChildren(block, "li");
         if (directItems.size() == 1) {
-            Element paragraph = directItems.get(0).selectFirst(":scope > p");
+            Element paragraph = firstDirectChild(directItems.get(0), "p");
             if (paragraph != null && !paragraph.hasClass("agreement-section-heading")) return paragraph;
         }
 
-        List<Element> nestedLists = block.select(":scope > ol");
+        List<Element> nestedLists = directChildren(block, "ol");
         if (nestedLists.size() == 1) {
             Element nested = nestedLists.get(0);
             if ("a".equalsIgnoreCase(nested.attr("type"))) return null;
-            List<Element> nestedItems = nested.select(":scope > li");
+            List<Element> nestedItems = directChildren(nested, "li");
             if (nestedItems.size() == 1) {
-                Element paragraph = nestedItems.get(0).selectFirst(":scope > p");
+                Element paragraph = firstDirectChild(nestedItems.get(0), "p");
                 if (paragraph != null && !paragraph.hasClass("agreement-section-heading")) return paragraph;
             }
+        }
+        return null;
+    }
+
+    private static List<Element> directChildren(Element parent, String tagName) {
+        List<Element> matches = new ArrayList<>();
+        for (Element child : parent.children()) {
+            if (tagName.equals(child.tagName())) matches.add(child);
+        }
+        return matches;
+    }
+
+    private static Element firstDirectChild(Element parent, String tagName) {
+        for (Element child : parent.children()) {
+            if (tagName.equals(child.tagName())) return child;
         }
         return null;
     }
@@ -290,9 +305,9 @@ public class AgreementPdfService implements DisposableBean {
             start = 1;
         }
 
-        List<Element> items = block.select(":scope > li");
+        List<Element> items = directChildren(block, "li");
         for (int index = 0; index < items.size(); index++) {
-            Element paragraph = items.get(index).selectFirst(":scope > p");
+            Element paragraph = firstDirectChild(items.get(index), "p");
             if (paragraph == null) continue;
             int alphaIndex = start + index;
             if (alphaIndex < 1 || alphaIndex > 26) continue;
