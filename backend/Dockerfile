@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
+FROM eclipse-temurin:21-jdk AS build
 WORKDIR /workspace
 COPY backend/gradlew backend/gradlew.bat backend/build.gradle.kts backend/settings.gradle.kts backend/gradle.properties ./
 COPY backend/gradle ./gradle
@@ -12,7 +12,7 @@ RUN ./gradlew clean bootJar --no-daemon
 # Playwright's pinned image supplies Chromium and all native browser
 # dependencies for both linux/amd64 and linux/arm64. Production ECS builds
 # target linux/arm64, so the previous Alpine runtime cannot host Chromium.
-FROM --platform=$TARGETPLATFORM mcr.microsoft.com/playwright/java:v1.63.0-noble
+FROM mcr.microsoft.com/playwright/java:v1.63.0-noble
 USER root
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openjdk-21-jre-headless \
