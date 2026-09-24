@@ -41,6 +41,10 @@ class AgreementPdfServiceTest {
         assertTrue(html.contains("class=\"appendix-two\""));
         assertTrue(html.contains("data-perkhaven-print=\"true\""));
         assertFalse(html.contains("@page { size: A4; margin: 0; }"));
+        assertEquals("28mm", AgreementPdfService.PAGE_MARGIN_TOP);
+        assertEquals("15mm", AgreementPdfService.PAGE_MARGIN_BOTTOM);
+        assertEquals("20mm", AgreementPdfService.PAGE_MARGIN_LEFT);
+        assertEquals("20mm", AgreementPdfService.PAGE_MARGIN_RIGHT);
         assertEquals(1, occurrences(html, "appendix-one-heading"));
         assertEquals(1, occurrences(html, "appendix-two-heading"));
         assertFalse(html.contains("{{studentName}}"));
