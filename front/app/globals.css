@@ -3628,7 +3628,8 @@ table thead .table-sort-head {
 }
 .agreement-workspace-modal { width: min(1480px, 97vw); height: min(94vh, 980px); display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
 .agreement-workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; background: #edf2f6; }
-.agreement-preview-shell { min-width: 0; overflow: auto; padding: 20px; }
+.agreement-preview-shell { min-width: 0; min-height: 0; overflow: hidden; padding: 18px; background: #edf2f6; }
+.agreement-pdf-preview { width: 100%; height: 100%; min-height: 540px; border: 1px solid #d5e0ea; border-radius: 8px; background: #fff; }
 .agreement-docx-preview { min-height: 100%; }
 .agreement-docx-preview .docx-wrapper { background: transparent; padding: 18px 0 0; }
 .agreement-docx-preview .docx { margin: 0 auto 28px; box-shadow: 0 5px 24px #16304922; }
