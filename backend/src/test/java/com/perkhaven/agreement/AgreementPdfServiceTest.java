@@ -67,10 +67,18 @@ class AgreementPdfServiceTest {
         assertEquals("1.0", mainHeadings.first().attr("data-agreement-number"));
         assertEquals("1.1", mainClauses.get(0).attr("data-agreement-number"));
         assertEquals("1.2", mainClauses.get(1).attr("data-agreement-number"));
-        assertEquals(1, renderedDocument.select(".main-agreement-numbered.agreement-numbered-heading[data-agreement-number=\"2.0\"]").size());
+        assertEquals(1, mainHeadings.stream()
+                .filter(element -> "2.0".equals(element.attr("data-agreement-number")))
+                .count());
 
-        assertEquals(1, renderedDocument.select(".appendix-one-numbered.agreement-numbered-heading[data-agreement-number=\"1.0\"]").size());
-        assertEquals(1, renderedDocument.select(".appendix-one-numbered.agreement-numbered-clause[data-agreement-number=\"1.1\"]").size());
+        var appendixHeadings = renderedDocument.select(".appendix-one-numbered.agreement-numbered-heading");
+        var appendixClauses = renderedDocument.select(".appendix-one-numbered.agreement-numbered-clause");
+        assertEquals(1, appendixHeadings.stream()
+                .filter(element -> "1.0".equals(element.attr("data-agreement-number")))
+                .count());
+        assertEquals(1, appendixClauses.stream()
+                .filter(element -> "1.1".equals(element.attr("data-agreement-number")))
+                .count());
         assertEquals(0, renderedDocument.select("p.appendix-one-heading .agreement-number-marker").size());
 
         var alphaMarkers = renderedDocument.select(".agreement-alpha-marker").eachText();
