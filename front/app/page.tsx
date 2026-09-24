@@ -5220,15 +5220,22 @@ function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
 async function buildAgreementBlob(data: AgreementData, signature?: AgreementSignature) { const [{ default: PizZip }, { default: Docxtemplater }] = await Promise.all([import("pizzip"), import("docxtemplater")]); const template = await fetch("/Agreement-Template.docx").then((response) => response.arrayBuffer()); const zip = new PizZip(template); ["word/document.xml", "word/footer1.xml", "word/footer2.xml"].forEach((path) => { const file = zip.file(path); if (file) zip.file(path, normalizeAgreementXml(file.asText(), path, data)); }); const document = new Docxtemplater(zip, { delimiters: { start: "[", end: "]" }, paragraphLoop: true, linebreaks: true }); document.render(agreementTemplateData(data, signature)); return document.getZip().generate({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }); }
 
 const agreementRenderedStyles = `
-  .docx p { break-inside: avoid !important; page-break-inside: avoid !important; }
-  .docx table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
+  .docx, .docx > article { height: auto !important; min-height: 0 !important; overflow: visible !important; }
+  .docx p, .docx li { height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; break-inside: avoid !important; page-break-inside: avoid !important; }
+  .docx table { width: 100% !important; max-width: 100% !important; min-width: 0 !important; table-layout: fixed !important; border-collapse: collapse !important; }
+  .docx table col { width: auto !important; }
+  .docx table.agreement-inventory-table th:nth-child(1), .docx table.agreement-inventory-table td:nth-child(1) { width: 7% !important; }
+  .docx table.agreement-inventory-table th:nth-child(2), .docx table.agreement-inventory-table td:nth-child(2) { width: 39% !important; }
+  .docx table.agreement-inventory-table th:nth-child(3), .docx table.agreement-inventory-table td:nth-child(3) { width: 13% !important; }
+  .docx table.agreement-inventory-table th:nth-child(4), .docx table.agreement-inventory-table td:nth-child(4) { width: 24% !important; }
+  .docx table.agreement-inventory-table th:nth-child(5), .docx table.agreement-inventory-table td:nth-child(5) { width: 17% !important; }
   .docx table thead { display: table-header-group !important; }
   .docx table tr { height: auto !important; break-inside: avoid !important; page-break-inside: avoid !important; }
   .docx table td, .docx table th { height: auto !important; min-height: 0 !important; padding: 3px 5px !important; white-space: normal !important; overflow: visible !important; overflow-wrap: anywhere !important; vertical-align: top !important; line-height: 1.18 !important; }
   .docx table td p, .docx table th p { margin-top: 0 !important; margin-bottom: 0 !important; line-height: 1.18 !important; }
   .docx table tr.agreement-category-row td { font-weight: 700 !important; vertical-align: middle !important; background: #f3f5f7 !important; }
-  .agreement-signature-layout { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; align-items: start !important; gap: 42px !important; margin: 42px 0 8px !important; break-inside: avoid !important; page-break-inside: avoid !important; color: #000 !important; font-family: Arial, sans-serif !important; }
-  .agreement-signature-panel { display: grid !important; grid-template-rows: 32px 36px auto !important; min-width: 0 !important; font-size: 10px !important; line-height: 1.4 !important; }
+  .agreement-signature-layout { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; align-items: start !important; gap: 34px !important; margin: 18px 0 8px !important; break-inside: avoid !important; page-break-inside: avoid !important; color: #000 !important; font-family: Arial, sans-serif !important; }
+  .agreement-signature-panel { display: grid !important; grid-template-rows: 28px 30px auto !important; min-width: 0 !important; font-size: 10px !important; line-height: 1.35 !important; }
   .agreement-signature-panel > strong { display: block !important; min-width: 0 !important; margin: 0 !important; font-size: 11px !important; line-height: 1.25 !important; overflow-wrap: anywhere !important; }
   .agreement-signature-line { align-self: start !important; height: 24px !important; border-bottom: 1px solid #000 !important; margin: 0 0 11px !important; }
   .agreement-signature-details { display: grid !important; align-content: start !important; gap: 3px !important; min-width: 0 !important; margin: 0 !important; }
@@ -5246,6 +5253,10 @@ function prepareAgreementRenderedDocument(root: HTMLElement, data: AgreementData
     root.prepend(style);
   }
   root.querySelectorAll<HTMLTableElement>("section.docx table").forEach((table) => {
+    const tableLabel = (table.textContent || "").replace(/\s+/g, " ").trim();
+    if (/Handed over|Items for Personal Use|Sharing Items/i.test(tableLabel)) {
+      table.classList.add("agreement-inventory-table");
+    }
     if (!table.tHead && table.rows.length) {
       const heading = document.createElement("thead");
       table.insertBefore(heading, table.firstChild);
@@ -5273,6 +5284,20 @@ function prepareAgreementRenderedDocument(root: HTMLElement, data: AgreementData
       const label = (paragraph.textContent || "").replace(/\s+/g, " ").trim();
       if (/^Date\s*:/i.test(label) && label.length < 48) paragraph.remove();
     });
+  }
+
+  // Removing the original floating signature boxes leaves behind blank Word
+  // paragraphs/spacers. Trim only empty trailing blocks so the replacement
+  // signature panel follows the execution wording instead of being pushed to
+  // a separate mostly-empty page.
+  let trailing = firstArticle.lastElementChild as HTMLElement | null;
+  while (trailing) {
+    const textValue = (trailing.innerText || trailing.textContent || "").replace(/\s+/g, " ").trim();
+    const hasVisibleObject = Boolean(trailing.querySelector("img, svg, table, canvas"));
+    if (textValue || hasVisibleObject) break;
+    const previous = trailing.previousElementSibling as HTMLElement | null;
+    trailing.remove();
+    trailing = previous;
   }
 
   const layout = document.createElement("div");
@@ -5341,6 +5366,21 @@ type AgreementPageRange = {
 function agreementPageRanges(article: HTMLElement, availableHeight: number): AgreementPageRange[] {
   const articleRect = article.getBoundingClientRect();
   const relative = (value: number) => value - articleRect.top;
+  const renderedRegion = (element: HTMLElement) => {
+    const box = element.getBoundingClientRect();
+    let top = relative(box.top);
+    let bottom = relative(box.bottom);
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    Array.from(range.getClientRects()).forEach((rect) => {
+      if (rect.bottom > rect.top + 0.25 && rect.right > rect.left + 0.25) {
+        top = Math.min(top, relative(rect.top));
+        bottom = Math.max(bottom, relative(rect.bottom));
+      }
+    });
+    range.detach();
+    return { top, bottom };
+  };
   const boundaries: number[] = [];
   const textLines: Array<{ top: number; bottom: number }> = [];
   const atomicRegions: Array<{ top: number; bottom: number }> = [];
@@ -5366,8 +5406,7 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
   }
   const flowBlocks = Array.from(article.querySelectorAll<HTMLElement>("p, h1, h2, h3, h4, h5, h6, .agreement-signature-layout"));
   flowBlocks.forEach((element, index) => {
-    const rect = element.getBoundingClientRect();
-    const region = { top: relative(rect.top), bottom: relative(rect.bottom) };
+    const region = renderedRegion(element);
     boundaries.push(region.top, region.bottom);
     // Keep a paragraph or heading intact whenever it can fit on a fresh page.
     // A genuinely page-taller paragraph may still break, but only between
@@ -5380,8 +5419,8 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
     if (isMainHeading || isAppendixHeading) {
       const nextContent = flowBlocks.slice(index + 1).find((candidate) => (candidate.textContent || "").replace(/\s+/g, " ").trim());
       if (nextContent) {
-        const nextRect = nextContent.getBoundingClientRect();
-        atomicRegions.push({ top: region.top, bottom: relative(nextRect.bottom) });
+        const nextRegion = renderedRegion(nextContent);
+        atomicRegions.push({ top: region.top, bottom: nextRegion.bottom });
       }
     }
     // The appendices are contractual attachments and must begin on a fresh PDF
@@ -5400,15 +5439,21 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
     });
     const rows = Array.from(table.rows);
     rows.forEach((row, index) => {
-      const rect = row.getBoundingClientRect();
-      const region = { top: relative(rect.top), bottom: relative(rect.bottom) };
+      const region = renderedRegion(row as unknown as HTMLElement);
       boundaries.push(region.top, region.bottom);
-      const next = rows[index + 1]?.getBoundingClientRect();
-      atomicRegions.push(row.classList.contains("agreement-category-row") && next
-        ? { top: region.top, bottom: relative(next.bottom) }
+      const next = rows[index + 1];
+      const nextRegion = next ? renderedRegion(next as unknown as HTMLElement) : undefined;
+      atomicRegions.push(row.classList.contains("agreement-category-row") && nextRegion
+        ? { top: region.top, bottom: nextRegion.bottom }
         : region);
     });
   });
+
+  // Source DOCX pagination can leave empty rendered sections with non-zero
+  // height. They must not become PDF pages.
+  const hasVisibleGraphic = Boolean(article.querySelector("img, svg, canvas"));
+  if (!textLines.length && !tables.length && !hasVisibleGraphic) return [];
+
   // Merge text fragments that occupy the same visual line, then add page-cut
   // candidates only in the white space between rendered lines. Cutting exactly
   // at a DOM rect top/bottom can still bisect anti-aliased glyph pixels after
@@ -5581,8 +5626,9 @@ async function downloadAgreementPdf(data: AgreementData, filename: string, signa
       // former 90% cap needlessly pushed the tail of Appendix 2 onto a new page.
       const bodyPageHeight = (pageHeight - topPadding - bottomPadding) * .97;
       const contentWidth = sectionRect.width - leftPadding - rightPadding;
-      const bodyCanvas = await html2canvas(article, { scale: 1.35, backgroundColor: "#ffffff", useCORS: true });
       const ranges = agreementPageRanges(article, bodyPageHeight);
+      if (!ranges.length) continue;
+      const bodyCanvas = await html2canvas(article, { scale: 1.35, backgroundColor: "#ffffff", useCORS: true });
 
       const scaleY = bodyCanvas.height / articleRect.height;
       for (const { start: rangeStart, end: rangeEnd, repeatedHeader } of ranges) {
