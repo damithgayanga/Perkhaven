@@ -5122,6 +5122,13 @@ function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
     const clauseIndex = values.findIndex((value, index) => value === "Clause" && values.slice(index + 1, index + 5).includes("0"));
     if (clauseIndex >= 0) { const zero = textNodes.slice(clauseIndex + 1, clauseIndex + 5).find((node) => node.textContent === "0"); if (zero) zero.textContent = "1.0"; }
     textNodes.forEach((node, index) => {
+      // The live PDF is generated from the DOCX template, so replace legacy
+      // hard-coded contact addresses here as well as in the HTML template.
+      if (node.textContent) {
+        node.textContent = node.textContent
+          .replaceAll("joanne.fernando@yahoo.com", data.hostelEmail)
+          .replaceAll("perkhaven@gmail.com", data.hostelEmail);
+      }
       const replacements: Record<string, string> = {
         "Variable 1": data.studentName,
         "Variable 2": data.studentId,
@@ -5191,7 +5198,12 @@ function normalizeAgreementXml(xml: string, path: string, data: AgreementData) {
       });
     });
     Array.from(parsed.getElementsByTagNameNS("http://schemas.openxmlformats.org/wordprocessingml/2006/main", "highlight")).forEach((node) => node.parentNode?.removeChild(node));
-    const normalized = new XMLSerializer().serializeToString(parsed).replace(">single/<", single ? ">single<" : "><").replace(">sharing<", single ? "><" : ">sharing<").replace("haring basis shall be SLRS", single ? "ingle basis shall be SLRS" : "haring basis shall be SLRS");
+    const normalized = new XMLSerializer().serializeToString(parsed)
+      .replaceAll("joanne.fernando@yahoo.com", data.hostelEmail)
+      .replaceAll("perkhaven@gmail.com", data.hostelEmail)
+      .replace(">single/<", single ? ">single<" : "><")
+      .replace(">sharing<", single ? "><" : ">sharing<")
+      .replace("haring basis shall be SLRS", single ? "ingle basis shall be SLRS" : "haring basis shall be SLRS");
     return normalized;
   }
   if (path.startsWith("word/footer")) {
@@ -5212,8 +5224,8 @@ const agreementRenderedStyles = `
   .docx table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
   .docx table thead { display: table-header-group !important; }
   .docx table tr { height: auto !important; break-inside: avoid !important; page-break-inside: avoid !important; }
-  .docx table td, .docx table th { height: auto !important; min-height: 0 !important; padding: 5px 6px !important; white-space: normal !important; overflow: visible !important; overflow-wrap: anywhere !important; vertical-align: top !important; line-height: 1.3 !important; }
-  .docx table td p, .docx table th p { margin-top: 0 !important; margin-bottom: 0 !important; line-height: 1.3 !important; }
+  .docx table td, .docx table th { height: auto !important; min-height: 0 !important; padding: 3px 5px !important; white-space: normal !important; overflow: visible !important; overflow-wrap: anywhere !important; vertical-align: top !important; line-height: 1.18 !important; }
+  .docx table td p, .docx table th p { margin-top: 0 !important; margin-bottom: 0 !important; line-height: 1.18 !important; }
   .docx table tr.agreement-category-row td { font-weight: 700 !important; vertical-align: middle !important; background: #f3f5f7 !important; }
   .agreement-signature-layout { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; align-items: start !important; gap: 42px !important; margin: 42px 0 8px !important; break-inside: avoid !important; page-break-inside: avoid !important; color: #000 !important; font-family: Arial, sans-serif !important; }
   .agreement-signature-panel { display: grid !important; grid-template-rows: 32px 36px auto !important; min-width: 0 !important; font-size: 10px !important; line-height: 1.4 !important; }
@@ -5247,6 +5259,22 @@ function prepareAgreementRenderedDocument(root: HTMLElement, data: AgreementData
   if (root.querySelector(".agreement-signature-layout")) return;
   const firstArticle = root.querySelector<HTMLElement>("section.docx > article");
   if (!firstArticle) return;
+
+  // The original DOCX signature area contains standalone Date paragraphs in
+  // addition to the floating signature text boxes. The floating boxes are
+  // replaced by our shared signature layout, so remove only those redundant
+  // trailing Date lines from the main agreement to prevent one-line pages.
+  const mainParagraphs = Array.from(firstArticle.querySelectorAll<HTMLParagraphElement>("p"));
+  const witnessIndex = mainParagraphs.findIndex((paragraph) =>
+    /IN\s+WITNESS\s+WHEREOF/i.test((paragraph.textContent || "").replace(/\s+/g, " ").trim()),
+  );
+  if (witnessIndex >= 0) {
+    mainParagraphs.slice(witnessIndex + 1).forEach((paragraph) => {
+      const label = (paragraph.textContent || "").replace(/\s+/g, " ").trim();
+      if (/^Date\s*:/i.test(label) && label.length < 48) paragraph.remove();
+    });
+  }
+
   const layout = document.createElement("div");
   layout.className = "agreement-signature-layout";
   const panel = (heading: string, lines: string[]) => {
@@ -5381,6 +5409,27 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
         : region);
     });
   });
+  // Merge text fragments that occupy the same visual line, then add page-cut
+  // candidates only in the white space between rendered lines. Cutting exactly
+  // at a DOM rect top/bottom can still bisect anti-aliased glyph pixels after
+  // html2canvas scaling, which caused the half-lines seen in downloaded PDFs.
+  const lineBands = [...textLines]
+    .sort((left, right) => left.top - right.top || left.bottom - right.bottom)
+    .reduce<Array<{ top: number; bottom: number }>>((bands, line) => {
+      const last = bands.at(-1);
+      if (last && line.top <= last.bottom + 0.75) {
+        last.top = Math.min(last.top, line.top);
+        last.bottom = Math.max(last.bottom, line.bottom);
+      } else {
+        bands.push({ ...line });
+      }
+      return bands;
+    }, []);
+  lineBands.forEach((line, index) => {
+    const next = lineBands[index + 1];
+    if (next && next.top - line.bottom >= 1) boundaries.push((line.bottom + next.top) / 2);
+  });
+
   const ordered = [...new Set(boundaries.map((value) => Math.max(0, Math.min(articleRect.height, value)).toFixed(2)))]
     .map(Number)
     .sort((left, right) => left - right);
@@ -5403,7 +5452,10 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
 
     const safe = forcedBreak ?? ordered.filter((value) => {
       if (value <= start + 0.75 || value > limit + 0.5) return false;
-      if (textLines.some((line) => value > line.top + 0.5 && value < line.bottom - 0.5)) return false;
+      // Keep the cut comfortably clear of every rendered text line. A small
+      // visual gap is required because the canvas raster extends slightly
+      // beyond Range.getClientRects() due to font anti-aliasing.
+      if (lineBands.some((line) => value >= line.top - 2.5 && value <= line.bottom + 2.5)) return false;
       return !atomicRegions.some((region) =>
         region.bottom - region.top <= usableHeight + 0.5 &&
         value > region.top + 0.75 && value < region.bottom - 0.75,
@@ -5415,22 +5467,29 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
       // If the ideal page boundary would cross a rendered line, move the whole
       // line to the next page. This prevents the PDF canvas slice from cutting
       // through the lower or upper half of glyphs.
-      const crossingLine = textLines
+      const crossingLine = lineBands
         .filter((line) => line.top < rawLimit - 0.25 && line.bottom > rawLimit - pageBreakSafety)
         .sort((left, right) => left.top - right.top)[0];
-      if (crossingLine && crossingLine.top > start + 1) end = crossingLine.top;
+      if (crossingLine && crossingLine.top - 3 > start + 1) end = crossingLine.top - 3;
     }
 
     // This fallback is only for an unusually tall single element that cannot
     // fit on a page. Normal text should always resolve to a paragraph, row, or
     // complete-line boundary above.
     if (end === undefined || end <= start + 0.75) {
-      const completeLineBottom = textLines
-        .filter((line) => line.bottom > start + 0.75 && line.bottom <= limit + 0.5)
-        .map((line) => line.bottom)
-        .sort((left, right) => left - right)
+      const previousLine = lineBands
+        .filter((line) => line.bottom > start + 0.75 && line.bottom + 3 <= limit + 0.5)
+        .sort((left, right) => left.bottom - right.bottom)
         .at(-1);
-      end = completeLineBottom ?? limit;
+      const nextLine = previousLine
+        ? lineBands.find((line) => line.top > previousLine.bottom + 0.5)
+        : undefined;
+      const whitespaceCut = previousLine && nextLine && nextLine.top > previousLine.bottom
+        ? (previousLine.bottom + nextLine.top) / 2
+        : previousLine
+          ? previousLine.bottom + 3
+          : undefined;
+      end = whitespaceCut ?? Math.max(start + 1, limit - 3);
     }
 
     end = Math.min(articleRect.height, Math.max(start + 1, end));
@@ -5473,6 +5532,11 @@ async function downloadAgreementPdf(data: AgreementData, filename: string, signa
     for (const section of sections) {
       const article = section.querySelector<HTMLElement>(":scope > article");
       if (!article) continue;
+      const articleText = (article.textContent || "").replace(/\s+/g, " ").trim();
+      // Do not emit a separate page for a stray standalone Date line left by
+      // the source DOCX sectioning. Legitimate Appendix 2 date fields remain
+      // with the appendix content because that article contains much more text.
+      if (!articleText || (/^Date\s*:?\s*_*$/.test(articleText) && articleText.length < 48)) continue;
       const numbering = new Map<string, { major: number; minor: number }>();
       article.querySelectorAll<HTMLParagraphElement>("p").forEach((paragraph) => {
         const numberClass = Array.from(paragraph.classList).find((name) => /-num-(5|6)-(0|1)$/.test(name));
@@ -5536,8 +5600,13 @@ async function downloadAgreementPdf(data: AgreementData, filename: string, signa
         const bodyTopMm = topPadding * 297 / pageHeight;
         const xMm = leftPadding * 210 / sectionRect.width;
         const canvasSlice = (sliceStart: number, sliceEnd: number) => {
-          const sourceY = Math.max(0, Math.floor(sliceStart * scaleY));
-          const sourceHeight = Math.min(bodyCanvas.height - sourceY, Math.ceil((sliceEnd - sliceStart) * scaleY));
+          // Round both adjacent boundaries to the same raster coordinate. The
+          // old floor(start) + ceil(height) calculation created a one-pixel
+          // overlap between pages, reproducing halves of the same text line on
+          // both pages.
+          const sourceY = Math.max(0, Math.round(sliceStart * scaleY));
+          const sourceEnd = Math.min(bodyCanvas.height, Math.round(sliceEnd * scaleY));
+          const sourceHeight = Math.max(1, sourceEnd - sourceY);
           const slice = document.createElement("canvas");
           slice.width = bodyCanvas.width;
           slice.height = Math.max(1, sourceHeight);
