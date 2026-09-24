@@ -87,6 +87,12 @@ public class AgreementPdfService implements DisposableBean {
 
         Document doc = Jsoup.parse(rendered);
         doc.outputSettings().prettyPrint(false);
+
+        // Remove the LibreOffice-generated print stylesheet completely. It contains
+        // its own @page margins (1.25in / 0.39in / 0.27in) which otherwise override
+        // the production PDF geometry and allow the body to collide with the header.
+        doc.head().select("style").remove();
+
         doc.select("div[title=header], div[title=footer]").remove();
         doc.select("span[style*=background: #c0c0c0], span[style*=background:#c0c0c0]").forEach(Element::unwrap);
 
@@ -113,6 +119,7 @@ public class AgreementPdfService implements DisposableBean {
         doc.select("img").remove();
 
         markHeadingsAndSpacing(doc);
+        wrapExecutionSection(doc);
         wrapAppendixTwo(doc);
         addPrintStyles(doc);
         return doc.outerHtml();
@@ -160,15 +167,21 @@ public class AgreementPdfService implements DisposableBean {
                     break;
                 }
             }
-            if (onlyBold != null && normalize(label).equals(normalize(onlyBold.text()))) {
+            boolean insideTable = paragraph.parents().stream().anyMatch(parent -> "table".equals(parent.tagName()));
+            if (!insideTable
+                    && paragraph != appendixOneHeading
+                    && paragraph != appendixTwoHeading
+                    && onlyBold != null
+                    && normalize(label).equals(normalize(onlyBold.text()))) {
                 paragraph.addClass("agreement-section-heading");
-                Element block = paragraph;
-                while (block.parent() != null && block.parent() != body) {
-                    block = block.parent();
+                Element block = topLevelBlock(paragraph, body);
+                if (block != null) {
+                    block.addClass("keep-with-next");
                 }
-                block.addClass("keep-with-next");
             }
         }
+
+        wrapHeadingIntros(doc, body);
 
         for (Element table : doc.select("table")) {
             table.addClass("agreement-table");
@@ -179,6 +192,78 @@ public class AgreementPdfService implements DisposableBean {
                 }
             }
         }
+    }
+
+    private void wrapHeadingIntros(Document doc, Element body) {
+        List<Element> headings = new ArrayList<>(doc.select("p.agreement-section-heading"));
+        for (Element heading : headings) {
+            Element block = topLevelBlock(heading, body);
+            if (block == null || block.parent() != body) continue;
+
+            String headingText = normalize(heading.text());
+            String blockText = normalize(block.text());
+            if (!blockText.equals(headingText)) {
+                block.addClass("section-intro");
+                continue;
+            }
+
+            Element next = block.nextElementSibling();
+            while (next != null && isBlankSpacerBlock(next)) {
+                next = next.nextElementSibling();
+            }
+            if (next == null || next.hasClass("appendix-two")) {
+                block.addClass("section-intro");
+                continue;
+            }
+
+            Element wrapper = new Element("section").addClass("section-intro");
+            block.before(wrapper);
+            wrapper.appendChild(block);
+            wrapper.appendChild(next);
+        }
+    }
+
+    private void wrapExecutionSection(Document doc) {
+        Element body = doc.body();
+        Element acknowledgement = doc.select("p").stream()
+                .filter(element -> {
+                    String label = normalize(element.text());
+                    return label.startsWith("I,")
+                            && label.contains("acknowledge that I have read")
+                            && label.contains("Hostel Accommodation Agreement");
+                })
+                .findFirst().orElse(null);
+        Element signature = doc.selectFirst(".agreement-signature-layout");
+        if (acknowledgement == null || signature == null) return;
+
+        Element first = topLevelBlock(acknowledgement, body);
+        Element last = topLevelBlock(signature, body);
+        if (first == null || last == null || first.parent() != body || last.parent() != body) return;
+
+        Element wrapper = new Element("section").addClass("agreement-execution");
+        first.before(wrapper);
+        Element cursor = first;
+        while (cursor != null) {
+            Element next = cursor.nextElementSibling();
+            wrapper.appendChild(cursor);
+            if (cursor == last) break;
+            cursor = next;
+        }
+    }
+
+    private static Element topLevelBlock(Element element, Element body) {
+        Element block = element;
+        while (block != null && block.parent() != null && block.parent() != body) {
+            block = block.parent();
+        }
+        return block != null && block.parent() == body ? block : null;
+    }
+
+    private static boolean isBlankSpacerBlock(Element element) {
+        if (element.hasClass("blank-spacer")) return true;
+        if ("p".equals(element.tagName()) && normalize(element.text()).isEmpty()) return true;
+        return element.select("p.blank-spacer").size() == 1
+                && normalize(element.text()).isEmpty();
     }
 
     private void wrapAppendixTwo(Document doc) {
@@ -233,7 +318,7 @@ public class AgreementPdfService implements DisposableBean {
 
     private void addPrintStyles(Document doc) {
         doc.head().appendElement("style").attr("data-perkhaven-print", "true").appendText("""
-                @page { size: A4; }
+                @page { size: A4; margin: 28mm 20mm 15mm 20mm; }
                 * { box-sizing: border-box; }
                 html, body {
                   background: #fff !important;
@@ -247,6 +332,10 @@ public class AgreementPdfService implements DisposableBean {
                   -webkit-print-color-adjust: exact !important;
                   print-color-adjust: exact !important;
                   hyphens: none !important;
+                }
+                font {
+                  font-family: inherit !important;
+                  font-size: inherit !important;
                 }
                 p {
                   font-family: Arial, Helvetica, sans-serif !important;
@@ -262,8 +351,9 @@ public class AgreementPdfService implements DisposableBean {
                   widows: 3 !important;
                 }
                 .blank-spacer {
-                  height: .8mm !important;
-                  min-height: .8mm !important;
+                  display: none !important;
+                  height: 0 !important;
+                  min-height: 0 !important;
                   margin: 0 !important;
                   padding: 0 !important;
                   font-size: 0 !important;
@@ -285,6 +375,12 @@ public class AgreementPdfService implements DisposableBean {
                 .keep-with-next {
                   break-after: avoid-page !important;
                   page-break-after: avoid !important;
+                }
+                .section-intro {
+                  break-inside: avoid-page !important;
+                  page-break-inside: avoid !important;
+                  break-after: auto !important;
+                  page-break-after: auto !important;
                 }
                 .agreement-section-heading {
                   break-after: avoid-page !important;
@@ -331,6 +427,14 @@ public class AgreementPdfService implements DisposableBean {
                   background: #f1f1f1 !important;
                   vertical-align: middle !important;
                 }
+                .agreement-execution {
+                  break-inside: avoid-page !important;
+                  page-break-inside: avoid !important;
+                  margin-top: 2mm !important;
+                }
+                .agreement-execution p {
+                  margin-bottom: 1.5mm !important;
+                }
                 .agreement-signature-layout {
                   display: grid !important;
                   grid-template-columns: 1fr 1fr !important;
@@ -362,34 +466,46 @@ public class AgreementPdfService implements DisposableBean {
                 .appendix-two {
                   break-before: page !important;
                   page-break-before: always !important;
-                  font-size: 8pt !important;
-                  line-height: 1.06 !important;
+                  font-size: 8.4pt !important;
+                  line-height: 1.08 !important;
                 }
                 .appendix-two .appendix-two-heading {
                   break-before: auto !important;
                   page-break-before: auto !important;
-                  font-size: 10pt !important;
-                  margin-bottom: 1.3mm !important;
+                  font-size: 11pt !important;
+                  line-height: 1.15 !important;
+                  margin-bottom: 1.8mm !important;
                 }
                 .appendix-two .blank-spacer { display: none !important; }
                 .appendix-two p {
-                  font-size: 8pt !important;
-                  line-height: 1.06 !important;
-                  margin-bottom: 1.1mm !important;
+                  font-size: 8.4pt !important;
+                  line-height: 1.08 !important;
+                  margin-bottom: 1.3mm !important;
                 }
                 .appendix-two table.agreement-table {
-                  font-size: 7.2pt !important;
-                  line-height: 1.02 !important;
-                  margin: 1mm 0 1.2mm !important;
+                  font-size: 8.2pt !important;
+                  line-height: 1.08 !important;
+                  margin: 1.4mm 0 1.8mm !important;
                 }
                 .appendix-two table.agreement-table td,
                 .appendix-two table.agreement-table th {
-                  padding: .55mm .8mm !important;
+                  padding: .8mm 1mm !important;
+                  vertical-align: middle !important;
                 }
+                .appendix-two table.agreement-table td:nth-child(1),
+                .appendix-two table.agreement-table th:nth-child(1) { width: 6% !important; text-align: center !important; }
+                .appendix-two table.agreement-table td:nth-child(2),
+                .appendix-two table.agreement-table th:nth-child(2) { width: 36% !important; }
+                .appendix-two table.agreement-table td:nth-child(3),
+                .appendix-two table.agreement-table th:nth-child(3) { width: 14% !important; text-align: center !important; }
+                .appendix-two table.agreement-table td:nth-child(4),
+                .appendix-two table.agreement-table th:nth-child(4) { width: 20% !important; }
+                .appendix-two table.agreement-table td:nth-child(5),
+                .appendix-two table.agreement-table th:nth-child(5) { width: 24% !important; }
                 .appendix-two table.agreement-table td p,
                 .appendix-two table.agreement-table th p {
-                  font-size: 7.2pt !important;
-                  line-height: 1.02 !important;
+                  font-size: 8.2pt !important;
+                  line-height: 1.08 !important;
                   margin: 0 !important;
                 }
                 .appendix-two .agreement-signature-layout {
@@ -402,11 +518,11 @@ public class AgreementPdfService implements DisposableBean {
 
     private String headerTemplate() {
         return """
-                <div style="box-sizing:border-box;width:100%%;height:20mm;padding:3mm 20mm 0;display:flex;align-items:flex-start;font-family:Arial,sans-serif;color:#000;">
-                  <img src="%s" style="width:16mm;height:16mm;object-fit:contain;margin-right:5mm;" />
-                  <div style="padding-top:1.5mm;">
+                <div style="box-sizing:border-box;width:100%%;height:19mm;padding:2.5mm 20mm 0;display:flex;align-items:flex-start;font-family:Arial,sans-serif;color:#000;">
+                  <img src="%s" style="width:15mm;height:15mm;object-fit:contain;margin-right:5mm;" />
+                  <div style="padding-top:1mm;">
                     <div style="font-size:14px;line-height:1.1;font-weight:700;color:#3a6b1f;">THE PERK HAVEN</div>
-                    <div style="font-size:6.5px;letter-spacing:1.8px;margin-top:1.5mm;">P I T I P A N A &nbsp; · &nbsp; H O M A G A M A</div>
+                    <div style="font-size:7px;letter-spacing:1.8px;margin-top:1.4mm;">P I T I P A N A &nbsp; · &nbsp; H O M A G A M A</div>
                   </div>
                 </div>
                 """.formatted(logoDataUri);
@@ -416,8 +532,8 @@ public class AgreementPdfService implements DisposableBean {
         String telephone = escapeHtml(text(data, "hostelTelephone", DEFAULT_TELEPHONE));
         String email = escapeHtml(text(data, "hostelEmail", DEFAULT_EMAIL));
         return """
-                <div style="box-sizing:border-box;width:100%%;height:11mm;padding:0 20mm 2.5mm;font-family:Arial,sans-serif;font-size:6.5px;color:#000;">
-                  <div style="border-top:1px solid #555;padding-top:1.5mm;display:flex;align-items:center;justify-content:space-between;">
+                <div style="box-sizing:border-box;width:100%%;height:10mm;padding:0 20mm 2mm;font-family:Arial,sans-serif;font-size:8px;color:#000;">
+                  <div style="border-top:1px solid #555;padding-top:1.4mm;display:flex;align-items:center;justify-content:space-between;">
                     <span>Telephone: %s</span>
                     <span><span class="pageNumber"></span> of Page <span class="totalPages"></span></span>
                     <span>Email: %s</span>
