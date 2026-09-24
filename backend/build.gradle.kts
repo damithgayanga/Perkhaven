@@ -32,6 +32,8 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.apache.pdfbox:pdfbox:3.0.5")
     implementation("org.apache.poi:poi-ooxml:5.4.1")
+    implementation("com.microsoft.playwright:playwright:1.63.0")
+    implementation("org.jsoup:jsoup:1.23.2")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${property("springdocVersion")}")
     implementation(platform("software.amazon.awssdk:bom:${property("awsSdkVersion")}"))
     implementation("software.amazon.awssdk:s3")
