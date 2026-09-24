@@ -215,7 +215,9 @@ public class AgreementPdfService implements DisposableBean {
                 break;
             }
 
-            Element heading = block.selectFirst("p.agreement-section-heading");
+            Element heading = "ol".equals(block.tagName())
+                    ? block.selectFirst("p.agreement-section-heading")
+                    : null;
             if (heading != null) {
                 sectionNumber++;
                 clauseNumber = 0;
