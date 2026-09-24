@@ -3087,7 +3087,7 @@ function StudentSelfService({
           close={() => setPreviewingStudentInvoice(null)}
         />
       )}
-      {viewingAgreement && preparedAgreement && studentAgreement && <div className="backdrop"><section className="modal agreement-workspace-modal student-agreement-modal"><ModalHead tag="CONTRACT AGREEMENT" title={`${studentAgreement.agreementNo} · ${studentAgreement.revisionLabel}`} text={studentAgreement.status === "Signed" ? "This agreement has been electronically signed." : "Read the complete agreement before signing."} close={() => setViewingAgreement(false)} /><div className="agreement-workspace"><AgreementDocumentPreview data={preparedAgreement} signature={studentAgreement.signedName && studentAgreement.signedAt ? { name: studentAgreement.signedName, date: studentAgreement.signedAt } : undefined} /><aside className="agreement-sign-panel"><h3>Electronic signature</h3>{studentAgreement.status === "Signed" ? <><div className="success-banner">Signed electronically</div><dl><dt>Signed by</dt><dd>{studentAgreement.signedName}</dd><dt>Date and time</dt><dd>{studentAgreement.signedAt ? fmtDateTime(studentAgreement.signedAt) : "—"}</dd></dl></> : <><p>By signing, you confirm that you have read, understood and agree to this hostel accommodation agreement.</p><label>Full legal name<input value={agreementSignedName} onChange={(event) => setAgreementSignedName(event.target.value)} /></label><label className="agreement-consent"><input type="checkbox" checked={agreementConsent} onChange={(event) => setAgreementConsent(event.target.checked)} /><span>I consent to use this electronic signature and agree to be bound by the contract.</span></label><button className="primary" disabled={!agreementConsent || signingAgreement} onClick={async () => { setSigningAgreement(true); try { const response = await fetch(`/api/v1/agreements/${studentAgreement.id}/sign`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signedName: agreementSignedName, consent: agreementConsent }) }); const result = await response.json(); if (!response.ok) throw new Error(result.detail || "Unable to sign agreement."); setStudentAgreement(result.agreement); setMessage("Agreement signed successfully."); setViewingAgreement(false); } catch (reason) { setMessage(reason instanceof Error ? reason.message : "Unable to sign agreement."); } finally { setSigningAgreement(false); } }}>Sign Agreement</button></>}</aside></div><div className="modalactions"><button className="secondary" onClick={() => downloadAgreementPdf(preparedAgreement!, `${studentAgreement.agreementNo}-${studentAgreement.revisionLabel}.pdf`, studentAgreement.signedName && studentAgreement.signedAt ? { name: studentAgreement.signedName, date: studentAgreement.signedAt } : undefined)}>Download PDF</button></div></section></div>}
+      {viewingAgreement && preparedAgreement && studentAgreement && <div className="backdrop"><section className="modal agreement-workspace-modal student-agreement-modal"><ModalHead tag="CONTRACT AGREEMENT" title={`${studentAgreement.agreementNo} · ${studentAgreement.revisionLabel}`} text={studentAgreement.status === "Signed" ? "This agreement has been electronically signed." : "Read the complete agreement before signing."} close={() => setViewingAgreement(false)} /><div className="agreement-workspace"><AgreementDocumentPreview data={preparedAgreement} agreementId={studentAgreement.id} signature={studentAgreement.signedName && studentAgreement.signedAt ? { name: studentAgreement.signedName, date: studentAgreement.signedAt } : undefined} /><aside className="agreement-sign-panel"><h3>Electronic signature</h3>{studentAgreement.status === "Signed" ? <><div className="success-banner">Signed electronically</div><dl><dt>Signed by</dt><dd>{studentAgreement.signedName}</dd><dt>Date and time</dt><dd>{studentAgreement.signedAt ? fmtDateTime(studentAgreement.signedAt) : "—"}</dd></dl></> : <><p>By signing, you confirm that you have read, understood and agree to this hostel accommodation agreement.</p><label>Full legal name<input value={agreementSignedName} onChange={(event) => setAgreementSignedName(event.target.value)} /></label><label className="agreement-consent"><input type="checkbox" checked={agreementConsent} onChange={(event) => setAgreementConsent(event.target.checked)} /><span>I consent to use this electronic signature and agree to be bound by the contract.</span></label><button className="primary" disabled={!agreementConsent || signingAgreement} onClick={async () => { setSigningAgreement(true); try { const response = await fetch(`/api/v1/agreements/${studentAgreement.id}/sign`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signedName: agreementSignedName, consent: agreementConsent }) }); const result = await response.json(); if (!response.ok) throw new Error(result.detail || "Unable to sign agreement."); setStudentAgreement(result.agreement); setMessage("Agreement signed successfully."); setViewingAgreement(false); } catch (reason) { setMessage(reason instanceof Error ? reason.message : "Unable to sign agreement."); } finally { setSigningAgreement(false); } }}>Sign Agreement</button></>}</aside></div><div className="modalactions"><button className="secondary" onClick={() => void downloadIssuedAgreementPdf(studentAgreement.id, `${studentAgreement.agreementNo}-${studentAgreement.revisionLabel}.pdf`)}>Download PDF</button></div></section></div>}
       {makingPayment && (
         <div className="backdrop">
           <section className="modal student-action-modal">
@@ -5544,174 +5544,92 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
   return ranges;
 }
 
-async function downloadAgreementPdf(data: AgreementData, filename: string, signature?: AgreementSignature) {
-  const blob = await buildAgreementBlob(data, signature);
-  const host = document.createElement("div");
-  host.style.cssText = "position:fixed;left:-10000px;top:0;width:850px;background:white;z-index:-1";
-  document.body.appendChild(host);
-  try {
-    const [{ renderAsync }, { default: html2canvas }, { jsPDF }] = await Promise.all([import("docx-preview"), import("html2canvas"), import("jspdf")]);
-    // Render the DOCX as continuous flow for export. The previous page-by-page
-    // DOCX rendering could clip a paragraph at the source Word page boundary
-    // before our PDF paginator ever saw it. We add the PDF pages ourselves below.
-    await renderAsync(blob, host, undefined, {
-      inWrapper: true,
-      breakPages: false,
-      ignoreWidth: false,
-      ignoreHeight: true,
-      renderHeaders: false,
-      renderFooters: false,
-    });
-    prepareAgreementRenderedDocument(host, data, signature);
-    await Promise.all(Array.from(host.querySelectorAll("img")).map((image) => image.complete ? Promise.resolve() : new Promise<void>((resolve) => { image.addEventListener("load", () => resolve(), { once: true }); image.addEventListener("error", () => resolve(), { once: true }); })));
-    const exportStyle = document.createElement("style");
-    exportStyle.textContent = ".docx, .docx * { hyphens: none !important; -webkit-hyphens: none !important; }" + agreementRenderedStyles;
-    host.appendChild(exportStyle);
-    const sections = Array.from(host.querySelectorAll<HTMLElement>("section.docx"));
-    if (!sections.length) throw new Error("The agreement did not contain any printable pages.");
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
-    const logoBlob = await fetch("/perkhaven-logo.png").then((response) => response.blob());
-    const logoImage = `data:image/png;base64,${await blobBase64(logoBlob)}`;
-    let outputPage = 0;
-
-    for (const section of sections) {
-      const article = section.querySelector<HTMLElement>(":scope > article");
-      if (!article) continue;
-      const articleText = (article.textContent || "").replace(/\s+/g, " ").trim();
-      // Do not emit a separate page for a stray standalone Date line left by
-      // the source DOCX sectioning. Legitimate Appendix 2 date fields remain
-      // with the appendix content because that article contains much more text.
-      if (!articleText || (/^Date\s*:?\s*_*$/.test(articleText) && articleText.length < 48)) continue;
-      const numbering = new Map<string, { major: number; minor: number }>();
-      article.querySelectorAll<HTMLParagraphElement>("p").forEach((paragraph) => {
-        const numberClass = Array.from(paragraph.classList).find((name) => /-num-(5|6)-(0|1)$/.test(name));
-        const match = numberClass?.match(/-num-(5|6)-(0|1)$/);
-        if (!match) return;
-        const [, numberId, rawLevel] = match;
-        const level = Number(rawLevel);
-        const paragraphStyle = getComputedStyle(paragraph);
-        paragraph.style.marginLeft = paragraphStyle.marginLeft;
-        paragraph.style.paddingLeft = paragraphStyle.paddingLeft;
-        paragraph.style.textIndent = paragraphStyle.textIndent;
-        paragraph.style.textAlign = paragraphStyle.textAlign;
-        paragraph.classList.remove(numberClass!);
-        paragraph.dataset.agreementNumberLevel = String(level);
-        paragraph.dataset.agreementNumberId = numberId;
-        if (level === 0) paragraph.classList.add("agreement-section-heading");
-        const counter = numbering.get(numberId) || { major: 0, minor: 0 };
-        let label = "";
-        if (level === 0) {
-          counter.major += 1;
-          counter.minor = 0;
-          label = numberId === "5" ? `${counter.major}.0` : `${counter.major}.`;
-        } else {
-          counter.minor += 1;
-          label = `${counter.major}.${counter.minor}.`;
-        }
-        numbering.set(numberId, counter);
-        const marker = document.createElement("span");
-        marker.textContent = `${label}\u00a0`;
-        paragraph.prepend(marker);
-        paragraph.classList.add("agreement-number-materialized");
-      });
-      const sectionRect = section.getBoundingClientRect();
-      const articleRect = article.getBoundingClientRect();
-      const computed = getComputedStyle(section);
-      const leftPadding = Number.parseFloat(computed.paddingLeft) || 0;
-      const rightPadding = Number.parseFloat(computed.paddingRight) || 0;
-      const topPadding = Number.parseFloat(computed.paddingTop) || 0;
-      const bottomPadding = Number.parseFloat(computed.paddingBottom) || 0;
-      const pageHeight = sectionRect.width * 297 / 210;
-      // Use the available body area without crowding the fixed footer. The
-      // former 90% cap needlessly pushed the tail of Appendix 2 onto a new page.
-      const bodyPageHeight = (pageHeight - topPadding - bottomPadding) * .97;
-      const contentWidth = sectionRect.width - leftPadding - rightPadding;
-      const ranges = agreementPageRanges(article, bodyPageHeight);
-      if (!ranges.length) continue;
-      const bodyCanvas = await html2canvas(article, { scale: 1.35, backgroundColor: "#ffffff", useCORS: true });
-
-      const scaleY = bodyCanvas.height / articleRect.height;
-      for (const { start: rangeStart, end: rangeEnd, repeatedHeader } of ranges) {
-        if (outputPage) pdf.addPage("a4", "portrait");
-        pdf.addImage(logoImage, "PNG", 31, 6.5, 22, 22, "agreement-logo", "FAST");
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(17);
-        pdf.setTextColor(58, 107, 31);
-        pdf.text("THE PERK HAVEN", 60, 16.5);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(7);
-        pdf.text("P I T I P A N A   ·   H O M A G A M A", 60, 22.5);
-        const contentWidthMm = contentWidth * 210 / sectionRect.width;
-        const millimetresPerPixel = contentWidthMm / contentWidth;
-        const bodyTopMm = topPadding * 297 / pageHeight;
-        const xMm = leftPadding * 210 / sectionRect.width;
-        const canvasSlice = (sliceStart: number, sliceEnd: number) => {
-          // Round both adjacent boundaries to the same raster coordinate. The
-          // old floor(start) + ceil(height) calculation created a one-pixel
-          // overlap between pages, reproducing halves of the same text line on
-          // both pages.
-          const sourceY = Math.max(0, Math.round(sliceStart * scaleY));
-          const sourceEnd = Math.min(bodyCanvas.height, Math.round(sliceEnd * scaleY));
-          const sourceHeight = Math.max(1, sourceEnd - sourceY);
-          const slice = document.createElement("canvas");
-          slice.width = bodyCanvas.width;
-          slice.height = Math.max(1, sourceHeight);
-          const context = slice.getContext("2d");
-          if (context) {
-            context.fillStyle = "#ffffff";
-            context.fillRect(0, 0, slice.width, slice.height);
-            context.drawImage(bodyCanvas, 0, sourceY, bodyCanvas.width, sourceHeight, 0, 0, bodyCanvas.width, sourceHeight);
-          }
-          return slice;
-        };
-        let contentTopMm = bodyTopMm;
-        if (repeatedHeader) {
-          const header = canvasSlice(repeatedHeader.start, repeatedHeader.end);
-          const headerHeight = (repeatedHeader.end - repeatedHeader.start) * millimetresPerPixel;
-          pdf.addImage(header.toDataURL("image/jpeg", .92), "JPEG", xMm, contentTopMm, contentWidthMm, headerHeight, undefined, "FAST");
-          contentTopMm += headerHeight;
-        }
-        const pageBody = canvasSlice(rangeStart, rangeEnd);
-        const renderedHeight = (rangeEnd - rangeStart) * millimetresPerPixel;
-        pdf.addImage(pageBody.toDataURL("image/jpeg", .92), "JPEG", xMm, contentTopMm, contentWidthMm, renderedHeight, undefined, "FAST");
-        outputPage += 1;
-      }
-    }
-    const totalPages = pdf.getNumberOfPages();
-    for (let page = 1; page <= totalPages; page += 1) {
-      pdf.setPage(page);
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(6.5);
-      pdf.setTextColor(0, 0, 0);
-      pdf.text(`Telephone: ${data.hostelTelephone || "—"}`, 31, 286.5);
-      pdf.text(`${page} of Page ${totalPages}`, 105, 286.5, { align: "center" });
-      pdf.text(`Email: ${data.hostelEmail || "—"}`, 179, 286.5, { align: "right" });
-      pdf.setLineWidth(.35);
-      pdf.line(31, 292, 179, 292);
-    }
-    pdf.save(filename);
-  } finally {
-    host.remove();
+async function agreementPdfBlob(data: AgreementData, filename: string, signature?: AgreementSignature) {
+  const response = await fetch("/api/v1/agreements/render-pdf", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      agreementData: withAgreementContacts(data),
+      signedName: signature?.name || null,
+      signedAt: signature?.date || null,
+      filename,
+    }),
+  });
+  if (!response.ok) {
+    let message = "Unable to render agreement PDF.";
+    try {
+      const result = await response.json();
+      message = result.detail || result.error || message;
+    } catch {}
+    throw new Error(message);
   }
+  return response.blob();
 }
-function AgreementDocumentPreview({ data, signature }: { data: AgreementData; signature?: AgreementSignature }) {
-  const target = useRef<HTMLDivElement>(null);
+
+async function downloadAgreementPdf(data: AgreementData, filename: string, signature?: AgreementSignature) {
+  downloadBlob(await agreementPdfBlob(data, filename, signature), filename);
+}
+
+async function issuedAgreementPdfBlob(id: number) {
+  const response = await fetch(`/api/v1/agreements/${id}/pdf`);
+  if (!response.ok) throw new Error("Unable to load the issued agreement PDF.");
+  return response.blob();
+}
+
+async function downloadIssuedAgreementPdf(id: number, filename: string) {
+  downloadBlob(await issuedAgreementPdfBlob(id), filename);
+}
+
+function AgreementDocumentPreview({
+  data,
+  signature,
+  agreementId,
+}: {
+  data: AgreementData;
+  signature?: AgreementSignature;
+  agreementId?: number;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const request = useRef(0);
+
   useEffect(() => {
-    let active = true;
-    buildAgreementBlob(data, signature).then(async (blob) => {
-      if (!active || !target.current) return;
-      target.current.innerHTML = "";
-      const { renderAsync } = await import("docx-preview");
-      await renderAsync(blob, target.current, undefined, { inWrapper: true, breakPages: true, ignoreWidth: false, ignoreHeight: false });
-      if (!active || !target.current) return;
-      prepareAgreementRenderedDocument(target.current, data, signature);
-      prepareAgreementPreviewContacts(target.current, data);
-      setError("");
-    }).catch((reason) => active && setError(reason instanceof Error ? reason.message : "Unable to preview agreement."));
-    return () => { active = false; };
-  }, [data, signature?.name, signature?.date]);
-  return <div className="agreement-preview-shell">{error && <div className="error-banner">{error}</div>}<div ref={target} className="agreement-docx-preview" /></div>;
+    const requestId = ++request.current;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const blob = agreementId
+            ? await issuedAgreementPdfBlob(agreementId)
+            : await agreementPdfBlob(data, "Agreement-Preview.pdf", signature);
+          if (request.current !== requestId) return;
+          setUrl((current) => {
+            if (current) URL.revokeObjectURL(current);
+            return URL.createObjectURL(blob);
+          });
+          setError("");
+        } catch (reason) {
+          if (request.current !== requestId) return;
+          setError(reason instanceof Error ? reason.message : "Unable to preview agreement.");
+        }
+      })();
+    }, agreementId ? 0 : 180);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [agreementId, data, signature?.name, signature?.date]);
+
+  useEffect(() => () => {
+    setUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+  }, []);
+
+  return <div className="agreement-preview-shell">
+    {error && <div className="error-banner">{error}</div>}
+    {url ? <iframe className="agreement-pdf-preview" src={url} title="Agreement PDF preview" /> : <div className="preview-loading">Preparing agreement preview…</div>}
+  </div>;
 }
 
 function AgreementSettlementView({ students, staff, payments, invoices, studentUpdated }: { students: Student[]; staff: Staff[]; payments: Payment[]; invoices: StudentInvoice[]; studentUpdated: (student: Student) => void }) {
@@ -5720,6 +5638,7 @@ function AgreementSettlementView({ students, staff, payments, invoices, studentU
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
   const [agreementOpen, setAgreementOpen] = useState(false);
   const [agreementData, setAgreementData] = useState<AgreementData | null>(null);
+  const [agreementRecord, setAgreementRecord] = useState<AgreementRecord | null>(null);
   const [agreementMessage, setAgreementMessage] = useState("");
   const [sendingAgreement, setSendingAgreement] = useState(false);
   const [agreements, setAgreements] = useState<AgreementRecord[]>([]);
@@ -5836,17 +5755,17 @@ function AgreementSettlementView({ students, staff, payments, invoices, studentU
   }, [settlementOpen, settlementData, registrationNo]);
   return <section className="documents-admin-page">
     <div className="section-tabs document-tabs" role="tablist">{(["Agreement Template", "Agreement Log", "Check-Out Settlement Template", "Check-Out Settlement Log"] as const).map((item) => <button key={item} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</div>
-    {(section === "Agreement Template" || section === "Check-Out Settlement Template") && <div className="panel documents-generator"><div><p className="tag">DOCUMENT PREPARATION</p><h2>{section}</h2><p>{section === "Agreement Template" ? "Select a resident, review the completed contract and send it for electronic signature." : "Select a resident, confirm the bank account variables and issue the check-out settlement."}</p></div><label>Resident<select value={registrationNo} onChange={(event) => setRegistrationNo(event.target.value)}><option value="">Select resident</option>{students.map((item) => <option key={item.registrationNo} value={item.registrationNo}>{item.registrationNo} · {item.firstName} {item.lastName}</option>)}</select></label><div className="document-actions">{section === "Agreement Template" ? <button className="primary" disabled={!student || !hostelProfile} onClick={() => { if (!student || !hostelProfile) return; let saved: AgreementData | null = null; try { saved = student.agreementDataJson ? JSON.parse(student.agreementDataJson) : null; } catch {} const warden = staff.find((member) => member.status === "Active" && member.designation.toLowerCase().includes("warden")); setAgreementData(withAgreementContacts(saved || agreementValuesFor(student, hostelProfile, warden))); setAgreementMessage(""); setAgreementOpen(true); }}>Prepare / View Agreement</button> : <button className="primary" disabled={!student} onClick={openSettlementVariables}>Prepare / View Settlement</button>}</div></div>}
-    {section === "Agreement Log" && <AgreementLog agreements={agreements} onView={(entry, data) => { setRegistrationNo(entry.registrationNo); setAgreementData(withAgreementContacts(data)); setAgreementMessage(""); setAgreementOpen(true); }} />}
+    {(section === "Agreement Template" || section === "Check-Out Settlement Template") && <div className="panel documents-generator"><div><p className="tag">DOCUMENT PREPARATION</p><h2>{section}</h2><p>{section === "Agreement Template" ? "Select a resident, review the completed contract and send it for electronic signature." : "Select a resident, confirm the bank account variables and issue the check-out settlement."}</p></div><label>Resident<select value={registrationNo} onChange={(event) => setRegistrationNo(event.target.value)}><option value="">Select resident</option>{students.map((item) => <option key={item.registrationNo} value={item.registrationNo}>{item.registrationNo} · {item.firstName} {item.lastName}</option>)}</select></label><div className="document-actions">{section === "Agreement Template" ? <button className="primary" disabled={!student || !hostelProfile} onClick={() => { if (!student || !hostelProfile) return; let saved: AgreementData | null = null; try { saved = student.agreementDataJson ? JSON.parse(student.agreementDataJson) : null; } catch {} const warden = staff.find((member) => member.status === "Active" && member.designation.toLowerCase().includes("warden")); setAgreementRecord(null); setAgreementData(withAgreementContacts(saved || agreementValuesFor(student, hostelProfile, warden))); setAgreementMessage(""); setAgreementOpen(true); }}>Prepare / View Agreement</button> : <button className="primary" disabled={!student} onClick={openSettlementVariables}>Prepare / View Settlement</button>}</div></div>}
+    {section === "Agreement Log" && <AgreementLog agreements={agreements} onView={(entry, data) => { setRegistrationNo(entry.registrationNo); setAgreementRecord(entry); setAgreementData(withAgreementContacts(data)); setAgreementMessage(""); setAgreementOpen(true); }} />}
     {section === "Check-Out Settlement Log" && <CheckoutSettlementLog settlements={settlements} onView={(entry) => { void (async () => { try { const response = await fetch(`/api/v1/checkout-settlements/${entry.id}/pdf`); if (!response.ok) throw new Error("Unable to load the settlement PDF."); const blobUrl = URL.createObjectURL(await response.blob()); setPreview((current) => { if (current) URL.revokeObjectURL(current.url); return { url: blobUrl, name: `${entry.settlementNo}.pdf` }; }); } catch (reason) { setAgreementMessage(reason instanceof Error ? reason.message : "Unable to load the settlement PDF."); } })(); }} onDownload={(entry) => { void (async () => { try { const response = await fetch(`/api/v1/checkout-settlements/${entry.id}/pdf`); if (!response.ok) throw new Error("Unable to download the settlement PDF."); downloadBlob(await response.blob(), `${entry.settlementNo}.pdf`); } catch (reason) { setAgreementMessage(reason instanceof Error ? reason.message : "Unable to download the settlement PDF."); } })(); }} />}
-    {agreementOpen && student && agreementData && <div className="backdrop"><section className="modal agreement-workspace-modal"><ModalHead tag="CONTRACT AGREEMENT" title={`${student.registrationNo} · ${agreementData.studentName}`} text="Review the agreement and confirm the variables before sending it to the resident." close={() => setAgreementOpen(false)} /><div className="agreement-workspace"><AgreementDocumentPreview data={agreementData} /><aside className="agreement-variables"><h3>Agreement variables</h3><p>Profile values are pre-filled and can be amended for this contract.</p>{([["studentName", "Resident full name", "text"], ["studentId", "Resident NIC / ID", "text"], ["wardenName", "Warden full name", "text"], ["wardenId", "Warden NIC / ID", "text"], ["agreementDate", "Agreement date", "date"], ["startDate", "Rental accommodation start date", "date"], ["roomNo", "Hostel Room number", "text"], ["occupancyBasis", "Occupancy basis", "text"], ["rentalDuration", "Rental duration", "text"], ["monthlyRent", "Monthly accommodation fee", "text"], ["monthlyRentWords", "Monthly accommodation fee in words", "text"], ["depositAmount", "Security Deposit amount", "text"], ["depositAmountWords", "Security Deposit amount in words", "text"]] as Array<[keyof AgreementData, string, string]>).map(([key, label, type]) => <label key={key}>{label}<input type={type} value={agreementData[key]} readOnly={key === "occupancyBasis"} onChange={(event) => setAgreementData({ ...agreementData, [key]: event.target.value })} /></label>)}{agreementMessage && <div className="success-banner">{agreementMessage}</div>}</aside></div><div className="modalactions"><button className="secondary" onClick={() => downloadAgreementPdf(agreementData, `Agreement-${student.registrationNo}.pdf`)}>Save PDF</button><button className="primary" disabled={sendingAgreement} onClick={async () => { setSendingAgreement(true); try { const response = await fetch("/api/v1/agreements", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ registrationNo: student.registrationNo, agreementData }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "Unable to send agreement."); setAgreements((current) => [result.agreement, ...current]); setAgreementMessage(`${result.agreement.agreementNo} ${result.agreement.revisionLabel} was saved and sent to the resident for electronic signature.`); } catch (reason) { setAgreementMessage(reason instanceof Error ? reason.message : "Unable to send agreement."); } finally { setSendingAgreement(false); } }}>Save & Send to Resident</button></div></section></div>}
+    {agreementOpen && student && agreementData && <div className="backdrop"><section className="modal agreement-workspace-modal"><ModalHead tag="CONTRACT AGREEMENT" title={`${student.registrationNo} · ${agreementData.studentName}`} text="Review the agreement and confirm the variables before sending it to the resident." close={() => { setAgreementOpen(false); setAgreementRecord(null); }} /><div className="agreement-workspace"><AgreementDocumentPreview data={agreementData} agreementId={agreementRecord?.id} signature={agreementRecord?.signedName && agreementRecord?.signedAt ? { name: agreementRecord.signedName, date: agreementRecord.signedAt } : undefined} /><aside className="agreement-variables"><h3>Agreement variables</h3><p>Profile values are pre-filled and can be amended for this contract.</p>{([["studentName", "Resident full name", "text"], ["studentId", "Resident NIC / ID", "text"], ["wardenName", "Warden full name", "text"], ["wardenId", "Warden NIC / ID", "text"], ["agreementDate", "Agreement date", "date"], ["startDate", "Rental accommodation start date", "date"], ["roomNo", "Hostel Room number", "text"], ["occupancyBasis", "Occupancy basis", "text"], ["rentalDuration", "Rental duration", "text"], ["monthlyRent", "Monthly accommodation fee", "text"], ["monthlyRentWords", "Monthly accommodation fee in words", "text"], ["depositAmount", "Security Deposit amount", "text"], ["depositAmountWords", "Security Deposit amount in words", "text"]] as Array<[keyof AgreementData, string, string]>).map(([key, label, type]) => <label key={key}>{label}<input type={type} value={agreementData[key]} readOnly={key === "occupancyBasis"} onChange={(event) => setAgreementData({ ...agreementData, [key]: event.target.value })} /></label>)}{agreementMessage && <div className="success-banner">{agreementMessage}</div>}</aside></div><div className="modalactions"><button className="secondary" onClick={() => agreementRecord ? void downloadIssuedAgreementPdf(agreementRecord.id, `${agreementRecord.agreementNo}-${agreementRecord.revisionLabel}.pdf`) : void downloadAgreementPdf(agreementData, `Agreement-${student.registrationNo}.pdf`)}>Save PDF</button><button className="primary" disabled={sendingAgreement} onClick={async () => { setSendingAgreement(true); try { const response = await fetch("/api/v1/agreements", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ registrationNo: student.registrationNo, agreementData }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "Unable to send agreement."); setAgreements((current) => [result.agreement, ...current]); setAgreementMessage(`${result.agreement.agreementNo} ${result.agreement.revisionLabel} was saved and sent to the resident for electronic signature.`); } catch (reason) { setAgreementMessage(reason instanceof Error ? reason.message : "Unable to send agreement."); } finally { setSendingAgreement(false); } }}>Save & Send to Resident</button></div></section></div>}
     {settlementOpen && student && settlementData && <div className="backdrop"><section className="modal settlement-variables-modal"><ModalHead tag="CHECK-OUT SETTLEMENT" title={`${student.registrationNo} · ${student.firstName} ${student.lastName}`} text="Update the bank details and review the settlement before issuing it." close={() => { settlementPreviewRequest.current += 1; setSettlementPreviewUrl((current) => { if (current) URL.revokeObjectURL(current); return null; }); setSettlementOpen(false); }} /><div className="settlement-variables-body"><aside className="agreement-variables settlement-variables"><h3>Check-Out Settlement variables</h3><p>Enter the resident’s bank account details for the balance payment.</p>{([["accountHolderName", "Account holder's name", "text"], ["accountNumber", "Bank account number", "text"], ["bankName", "Bank name", "text"], ["branchName", "Bank branch", "text"], ["printDate", "Settlement Agreement date", "date"]] as Array<[keyof SettlementData, string, string]>).map(([key, label, type]) => <label key={key}>{label}<input type={type} value={settlementData[key]} readOnly={key === "printDate"} onChange={(event) => setSettlementData({ ...settlementData, [key]: event.target.value })} /></label>)}</aside><div className="settlement-pdf-preview">{settlementPreviewUrl ? <iframe src={settlementPreviewUrl} title="Check-Out Settlement preview" /> : <div className="preview-loading">Preparing settlement preview…</div>}</div></div>{agreementMessage && <div className="error-banner">{agreementMessage}</div>}<div className="modalactions"><button className="secondary" onClick={() => void createDocument(true, settlementData)}>Download PDF</button>{section === "Check-Out Settlement Template" && <button className="primary" disabled={issuingSettlement} onClick={() => void issueSettlement()}>{issuingSettlement ? "Issuing…" : "Issue & Save PDF"}</button>}</div></section></div>}
     {preview && <div className="backdrop"><div className="modal document-preview-modal"><ModalHead tag="DOCUMENT PREVIEW" title={preview.name} text="Review the completed document before downloading." close={() => { URL.revokeObjectURL(preview.url); setPreview(null); }} /><iframe src={preview.url} title={preview.name} /><div className="modalactions"><a className="button secondary" href={preview.url} download={preview.name}>Download PDF</a></div></div></div>}
   </section>;
 }
 
 function AgreementLog({ agreements, onView }: { agreements: AgreementRecord[]; onView: (entry: AgreementRecord, data: AgreementData) => void }) {
-  return <div className="panel tablewrap"><div className="table-title"><div><p className="tag">AGREEMENT LOG</p><h3>Issued agreements</h3></div></div><table><thead><tr><th>REFERENCE</th><th>REVISION</th><th>REGISTRATION</th><th>RESIDENT</th><th>HOSTEL ROOM</th><th>ACCOMMODATION START DATE</th><th>ISSUED</th><th>SIGNED</th><th>STATUS</th><th>COPY</th></tr></thead><tbody>{agreements.map((entry) => { let data: AgreementData | null = null; try { data = JSON.parse(entry.agreementDataJson); } catch {} return <tr key={entry.id}><td>{entry.agreementNo}</td><td>{entry.revisionLabel}</td><td>{entry.registrationNo}</td><td>{entry.studentName}</td><td>{entry.roomNo || "—"}</td><td>{fmtDate(entry.startDate)}</td><td>{fmtDateTime(entry.issuedAt)}</td><td>{entry.signedAt ? fmtDateTime(entry.signedAt) : "—"}</td><td><span className={`approval-status ${entry.status.toLowerCase()}`}>{entry.status}</span></td><td>{data && <div className="inline-actions"><button className="secondary" onClick={() => onView(entry, data!)}>View PDF</button><button className="secondary" onClick={() => downloadAgreementPdf(data!, `${entry.agreementNo}-${entry.revisionLabel}.pdf`, entry.signedName && entry.signedAt ? { name: entry.signedName, date: entry.signedAt } : undefined)}>Download PDF</button></div>}</td></tr>; })}{!agreements.length && <tr><td colSpan={10} className="empty-state">No agreements have been issued.</td></tr>}</tbody></table></div>;
+  return <div className="panel tablewrap"><div className="table-title"><div><p className="tag">AGREEMENT LOG</p><h3>Issued agreements</h3></div></div><table><thead><tr><th>REFERENCE</th><th>REVISION</th><th>REGISTRATION</th><th>RESIDENT</th><th>HOSTEL ROOM</th><th>ACCOMMODATION START DATE</th><th>ISSUED</th><th>SIGNED</th><th>STATUS</th><th>COPY</th></tr></thead><tbody>{agreements.map((entry) => { let data: AgreementData | null = null; try { data = JSON.parse(entry.agreementDataJson); } catch {} return <tr key={entry.id}><td>{entry.agreementNo}</td><td>{entry.revisionLabel}</td><td>{entry.registrationNo}</td><td>{entry.studentName}</td><td>{entry.roomNo || "—"}</td><td>{fmtDate(entry.startDate)}</td><td>{fmtDateTime(entry.issuedAt)}</td><td>{entry.signedAt ? fmtDateTime(entry.signedAt) : "—"}</td><td><span className={`approval-status ${entry.status.toLowerCase()}`}>{entry.status}</span></td><td>{data && <div className="inline-actions"><button className="secondary" onClick={() => onView(entry, data!)}>View PDF</button><button className="secondary" onClick={() => void downloadIssuedAgreementPdf(entry.id, `${entry.agreementNo}-${entry.revisionLabel}.pdf`)}>Download PDF</button></div>}</td></tr>; })}{!agreements.length && <tr><td colSpan={10} className="empty-state">No agreements have been issued.</td></tr>}</tbody></table></div>;
 }
 
 function CheckoutSettlementLog({ settlements, onView, onDownload }: { settlements: SettlementRecord[]; onView: (entry: SettlementRecord) => void; onDownload: (entry: SettlementRecord) => void }) {
@@ -19571,7 +19490,7 @@ function Profile({
           }}
         />
       )}
-      {agreementPreview && <div className="backdrop"><section className="modal agreement-workspace-modal"><ModalHead tag="ISSUED AGREEMENT" title={`${agreementPreview.entry.agreementNo} · ${agreementPreview.entry.revisionLabel}`} text="View the issued agreement without leaving the resident profile." close={() => setAgreementPreview(null)} /><AgreementDocumentPreview data={agreementPreview.data} signature={agreementPreview.entry.signedName && agreementPreview.entry.signedAt ? { name: agreementPreview.entry.signedName, date: agreementPreview.entry.signedAt } : undefined} /><div className="modalactions"><button className="secondary" onClick={() => downloadAgreementPdf(agreementPreview.data, `${agreementPreview.entry.agreementNo}-${agreementPreview.entry.revisionLabel}.pdf`, agreementPreview.entry.signedName && agreementPreview.entry.signedAt ? { name: agreementPreview.entry.signedName, date: agreementPreview.entry.signedAt } : undefined)}>Download PDF</button></div></section></div>}
+      {agreementPreview && <div className="backdrop"><section className="modal agreement-workspace-modal"><ModalHead tag="ISSUED AGREEMENT" title={`${agreementPreview.entry.agreementNo} · ${agreementPreview.entry.revisionLabel}`} text="View the issued agreement without leaving the resident profile." close={() => setAgreementPreview(null)} /><AgreementDocumentPreview data={agreementPreview.data} agreementId={agreementPreview.entry.id} signature={agreementPreview.entry.signedName && agreementPreview.entry.signedAt ? { name: agreementPreview.entry.signedName, date: agreementPreview.entry.signedAt } : undefined} /><div className="modalactions"><button className="secondary" onClick={() => void downloadIssuedAgreementPdf(agreementPreview.entry.id, `${agreementPreview.entry.agreementNo}-${agreementPreview.entry.revisionLabel}.pdf`)}>Download PDF</button></div></section></div>}
       {settlementPreview && settlementPreviewUrl && <div className="backdrop"><section className="modal document-preview-modal"><ModalHead tag="ISSUED CHECK-OUT SETTLEMENT" title={settlementPreview.settlementNo} text="View the issued check-out settlement without leaving the resident profile." close={() => { if (settlementPreviewUrl) URL.revokeObjectURL(settlementPreviewUrl); setSettlementPreviewUrl(null); setSettlementPreview(null); }} /><iframe src={settlementPreviewUrl} title={settlementPreview.settlementNo} /><div className="modalactions"><button className="secondary" onClick={() => void openSettlementPreview(settlementPreview, true)}>Download PDF</button></div></section></div>}
     </div>
   );
