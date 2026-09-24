@@ -119,6 +119,8 @@ public class AgreementPdfService implements DisposableBean {
         doc.select("img").remove();
 
         markHeadingsAndSpacing(doc);
+        applyHierarchicalNumbering(doc);
+        wrapHeadingIntros(doc, doc.body());
         wrapExecutionSection(doc);
         wrapAppendixTwo(doc);
         addPrintStyles(doc);
@@ -181,8 +183,6 @@ public class AgreementPdfService implements DisposableBean {
             }
         }
 
-        wrapHeadingIntros(doc, body);
-
         for (Element table : doc.select("table")) {
             table.addClass("agreement-table");
             for (Element row : table.select("tr")) {
@@ -191,6 +191,134 @@ public class AgreementPdfService implements DisposableBean {
                     row.addClass("agreement-category-row");
                 }
             }
+        }
+    }
+
+    private void applyHierarchicalNumbering(Document doc) {
+        Element body = doc.body();
+        Element appendixOneHeading = doc.selectFirst("p.appendix-one-heading");
+        Element appendixTwoHeading = doc.selectFirst("p.appendix-two-heading");
+
+        int sectionNumber = 0;
+        int clauseNumber = 0;
+        boolean inAppendixOne = false;
+
+        List<Element> topLevelBlocks = new ArrayList<>(body.children());
+        for (Element block : topLevelBlocks) {
+            if (appendixOneHeading != null && block == topLevelBlock(appendixOneHeading, body)) {
+                inAppendixOne = true;
+                sectionNumber = 0;
+                clauseNumber = 0;
+                continue;
+            }
+            if (appendixTwoHeading != null && block == topLevelBlock(appendixTwoHeading, body)) {
+                break;
+            }
+
+            Element heading = "ol".equals(block.tagName())
+                    ? block.selectFirst("p.agreement-section-heading")
+                    : null;
+            if (heading != null) {
+                sectionNumber++;
+                clauseNumber = 0;
+                annotateNumberedBlock(block, heading, sectionNumber + ".0", "agreement-numbered-heading");
+                block.addClass(inAppendixOne ? "appendix-one-numbered" : "main-agreement-numbered");
+                continue;
+            }
+
+            if (sectionNumber == 0) {
+                continue;
+            }
+
+            Element clauseParagraph = numberedClauseParagraph(block);
+            if (clauseParagraph != null) {
+                clauseNumber++;
+                annotateNumberedBlock(block, clauseParagraph,
+                        sectionNumber + "." + clauseNumber,
+                        "agreement-numbered-clause");
+                block.addClass(inAppendixOne ? "appendix-one-numbered" : "main-agreement-numbered");
+                continue;
+            }
+
+            annotateAlphaBlock(block);
+        }
+    }
+
+    private static Element numberedClauseParagraph(Element block) {
+        if (!"ol".equals(block.tagName())) return null;
+        if ("a".equalsIgnoreCase(block.attr("type"))) return null;
+        if (block.hasClass("agreement-numbered-heading")) return null;
+
+        List<Element> directItems = directChildren(block, "li");
+        if (directItems.size() == 1) {
+            Element paragraph = firstDirectChild(directItems.get(0), "p");
+            if (paragraph != null && !paragraph.hasClass("agreement-section-heading")) return paragraph;
+        }
+
+        List<Element> nestedLists = directChildren(block, "ol");
+        if (nestedLists.size() == 1) {
+            Element nested = nestedLists.get(0);
+            if ("a".equalsIgnoreCase(nested.attr("type"))) return null;
+            List<Element> nestedItems = directChildren(nested, "li");
+            if (nestedItems.size() == 1) {
+                Element paragraph = firstDirectChild(nestedItems.get(0), "p");
+                if (paragraph != null && !paragraph.hasClass("agreement-section-heading")) return paragraph;
+            }
+        }
+        return null;
+    }
+
+    private static List<Element> directChildren(Element parent, String tagName) {
+        List<Element> matches = new ArrayList<>();
+        for (Element child : parent.children()) {
+            if (tagName.equals(child.tagName())) matches.add(child);
+        }
+        return matches;
+    }
+
+    private static Element firstDirectChild(Element parent, String tagName) {
+        for (Element child : parent.children()) {
+            if (tagName.equals(child.tagName())) return child;
+        }
+        return null;
+    }
+
+    private static void annotateNumberedBlock(
+            Element block,
+            Element paragraph,
+            String number,
+            String cssClass) {
+        block.addClass(cssClass);
+        block.attr("data-agreement-number", number);
+        paragraph.addClass("agreement-numbered-paragraph");
+        paragraph.prependElement("span")
+                .addClass("agreement-number-marker")
+                .text(number);
+    }
+
+    private static void annotateAlphaBlock(Element block) {
+        if (!"ol".equals(block.tagName()) || !"a".equalsIgnoreCase(block.attr("type"))) return;
+
+        int start = 1;
+        try {
+            String rawStart = block.attr("start");
+            if (!rawStart.isBlank()) start = Integer.parseInt(rawStart);
+        } catch (NumberFormatException ignored) {
+            start = 1;
+        }
+
+        List<Element> items = directChildren(block, "li");
+        for (int index = 0; index < items.size(); index++) {
+            Element paragraph = firstDirectChild(items.get(index), "p");
+            if (paragraph == null) continue;
+            int alphaIndex = start + index;
+            if (alphaIndex < 1 || alphaIndex > 26) continue;
+            String marker = Character.toString((char) ('a' + alphaIndex - 1)) + ".";
+            block.addClass("agreement-alpha-list");
+            paragraph.addClass("agreement-alpha-paragraph");
+            paragraph.prependElement("span")
+                    .addClass("agreement-alpha-marker")
+                    .text(marker);
         }
     }
 
@@ -363,6 +491,57 @@ public class AgreementPdfService implements DisposableBean {
                 ol, ul {
                   margin-top: 0 !important;
                   margin-bottom: 0 !important;
+                }
+                .agreement-numbered-heading,
+                .agreement-numbered-clause,
+                .agreement-alpha-list {
+                  list-style: none !important;
+                  padding-left: 0 !important;
+                  margin-left: 0 !important;
+                }
+                .agreement-numbered-heading > li,
+                .agreement-numbered-clause li,
+                .agreement-alpha-list > li {
+                  list-style: none !important;
+                  margin-left: 0 !important;
+                  padding-left: 0 !important;
+                }
+                .agreement-numbered-clause > ol {
+                  list-style: none !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
+                .agreement-numbered-paragraph {
+                  display: grid !important;
+                  grid-template-columns: 13mm minmax(0, 1fr) !important;
+                  column-gap: 2mm !important;
+                  align-items: start !important;
+                  margin-left: 0 !important;
+                  text-indent: 0 !important;
+                }
+                .agreement-number-marker {
+                  display: block !important;
+                  text-align: left !important;
+                  white-space: nowrap !important;
+                }
+                .agreement-numbered-heading .agreement-numbered-paragraph {
+                  font-weight: 700 !important;
+                }
+                .agreement-alpha-list {
+                  margin-left: 15mm !important;
+                }
+                .agreement-alpha-paragraph {
+                  display: grid !important;
+                  grid-template-columns: 8mm minmax(0, 1fr) !important;
+                  column-gap: 2mm !important;
+                  align-items: start !important;
+                  margin-left: 0 !important;
+                  text-indent: 0 !important;
+                }
+                .agreement-alpha-marker {
+                  display: block !important;
+                  text-align: left !important;
+                  white-space: nowrap !important;
                 }
                 li {
                   break-inside: auto !important;

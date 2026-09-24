@@ -59,6 +59,35 @@ class AgreementPdfServiceTest {
         var renderedDocument = Jsoup.parse(html);
         assertEquals(1, renderedDocument.select("p.appendix-one-heading").size());
         assertEquals(1, renderedDocument.select("p.appendix-two-heading").size());
+
+        var mainHeadings = renderedDocument.select(".main-agreement-numbered.agreement-numbered-heading");
+        var mainClauses = renderedDocument.select(".main-agreement-numbered.agreement-numbered-clause");
+        assertFalse(mainHeadings.isEmpty());
+        assertTrue(mainClauses.size() > 1);
+        assertEquals("1.0", mainHeadings.first().attr("data-agreement-number"));
+        assertEquals("1.1", mainClauses.get(0).attr("data-agreement-number"));
+        assertEquals("1.2", mainClauses.get(1).attr("data-agreement-number"));
+        assertEquals(1, mainHeadings.stream()
+                .filter(element -> "2.0".equals(element.attr("data-agreement-number")))
+                .count());
+
+        var appendixHeadings = renderedDocument.select(".appendix-one-numbered.agreement-numbered-heading");
+        var appendixClauses = renderedDocument.select(".appendix-one-numbered.agreement-numbered-clause");
+        assertEquals(1, appendixHeadings.stream()
+                .filter(element -> "1.0".equals(element.attr("data-agreement-number")))
+                .count());
+        assertEquals(1, appendixClauses.stream()
+                .filter(element -> "1.1".equals(element.attr("data-agreement-number")))
+                .count());
+        assertEquals(0, renderedDocument.select("p.appendix-one-heading .agreement-number-marker").size());
+
+        var alphaMarkers = renderedDocument.select(".agreement-alpha-marker").eachText();
+        assertTrue(alphaMarkers.contains("a."));
+        assertTrue(alphaMarkers.contains("b."));
+        assertTrue(alphaMarkers.contains("c."));
+        assertTrue(html.contains("grid-template-columns: 13mm minmax(0, 1fr)"));
+        assertTrue(html.contains("grid-template-columns: 8mm minmax(0, 1fr)"));
+
         assertFalse(html.contains("{{studentName}}"));
         assertFalse(html.contains("perkhaven@gmail.com"));
         assertFalse(html.contains("joanne.fernando@yahoo.com"));
