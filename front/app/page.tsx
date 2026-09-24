@@ -5314,6 +5314,7 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
   const articleRect = article.getBoundingClientRect();
   const relative = (value: number) => value - articleRect.top;
   const boundaries: number[] = [];
+  const textLines: Array<{ top: number; bottom: number }> = [];
   const atomicRegions: Array<{ top: number; bottom: number }> = [];
   const tables: Array<{ top: number; bottom: number; headerTop: number; headerBottom: number }> = [];
   const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
@@ -5322,7 +5323,14 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
     if ((textNode.textContent || "").trim()) {
       const range = document.createRange();
       range.selectNodeContents(textNode);
-      Array.from(range.getClientRects()).forEach((rect) => boundaries.push(relative(rect.bottom) + 0.5));
+      Array.from(range.getClientRects()).forEach((rect) => {
+        const top = relative(rect.top);
+        const bottom = relative(rect.bottom);
+        if (bottom > top + 0.25) {
+          textLines.push({ top, bottom });
+          boundaries.push(top, bottom);
+        }
+      });
       range.detach();
     }
     textNode = walker.nextNode();
@@ -5332,8 +5340,8 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
     const region = { top: relative(rect.top), bottom: relative(rect.bottom) };
     boundaries.push(region.top, region.bottom);
     // Keep a paragraph or heading intact whenever it can fit on a fresh page.
-    // A genuinely page-taller paragraph may still break at one of the complete
-    // rendered-line boundaries collected above.
+    // A genuinely page-taller paragraph may still break, but only between
+    // complete rendered text lines.
     atomicRegions.push(region);
   });
   article.querySelectorAll<HTMLTableElement>("table").forEach((table) => {
@@ -5361,6 +5369,7 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
     .map(Number)
     .sort((left, right) => left - right);
   const ranges: AgreementPageRange[] = [];
+  const pageBreakSafety = 6;
   let start = 0;
   while (start < articleRect.height - 0.5) {
     const continuedTable = tables.find((table) => start >= table.headerBottom - 0.5 && start < table.bottom - 0.5);
@@ -5368,15 +5377,44 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
       ? { start: continuedTable.headerTop, end: continuedTable.headerBottom }
       : undefined;
     const usableHeight = Math.max(1, availableHeight - (repeatedHeader ? repeatedHeader.end - repeatedHeader.start : 0));
-    const limit = Math.min(articleRect.height, start + usableHeight);
+    const rawLimit = Math.min(articleRect.height, start + usableHeight);
+    const limit = rawLimit >= articleRect.height
+      ? articleRect.height
+      : Math.max(start + 1, rawLimit - pageBreakSafety);
+
     const safe = ordered.filter((value) => {
       if (value <= start + 0.75 || value > limit + 0.5) return false;
+      if (textLines.some((line) => value > line.top + 0.5 && value < line.bottom - 0.5)) return false;
       return !atomicRegions.some((region) =>
         region.bottom - region.top <= usableHeight + 0.5 &&
         value > region.top + 0.75 && value < region.bottom - 0.75,
       );
     }).at(-1);
-    const end = Math.min(articleRect.height, Math.max(start + 1, safe || limit));
+
+    let end = safe;
+    if (end === undefined) {
+      // If the ideal page boundary would cross a rendered line, move the whole
+      // line to the next page. This prevents the PDF canvas slice from cutting
+      // through the lower or upper half of glyphs.
+      const crossingLine = textLines
+        .filter((line) => line.top < rawLimit - 0.25 && line.bottom > rawLimit - pageBreakSafety)
+        .sort((left, right) => left.top - right.top)[0];
+      if (crossingLine && crossingLine.top > start + 1) end = crossingLine.top;
+    }
+
+    // This fallback is only for an unusually tall single element that cannot
+    // fit on a page. Normal text should always resolve to a paragraph, row, or
+    // complete-line boundary above.
+    if (end === undefined || end <= start + 0.75) {
+      const completeLineBottom = textLines
+        .filter((line) => line.bottom > start + 0.75 && line.bottom <= limit + 0.5)
+        .map((line) => line.bottom)
+        .sort((left, right) => left - right)
+        .at(-1);
+      end = completeLineBottom ?? limit;
+    }
+
+    end = Math.min(articleRect.height, Math.max(start + 1, end));
     ranges.push({ start, end, repeatedHeader });
     start = end;
   }
