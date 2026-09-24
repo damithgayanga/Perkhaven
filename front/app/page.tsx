@@ -5316,6 +5316,7 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
   const boundaries: number[] = [];
   const textLines: Array<{ top: number; bottom: number }> = [];
   const atomicRegions: Array<{ top: number; bottom: number }> = [];
+  const forcedBreaks: number[] = [];
   const tables: Array<{ top: number; bottom: number; headerTop: number; headerBottom: number }> = [];
   const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
   let textNode = walker.nextNode();
@@ -5335,7 +5336,8 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
     }
     textNode = walker.nextNode();
   }
-  article.querySelectorAll<HTMLElement>("p, h1, h2, h3, h4, h5, h6, .agreement-signature-layout").forEach((element) => {
+  const flowBlocks = Array.from(article.querySelectorAll<HTMLElement>("p, h1, h2, h3, h4, h5, h6, .agreement-signature-layout"));
+  flowBlocks.forEach((element, index) => {
     const rect = element.getBoundingClientRect();
     const region = { top: relative(rect.top), bottom: relative(rect.bottom) };
     boundaries.push(region.top, region.bottom);
@@ -5343,6 +5345,20 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
     // A genuinely page-taller paragraph may still break, but only between
     // complete rendered text lines.
     atomicRegions.push(region);
+
+    const label = (element.textContent || "").replace(/\s+/g, " ").trim();
+    const isMainHeading = element.classList.contains("agreement-section-heading") || /^\d+\.0\b/.test(label);
+    const isAppendixHeading = /^Appendix\s+\d+\b/i.test(label);
+    if (isMainHeading || isAppendixHeading) {
+      const nextContent = flowBlocks.slice(index + 1).find((candidate) => (candidate.textContent || "").replace(/\s+/g, " ").trim());
+      if (nextContent) {
+        const nextRect = nextContent.getBoundingClientRect();
+        atomicRegions.push({ top: region.top, bottom: relative(nextRect.bottom) });
+      }
+    }
+    // The appendices are contractual attachments and must begin on a fresh PDF
+    // page regardless of where the preceding agreement text finishes.
+    if (isAppendixHeading) forcedBreaks.push(region.top);
   });
   article.querySelectorAll<HTMLTableElement>("table").forEach((table) => {
     const tableRect = table.getBoundingClientRect();
@@ -5369,7 +5385,7 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
     .map(Number)
     .sort((left, right) => left - right);
   const ranges: AgreementPageRange[] = [];
-  const pageBreakSafety = 6;
+  const pageBreakSafety = 8;
   let start = 0;
   while (start < articleRect.height - 0.5) {
     const continuedTable = tables.find((table) => start >= table.headerBottom - 0.5 && start < table.bottom - 0.5);
@@ -5381,8 +5397,11 @@ function agreementPageRanges(article: HTMLElement, availableHeight: number): Agr
     const limit = rawLimit >= articleRect.height
       ? articleRect.height
       : Math.max(start + 1, rawLimit - pageBreakSafety);
+    const forcedBreak = forcedBreaks
+      .filter((value) => value > start + 0.75 && value <= limit + 0.5)
+      .sort((left, right) => left - right)[0];
 
-    const safe = ordered.filter((value) => {
+    const safe = forcedBreak ?? ordered.filter((value) => {
       if (value <= start + 0.75 || value > limit + 0.5) return false;
       if (textLines.some((line) => value > line.top + 0.5 && value < line.bottom - 0.5)) return false;
       return !atomicRegions.some((region) =>
@@ -5428,7 +5447,17 @@ async function downloadAgreementPdf(data: AgreementData, filename: string, signa
   document.body.appendChild(host);
   try {
     const [{ renderAsync }, { default: html2canvas }, { jsPDF }] = await Promise.all([import("docx-preview"), import("html2canvas"), import("jspdf")]);
-    await renderAsync(blob, host, undefined, { inWrapper: true, breakPages: true, ignoreWidth: false, ignoreHeight: false });
+    // Render the DOCX as continuous flow for export. The previous page-by-page
+    // DOCX rendering could clip a paragraph at the source Word page boundary
+    // before our PDF paginator ever saw it. We add the PDF pages ourselves below.
+    await renderAsync(blob, host, undefined, {
+      inWrapper: true,
+      breakPages: false,
+      ignoreWidth: false,
+      ignoreHeight: true,
+      renderHeaders: false,
+      renderFooters: false,
+    });
     prepareAgreementRenderedDocument(host, data, signature);
     await Promise.all(Array.from(host.querySelectorAll("img")).map((image) => image.complete ? Promise.resolve() : new Promise<void>((resolve) => { image.addEventListener("load", () => resolve(), { once: true }); image.addEventListener("error", () => resolve(), { once: true }); })));
     const exportStyle = document.createElement("style");
@@ -5457,6 +5486,9 @@ async function downloadAgreementPdf(data: AgreementData, filename: string, signa
         paragraph.style.textIndent = paragraphStyle.textIndent;
         paragraph.style.textAlign = paragraphStyle.textAlign;
         paragraph.classList.remove(numberClass!);
+        paragraph.dataset.agreementNumberLevel = String(level);
+        paragraph.dataset.agreementNumberId = numberId;
+        if (level === 0) paragraph.classList.add("agreement-section-heading");
         const counter = numbering.get(numberId) || { major: 0, minor: 0 };
         let label = "";
         if (level === 0) {
@@ -5481,7 +5513,9 @@ async function downloadAgreementPdf(data: AgreementData, filename: string, signa
       const topPadding = Number.parseFloat(computed.paddingTop) || 0;
       const bottomPadding = Number.parseFloat(computed.paddingBottom) || 0;
       const pageHeight = sectionRect.width * 297 / 210;
-      const bodyPageHeight = (pageHeight - topPadding - bottomPadding) * .9;
+      // Use the available body area without crowding the fixed footer. The
+      // former 90% cap needlessly pushed the tail of Appendix 2 onto a new page.
+      const bodyPageHeight = (pageHeight - topPadding - bottomPadding) * .97;
       const contentWidth = sectionRect.width - leftPadding - rightPadding;
       const bodyCanvas = await html2canvas(article, { scale: 1.35, backgroundColor: "#ffffff", useCORS: true });
       const ranges = agreementPageRanges(article, bodyPageHeight);
