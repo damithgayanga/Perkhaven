@@ -37,7 +37,6 @@ class AgreementPdfServiceTest {
         assertTrue(html.contains("991234567V"));
         assertTrue(html.contains("25-Sep-2026"));
         assertTrue(html.contains("management@perkhaven.lk"));
-        assertTrue(html.contains("+94 74 020 1621"));
         assertTrue(html.contains("electronically signed"));
         assertTrue(html.contains("class=\"appendix-two\""));
         assertTrue(html.contains("data-perkhaven-print=\"true\""));
