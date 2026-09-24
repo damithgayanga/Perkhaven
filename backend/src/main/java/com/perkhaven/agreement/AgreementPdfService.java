@@ -52,9 +52,9 @@ public class AgreementPdfService implements DisposableBean {
                     .setHeaderTemplate(headerTemplate())
                     .setFooterTemplate(footerTemplate(data))
                     .setMargin(new Margin()
-                            .setTop("30mm")
+                            .setTop("32mm")
                             .setRight("31.75mm")
-                            .setBottom("18mm")
+                            .setBottom("20mm")
                             .setLeft("31.75mm"))
                     .setScale(1)
                     .setPreferCSSPageSize(false));
@@ -116,15 +116,31 @@ public class AgreementPdfService implements DisposableBean {
 
     private void markHeadingsAndSpacing(Document doc) {
         Element body = doc.body();
-        for (Element paragraph : doc.select("p")) {
+        List<Element> paragraphs = doc.select("p");
+        Element appendixOneHeading = paragraphs.stream()
+                .filter(element -> {
+                    String label = element.text().replaceAll("\\s+", " ").trim();
+                    return label.startsWith("Appendix 1") && label.contains("Hostel Rules");
+                })
+                .reduce((first, second) -> second)
+                .orElse(null);
+        Element appendixTwoHeading = paragraphs.stream()
+                .filter(element -> {
+                    String label = element.text().replaceAll("\\s+", " ").trim();
+                    return label.startsWith("Appendix 2") && label.contains("Inventory of Items");
+                })
+                .reduce((first, second) -> second)
+                .orElse(null);
+
+        for (Element paragraph : paragraphs) {
             String label = paragraph.text().replaceAll("\\s+", " ").trim();
             if (label.isEmpty() && paragraph.select("table, img, svg, canvas").isEmpty()) {
                 paragraph.addClass("blank-spacer");
             }
-            if (label.startsWith("Appendix 1") && label.contains("Hostel Rules")) {
+            if (paragraph == appendixOneHeading) {
                 paragraph.addClass("appendix-heading appendix-one-heading");
             }
-            if (label.startsWith("Appendix 2") && label.contains("Inventory of Items")) {
+            if (paragraph == appendixTwoHeading) {
                 paragraph.addClass("appendix-heading appendix-two-heading");
             }
 
@@ -213,7 +229,7 @@ public class AgreementPdfService implements DisposableBean {
 
     private void addPrintStyles(Document doc) {
         doc.head().appendElement("style").attr("data-perkhaven-print", "true").appendText("""
-                @page { size: A4; margin: 0; }
+                @page { size: A4; }
                 * { box-sizing: border-box; }
                 html, body {
                   background: #fff !important;
@@ -378,10 +394,10 @@ public class AgreementPdfService implements DisposableBean {
 
     private String headerTemplate() {
         return """
-                <div style="box-sizing:border-box;width:100%%;height:25mm;padding:2mm 31.75mm 0;display:flex;align-items:flex-start;font-family:Arial,sans-serif;color:#000;">
-                  <img src="%s" style="width:22mm;height:22mm;object-fit:contain;margin-right:7mm;" />
-                  <div style="padding-top:2mm;">
-                    <div style="font-size:17px;line-height:1.1;font-weight:700;color:#3a6b1f;">THE PERK HAVEN</div>
+                <div style="box-sizing:border-box;width:100%%;height:22mm;padding:1.5mm 31.75mm 0;display:flex;align-items:flex-start;font-family:Arial,sans-serif;color:#000;">
+                  <img src="%s" style="width:18mm;height:18mm;object-fit:contain;margin-right:6mm;" />
+                  <div style="padding-top:1.5mm;">
+                    <div style="font-size:15px;line-height:1.1;font-weight:700;color:#3a6b1f;">THE PERK HAVEN</div>
                     <div style="font-size:7px;letter-spacing:2px;margin-top:2mm;">P I T I P A N A &nbsp; · &nbsp; H O M A G A M A</div>
                   </div>
                 </div>
