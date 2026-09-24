@@ -25,6 +25,10 @@ public class AgreementPdfService implements DisposableBean {
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
     private static final String DEFAULT_EMAIL = "management@perkhaven.lk";
     private static final String DEFAULT_TELEPHONE = "+94 74 020 1621";
+    static final String PAGE_MARGIN_TOP = "28mm";
+    static final String PAGE_MARGIN_BOTTOM = "15mm";
+    static final String PAGE_MARGIN_LEFT = "20mm";
+    static final String PAGE_MARGIN_RIGHT = "20mm";
 
     private final String template;
     private final String logoDataUri;
@@ -52,10 +56,10 @@ public class AgreementPdfService implements DisposableBean {
                     .setHeaderTemplate(headerTemplate())
                     .setFooterTemplate(footerTemplate(data))
                     .setMargin(new Margin()
-                            .setTop("30mm")
-                            .setRight("31.75mm")
-                            .setBottom("18mm")
-                            .setLeft("31.75mm"))
+                            .setTop(PAGE_MARGIN_TOP)
+                            .setRight(PAGE_MARGIN_RIGHT)
+                            .setBottom(PAGE_MARGIN_BOTTOM)
+                            .setLeft(PAGE_MARGIN_LEFT))
                     .setScale(1)
                     .setPreferCSSPageSize(false));
         } finally {
@@ -116,15 +120,31 @@ public class AgreementPdfService implements DisposableBean {
 
     private void markHeadingsAndSpacing(Document doc) {
         Element body = doc.body();
-        for (Element paragraph : doc.select("p")) {
+        List<Element> paragraphs = doc.select("p");
+        Element appendixOneHeading = paragraphs.stream()
+                .filter(element -> {
+                    String label = element.text().replaceAll("\\s+", " ").trim();
+                    return label.startsWith("Appendix 1") && label.contains("Hostel Rules");
+                })
+                .reduce((first, second) -> second)
+                .orElse(null);
+        Element appendixTwoHeading = paragraphs.stream()
+                .filter(element -> {
+                    String label = element.text().replaceAll("\\s+", " ").trim();
+                    return label.startsWith("Appendix 2") && label.contains("Inventory of Items");
+                })
+                .reduce((first, second) -> second)
+                .orElse(null);
+
+        for (Element paragraph : paragraphs) {
             String label = paragraph.text().replaceAll("\\s+", " ").trim();
             if (label.isEmpty() && paragraph.select("table, img, svg, canvas").isEmpty()) {
                 paragraph.addClass("blank-spacer");
             }
-            if (label.startsWith("Appendix 1") && label.contains("Hostel Rules")) {
+            if (paragraph == appendixOneHeading) {
                 paragraph.addClass("appendix-heading appendix-one-heading");
             }
-            if (label.startsWith("Appendix 2") && label.contains("Inventory of Items")) {
+            if (paragraph == appendixTwoHeading) {
                 paragraph.addClass("appendix-heading appendix-two-heading");
             }
 
@@ -213,14 +233,14 @@ public class AgreementPdfService implements DisposableBean {
 
     private void addPrintStyles(Document doc) {
         doc.head().appendElement("style").attr("data-perkhaven-print", "true").appendText("""
-                @page { size: A4; margin: 0; }
+                @page { size: A4; }
                 * { box-sizing: border-box; }
                 html, body {
                   background: #fff !important;
                   color: #000 !important;
                   font-family: Arial, Helvetica, sans-serif !important;
                   font-size: 10pt !important;
-                  line-height: 1.16 !important;
+                  line-height: 1.20 !important;
                   border: 0 !important;
                   padding: 0 !important;
                   margin: 0 !important;
@@ -231,9 +251,9 @@ public class AgreementPdfService implements DisposableBean {
                 p {
                   font-family: Arial, Helvetica, sans-serif !important;
                   font-size: 10pt !important;
-                  line-height: 1.16 !important;
+                  line-height: 1.20 !important;
                   margin-top: 0 !important;
-                  margin-bottom: 2.4mm !important;
+                  margin-bottom: 1.8mm !important;
                   height: auto !important;
                   min-height: 0 !important;
                   max-height: none !important;
@@ -242,8 +262,8 @@ public class AgreementPdfService implements DisposableBean {
                   widows: 3 !important;
                 }
                 .blank-spacer {
-                  height: 1.4mm !important;
-                  min-height: 1.4mm !important;
+                  height: .8mm !important;
+                  min-height: .8mm !important;
                   margin: 0 !important;
                   padding: 0 !important;
                   font-size: 0 !important;
@@ -255,8 +275,12 @@ public class AgreementPdfService implements DisposableBean {
                   margin-bottom: 0 !important;
                 }
                 li {
-                  break-inside: avoid-page !important;
-                  page-break-inside: avoid !important;
+                  break-inside: auto !important;
+                  page-break-inside: auto !important;
+                }
+                li > p {
+                  orphans: 3 !important;
+                  widows: 3 !important;
                 }
                 .keep-with-next {
                   break-after: avoid-page !important;
@@ -323,7 +347,7 @@ public class AgreementPdfService implements DisposableBean {
                   min-width: 0 !important;
                 }
                 .agreement-signature-panel strong {
-                  font-size: 9.5pt !important;
+                  font-size: 10pt !important;
                   margin-bottom: 1mm !important;
                 }
                 .agreement-signature-line {
@@ -378,11 +402,11 @@ public class AgreementPdfService implements DisposableBean {
 
     private String headerTemplate() {
         return """
-                <div style="box-sizing:border-box;width:100%%;height:25mm;padding:2mm 31.75mm 0;display:flex;align-items:flex-start;font-family:Arial,sans-serif;color:#000;">
-                  <img src="%s" style="width:22mm;height:22mm;object-fit:contain;margin-right:7mm;" />
-                  <div style="padding-top:2mm;">
-                    <div style="font-size:17px;line-height:1.1;font-weight:700;color:#3a6b1f;">THE PERK HAVEN</div>
-                    <div style="font-size:7px;letter-spacing:2px;margin-top:2mm;">P I T I P A N A &nbsp; · &nbsp; H O M A G A M A</div>
+                <div style="box-sizing:border-box;width:100%%;height:20mm;padding:3mm 20mm 0;display:flex;align-items:flex-start;font-family:Arial,sans-serif;color:#000;">
+                  <img src="%s" style="width:16mm;height:16mm;object-fit:contain;margin-right:5mm;" />
+                  <div style="padding-top:1.5mm;">
+                    <div style="font-size:14px;line-height:1.1;font-weight:700;color:#3a6b1f;">THE PERK HAVEN</div>
+                    <div style="font-size:6.5px;letter-spacing:1.8px;margin-top:1.5mm;">P I T I P A N A &nbsp; · &nbsp; H O M A G A M A</div>
                   </div>
                 </div>
                 """.formatted(logoDataUri);
@@ -392,8 +416,8 @@ public class AgreementPdfService implements DisposableBean {
         String telephone = escapeHtml(text(data, "hostelTelephone", DEFAULT_TELEPHONE));
         String email = escapeHtml(text(data, "hostelEmail", DEFAULT_EMAIL));
         return """
-                <div style="box-sizing:border-box;width:100%%;padding:0 31.75mm 2mm;font-family:Arial,sans-serif;font-size:7px;color:#000;">
-                  <div style="border-top:1px solid #000;padding-top:2mm;display:flex;align-items:center;justify-content:space-between;">
+                <div style="box-sizing:border-box;width:100%%;height:11mm;padding:0 20mm 2.5mm;font-family:Arial,sans-serif;font-size:6.5px;color:#000;">
+                  <div style="border-top:1px solid #555;padding-top:1.5mm;display:flex;align-items:center;justify-content:space-between;">
                     <span>Telephone: %s</span>
                     <span><span class="pageNumber"></span> of Page <span class="totalPages"></span></span>
                     <span>Email: %s</span>

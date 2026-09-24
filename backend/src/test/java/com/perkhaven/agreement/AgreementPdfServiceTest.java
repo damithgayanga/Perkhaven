@@ -40,6 +40,13 @@ class AgreementPdfServiceTest {
         assertTrue(html.contains("electronically signed"));
         assertTrue(html.contains("class=\"appendix-two\""));
         assertTrue(html.contains("data-perkhaven-print=\"true\""));
+        assertFalse(html.contains("@page { size: A4; margin: 0; }"));
+        assertEquals("28mm", AgreementPdfService.PAGE_MARGIN_TOP);
+        assertEquals("15mm", AgreementPdfService.PAGE_MARGIN_BOTTOM);
+        assertEquals("20mm", AgreementPdfService.PAGE_MARGIN_LEFT);
+        assertEquals("20mm", AgreementPdfService.PAGE_MARGIN_RIGHT);
+        assertEquals(1, occurrences(html, "appendix-one-heading"));
+        assertEquals(1, occurrences(html, "appendix-two-heading"));
         assertFalse(html.contains("{{studentName}}"));
         assertFalse(html.contains("perkhaven@gmail.com"));
         assertFalse(html.contains("joanne.fernando@yahoo.com"));
@@ -47,5 +54,15 @@ class AgreementPdfServiceTest {
         assertFalse(html.contains("title=\"footer\""));
 
         service.destroy();
+    }
+
+    private static int occurrences(String source, String needle) {
+        int count = 0;
+        int offset = 0;
+        while ((offset = source.indexOf(needle, offset)) >= 0) {
+            count++;
+            offset += needle.length();
+        }
+        return count;
     }
 }
