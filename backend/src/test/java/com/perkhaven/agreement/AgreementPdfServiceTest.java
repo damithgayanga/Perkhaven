@@ -92,8 +92,11 @@ class AgreementPdfServiceTest {
         assertTrue(html.contains("grid-template-columns: 9mm minmax(0, 1fr)"));
         assertFalse(html.contains("agreement-number-marker"));
         assertFalse(html.contains("agreement-alpha-marker"));
-        assertEquals(0, renderedDocument.select("ol[type=a]").size());
-        assertEquals(0, renderedDocument.select(".legal-row li").size());
+        assertEquals(0, renderedDocument.select("ol").size());
+        assertEquals(0, renderedDocument.select("li").size());
+        assertEquals("1.1", mainClauses.get(0).selectFirst(".legal-number").text());
+        assertTrue(mainClauses.get(0).selectFirst(".legal-text").text().contains("Proprietor"));
+        assertFalse(mainClauses.get(0).selectFirst(".legal-text").text().startsWith("1."));
 
         assertFalse(html.contains("{{studentName}}"));
         assertFalse(html.contains("perkhaven@gmail.com"));
