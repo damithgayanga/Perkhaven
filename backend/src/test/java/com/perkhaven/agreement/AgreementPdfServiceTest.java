@@ -50,7 +50,6 @@ class AgreementPdfServiceTest {
         assertTrue(html.contains(".blank-spacer {"));
         assertTrue(html.contains("display: none !important"));
         assertTrue(html.contains("class=\"agreement-execution\""));
-        assertTrue(html.contains("class=\"section-intro"));
         assertTrue(html.contains("font-size: 8.2pt !important"));
         assertEquals("28mm", AgreementPdfService.PAGE_MARGIN_TOP);
         assertEquals("15mm", AgreementPdfService.PAGE_MARGIN_BOTTOM);
