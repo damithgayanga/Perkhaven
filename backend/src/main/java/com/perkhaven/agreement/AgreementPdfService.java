@@ -119,8 +119,7 @@ public class AgreementPdfService implements DisposableBean {
         doc.select("img").remove();
 
         markHeadingsAndSpacing(doc);
-        applyHierarchicalNumbering(doc);
-        wrapHeadingIntros(doc, doc.body());
+        rebuildLegalNumbering(doc);
         wrapExecutionSection(doc);
         wrapAppendixTwo(doc);
         addPrintStyles(doc);
@@ -194,78 +193,145 @@ public class AgreementPdfService implements DisposableBean {
         }
     }
 
-    private void applyHierarchicalNumbering(Document doc) {
+    private void rebuildLegalNumbering(Document doc) {
         Element body = doc.body();
         Element appendixOneHeading = doc.selectFirst("p.appendix-one-heading");
         Element appendixTwoHeading = doc.selectFirst("p.appendix-two-heading");
 
-        int sectionNumber = 0;
-        int clauseNumber = 0;
+        int currentSection = 0;
         boolean inAppendixOne = false;
 
-        List<Element> topLevelBlocks = new ArrayList<>(body.children());
-        for (Element block : topLevelBlocks) {
-            if (appendixOneHeading != null && block == topLevelBlock(appendixOneHeading, body)) {
+        List<Element> paragraphs = new ArrayList<>(doc.select("p"));
+        for (Element paragraph : paragraphs) {
+            if (!isAttachedToBody(paragraph, body)) continue;
+
+            if (paragraph == appendixOneHeading) {
                 inAppendixOne = true;
-                sectionNumber = 0;
-                clauseNumber = 0;
+                currentSection = 0;
                 continue;
             }
-            if (appendixTwoHeading != null && block == topLevelBlock(appendixTwoHeading, body)) {
+            if (paragraph == appendixTwoHeading) {
                 break;
             }
 
-            Element heading = "ol".equals(block.tagName())
-                    ? block.selectFirst("p.agreement-section-heading")
-                    : null;
-            if (heading != null) {
-                sectionNumber++;
-                clauseNumber = 0;
-                annotateNumberedBlock(block, heading, sectionNumber + ".0", "agreement-numbered-heading");
-                block.addClass(inAppendixOne ? "appendix-one-numbered" : "main-agreement-numbered");
+            Element list = nearestAncestor(paragraph, "ol");
+            if (list == null || "a".equalsIgnoreCase(list.attr("type"))) {
                 continue;
             }
 
-            if (sectionNumber == 0) {
+            Element listRoot = highestListAncestor(list);
+
+            if (paragraph.hasClass("agreement-section-heading")) {
+                currentSection = orderedListStart(list);
+                Element row = legalRow(
+                        currentSection + ".0",
+                        paragraph.html(),
+                        "legal-section-heading",
+                        inAppendixOne);
+                listRoot.before(row);
+                listRoot.remove();
                 continue;
             }
 
-            Element clauseParagraph = numberedClauseParagraph(block);
-            if (clauseParagraph != null) {
-                clauseNumber++;
-                annotateNumberedBlock(block, clauseParagraph,
-                        sectionNumber + "." + clauseNumber,
-                        "agreement-numbered-clause");
-                block.addClass(inAppendixOne ? "appendix-one-numbered" : "main-agreement-numbered");
-                continue;
+            if (currentSection == 0) continue;
+
+            Element item = nearestAncestor(paragraph, "li");
+            if (item == null) continue;
+
+            int clauseNumber = orderedListStart(list);
+            Element row = legalRow(
+                    currentSection + "." + clauseNumber,
+                    paragraph.html(),
+                    "legal-clause-row",
+                    inAppendixOne);
+            listRoot.before(row);
+            listRoot.remove();
+        }
+
+        List<Element> alphaLists = new ArrayList<>(doc.select("ol[type=a]"));
+        for (Element alphaList : alphaLists) {
+            if (!isAttachedToBody(alphaList, body)) continue;
+
+            Element container = new Element("div").addClass("legal-alpha-list");
+            int startAt = orderedListStart(alphaList);
+            int offset = 0;
+
+            for (Element item : directChildren(alphaList, "li")) {
+                Element paragraph = firstDirectChild(item, "p");
+                if (paragraph == null) continue;
+
+                int alphaIndex = startAt + offset++;
+                if (alphaIndex < 1 || alphaIndex > 26) continue;
+
+                String marker = Character.toString((char) ('a' + alphaIndex - 1)) + ".";
+                Element row = new Element("div").addClass("legal-alpha-row");
+                row.appendElement("span").addClass("legal-alpha-marker").text(marker);
+                row.appendElement("div").addClass("legal-alpha-text").html(paragraph.html());
+                container.appendChild(row);
             }
 
-            annotateAlphaBlock(block);
+            alphaList.before(container);
+            alphaList.remove();
+        }
+
+        // Once all semantic lists are rebuilt, remove any empty list shells left
+        // by the LibreOffice export so browser-generated markers can never leak
+        // into the PDF.
+        doc.select("ol").stream()
+                .filter(element -> normalize(element.text()).isEmpty())
+                .forEach(Element::remove);
+    }
+
+    private static Element legalRow(
+            String number,
+            String contentHtml,
+            String rowClass,
+            boolean appendixOne) {
+        Element row = new Element("div")
+                .addClass("legal-row")
+                .addClass(rowClass)
+                .addClass(appendixOne ? "appendix-one-numbered" : "main-agreement-numbered")
+                .attr("data-agreement-number", number);
+        row.appendElement("span").addClass("legal-number").text(number);
+        row.appendElement("div").addClass("legal-text").html(contentHtml);
+        return row;
+    }
+
+    private static Element nearestAncestor(Element element, String tagName) {
+        Element cursor = element.parent();
+        while (cursor != null) {
+            if (tagName.equals(cursor.tagName())) return cursor;
+            cursor = cursor.parent();
+        }
+        return null;
+    }
+
+    private static Element highestListAncestor(Element list) {
+        Element root = list;
+        while (root.parent() != null && "ol".equals(root.parent().tagName())) {
+            root = root.parent();
+        }
+        return root;
+    }
+
+    private static int orderedListStart(Element list) {
+        String raw = list.attr("start");
+        if (raw == null || raw.isBlank()) return 1;
+        try {
+            int value = Integer.parseInt(raw);
+            return Math.max(value, 1);
+        } catch (NumberFormatException ignored) {
+            return 1;
         }
     }
 
-    private static Element numberedClauseParagraph(Element block) {
-        if (!"ol".equals(block.tagName())) return null;
-        if ("a".equalsIgnoreCase(block.attr("type"))) return null;
-        if (block.hasClass("agreement-numbered-heading")) return null;
-
-        List<Element> directItems = directChildren(block, "li");
-        if (directItems.size() == 1) {
-            Element paragraph = firstDirectChild(directItems.get(0), "p");
-            if (paragraph != null && !paragraph.hasClass("agreement-section-heading")) return paragraph;
+    private static boolean isAttachedToBody(Element element, Element body) {
+        Element cursor = element;
+        while (cursor != null) {
+            if (cursor == body) return true;
+            cursor = cursor.parent();
         }
-
-        List<Element> nestedLists = directChildren(block, "ol");
-        if (nestedLists.size() == 1) {
-            Element nested = nestedLists.get(0);
-            if ("a".equalsIgnoreCase(nested.attr("type"))) return null;
-            List<Element> nestedItems = directChildren(nested, "li");
-            if (nestedItems.size() == 1) {
-                Element paragraph = firstDirectChild(nestedItems.get(0), "p");
-                if (paragraph != null && !paragraph.hasClass("agreement-section-heading")) return paragraph;
-            }
-        }
-        return null;
+        return false;
     }
 
     private static List<Element> directChildren(Element parent, String tagName) {
@@ -281,45 +347,6 @@ public class AgreementPdfService implements DisposableBean {
             if (tagName.equals(child.tagName())) return child;
         }
         return null;
-    }
-
-    private static void annotateNumberedBlock(
-            Element block,
-            Element paragraph,
-            String number,
-            String cssClass) {
-        block.addClass(cssClass);
-        block.attr("data-agreement-number", number);
-        paragraph.addClass("agreement-numbered-paragraph");
-        paragraph.prependElement("span")
-                .addClass("agreement-number-marker")
-                .text(number);
-    }
-
-    private static void annotateAlphaBlock(Element block) {
-        if (!"ol".equals(block.tagName()) || !"a".equalsIgnoreCase(block.attr("type"))) return;
-
-        int start = 1;
-        try {
-            String rawStart = block.attr("start");
-            if (!rawStart.isBlank()) start = Integer.parseInt(rawStart);
-        } catch (NumberFormatException ignored) {
-            start = 1;
-        }
-
-        List<Element> items = directChildren(block, "li");
-        for (int index = 0; index < items.size(); index++) {
-            Element paragraph = firstDirectChild(items.get(index), "p");
-            if (paragraph == null) continue;
-            int alphaIndex = start + index;
-            if (alphaIndex < 1 || alphaIndex > 26) continue;
-            String marker = Character.toString((char) ('a' + alphaIndex - 1)) + ".";
-            block.addClass("agreement-alpha-list");
-            paragraph.addClass("agreement-alpha-paragraph");
-            paragraph.prependElement("span")
-                    .addClass("agreement-alpha-marker")
-                    .text(marker);
-        }
     }
 
     private void wrapHeadingIntros(Document doc, Element body) {
@@ -461,6 +488,9 @@ public class AgreementPdfService implements DisposableBean {
                   print-color-adjust: exact !important;
                   hyphens: none !important;
                 }
+                body * {
+                  color: #000 !important;
+                }
                 font {
                   font-family: inherit !important;
                   font-size: inherit !important;
@@ -492,56 +522,67 @@ public class AgreementPdfService implements DisposableBean {
                   margin-top: 0 !important;
                   margin-bottom: 0 !important;
                 }
-                .agreement-numbered-heading,
-                .agreement-numbered-clause,
-                .agreement-alpha-list {
-                  list-style: none !important;
-                  padding-left: 0 !important;
-                  margin-left: 0 !important;
-                }
-                .agreement-numbered-heading > li,
-                .agreement-numbered-clause li,
-                .agreement-alpha-list > li {
-                  list-style: none !important;
-                  margin-left: 0 !important;
-                  padding-left: 0 !important;
-                }
-                .agreement-numbered-clause > ol {
-                  list-style: none !important;
-                  margin: 0 !important;
-                  padding: 0 !important;
-                }
-                .agreement-numbered-paragraph {
+                .legal-row {
                   display: grid !important;
                   grid-template-columns: 13mm minmax(0, 1fr) !important;
                   column-gap: 2mm !important;
                   align-items: start !important;
-                  margin-left: 0 !important;
-                  text-indent: 0 !important;
+                  margin: 0 0 1.8mm 0 !important;
+                  padding: 0 !important;
+                  width: 100% !important;
+                  break-inside: auto !important;
+                  page-break-inside: auto !important;
                 }
-                .agreement-number-marker {
+                .legal-number {
                   display: block !important;
-                  text-align: left !important;
                   white-space: nowrap !important;
+                  text-align: left !important;
+                  line-height: 1.20 !important;
                 }
-                .agreement-numbered-heading .agreement-numbered-paragraph {
+                .legal-text {
+                  min-width: 0 !important;
+                  display: block !important;
+                  text-align: justify !important;
+                  line-height: 1.20 !important;
+                  orphans: 3 !important;
+                  widows: 3 !important;
+                  overflow-wrap: normal !important;
+                  word-break: normal !important;
+                }
+                .legal-section-heading {
                   font-weight: 700 !important;
+                  break-after: avoid-page !important;
+                  page-break-after: avoid !important;
+                  margin-bottom: 1.2mm !important;
                 }
-                .agreement-alpha-list {
-                  margin-left: 15mm !important;
+                .legal-alpha-list {
+                  display: block !important;
+                  margin: 0 0 1.8mm 4mm !important;
+                  padding: 0 !important;
                 }
-                .agreement-alpha-paragraph {
+                .legal-alpha-row {
                   display: grid !important;
-                  grid-template-columns: 8mm minmax(0, 1fr) !important;
+                  grid-template-columns: 9mm minmax(0, 1fr) !important;
                   column-gap: 2mm !important;
                   align-items: start !important;
-                  margin-left: 0 !important;
-                  text-indent: 0 !important;
+                  margin: 0 0 1.3mm 0 !important;
+                  padding: 0 !important;
+                  break-inside: avoid-page !important;
+                  page-break-inside: avoid !important;
                 }
-                .agreement-alpha-marker {
+                .legal-alpha-marker {
                   display: block !important;
-                  text-align: left !important;
                   white-space: nowrap !important;
+                  text-align: left !important;
+                  line-height: 1.20 !important;
+                }
+                .legal-alpha-text {
+                  min-width: 0 !important;
+                  display: block !important;
+                  text-align: justify !important;
+                  line-height: 1.20 !important;
+                  overflow-wrap: normal !important;
+                  word-break: normal !important;
                 }
                 li {
                   break-inside: auto !important;

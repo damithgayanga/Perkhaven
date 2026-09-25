@@ -50,7 +50,6 @@ class AgreementPdfServiceTest {
         assertTrue(html.contains(".blank-spacer {"));
         assertTrue(html.contains("display: none !important"));
         assertTrue(html.contains("class=\"agreement-execution\""));
-        assertTrue(html.contains("class=\"section-intro"));
         assertTrue(html.contains("font-size: 8.2pt !important"));
         assertEquals("28mm", AgreementPdfService.PAGE_MARGIN_TOP);
         assertEquals("15mm", AgreementPdfService.PAGE_MARGIN_BOTTOM);
@@ -60,33 +59,44 @@ class AgreementPdfServiceTest {
         assertEquals(1, renderedDocument.select("p.appendix-one-heading").size());
         assertEquals(1, renderedDocument.select("p.appendix-two-heading").size());
 
-        var mainHeadings = renderedDocument.select(".main-agreement-numbered.agreement-numbered-heading");
-        var mainClauses = renderedDocument.select(".main-agreement-numbered.agreement-numbered-clause");
-        assertFalse(mainHeadings.isEmpty());
+        var mainSections = renderedDocument.select(".main-agreement-numbered.legal-section-heading");
+        var mainClauses = renderedDocument.select(".main-agreement-numbered.legal-clause-row");
+        assertFalse(mainSections.isEmpty());
         assertTrue(mainClauses.size() > 1);
-        assertEquals("1.0", mainHeadings.first().attr("data-agreement-number"));
+        assertEquals("1.0", mainSections.first().attr("data-agreement-number"));
         assertEquals("1.1", mainClauses.get(0).attr("data-agreement-number"));
         assertEquals("1.2", mainClauses.get(1).attr("data-agreement-number"));
-        assertEquals(1, mainHeadings.stream()
-                .filter(element -> "2.0".equals(element.attr("data-agreement-number")))
+        assertEquals(1, mainSections.stream()
+                .filter(element -> "3.0".equals(element.attr("data-agreement-number"))
+                        && element.text().contains("Use and Handover of Allocated Accommodation"))
+                .count());
+        assertEquals(1, mainClauses.stream()
+                .filter(element -> "3.1".equals(element.attr("data-agreement-number")))
                 .count());
 
-        var appendixHeadings = renderedDocument.select(".appendix-one-numbered.agreement-numbered-heading");
-        var appendixClauses = renderedDocument.select(".appendix-one-numbered.agreement-numbered-clause");
-        assertEquals(1, appendixHeadings.stream()
-                .filter(element -> "1.0".equals(element.attr("data-agreement-number")))
+        var appendixSections = renderedDocument.select(".appendix-one-numbered.legal-section-heading");
+        var appendixClauses = renderedDocument.select(".appendix-one-numbered.legal-clause-row");
+        assertEquals(1, appendixSections.stream()
+                .filter(element -> "1.0".equals(element.attr("data-agreement-number"))
+                        && element.text().contains("Behavior"))
                 .count());
         assertEquals(1, appendixClauses.stream()
                 .filter(element -> "1.1".equals(element.attr("data-agreement-number")))
                 .count());
-        assertEquals(0, renderedDocument.select("p.appendix-one-heading .agreement-number-marker").size());
 
-        var alphaMarkers = renderedDocument.select(".agreement-alpha-marker").eachText();
+        var alphaMarkers = renderedDocument.select(".legal-alpha-marker").eachText();
         assertTrue(alphaMarkers.contains("a."));
         assertTrue(alphaMarkers.contains("b."));
         assertTrue(alphaMarkers.contains("c."));
         assertTrue(html.contains("grid-template-columns: 13mm minmax(0, 1fr)"));
-        assertTrue(html.contains("grid-template-columns: 8mm minmax(0, 1fr)"));
+        assertTrue(html.contains("grid-template-columns: 9mm minmax(0, 1fr)"));
+        assertFalse(html.contains("agreement-number-marker"));
+        assertFalse(html.contains("agreement-alpha-marker"));
+        assertEquals(0, renderedDocument.select("ol").size());
+        assertEquals(0, renderedDocument.select("li").size());
+        assertEquals("1.1", mainClauses.get(0).selectFirst(".legal-number").text());
+        assertTrue(mainClauses.get(0).selectFirst(".legal-text").text().contains("Proprietor"));
+        assertFalse(mainClauses.get(0).selectFirst(".legal-text").text().startsWith("1."));
 
         assertFalse(html.contains("{{studentName}}"));
         assertFalse(html.contains("perkhaven@gmail.com"));
