@@ -222,28 +222,49 @@ public class StudentController {
         }
         var contacts = request.emergencyContacts() == null ? List.<Student.EmergencyContactData>of() : request.emergencyContacts().stream()
                 .map(c -> new Student.EmergencyContactData(c.name(), c.phone(), c.relationship(), c.address())).toList();
-        var registeredDate = request.registeredDate() == null ? request.startDate() : request.registeredDate();
         student.update(new Student.StudentData(request.firstName(), request.middleNames(), request.lastName(), request.dateOfBirth(),
                 request.idNo(), request.mobile(), request.whatsapp(), request.email(),
                 request.university(), request.currentYear(), request.address(), request.hasMedicalCondition(),
-                request.medicalConditionDetails(), registeredDate, request.startDate(), request.vacatedDate(), request.noticeToVacateDate(), request.monthlyRent(),
+                request.medicalConditionDetails(), request.registeredDate(), request.startDate(), request.vacatedDate(), request.noticeToVacateDate(), request.monthlyRent(),
                 request.depositPayable(), request.vacatedDate() != null && request.vacatedDate().isBefore(LocalDate.now()) ? RecordStatus.INACTIVE : request.status(), contacts), room);
     }
 
     private void validateProfileRequirements(StudentRequest request) {
-        if (request.status() == RecordStatus.INACTIVE && request.vacatedDate() == null) {
-            throw new IllegalArgumentException("Check-Out date is required for an inactive student.");
+        var missing = new ArrayList<String>();
+        if (request.registeredDate() == null) missing.add("Registration date");
+        if (request.startDate() == null) missing.add("Accommodation start date");
+        if (request.roomNo() == null || request.roomNo().isBlank()) missing.add("Hostel Room");
+        if (request.monthlyRent() == null) missing.add("Monthly accommodation fee");
+        if (request.depositPayable() == null) missing.add("Security Deposit");
+
+        if (request.status() == RecordStatus.INACTIVE) {
+            if (request.vacatedDate() == null) missing.add("Check-Out date");
+            if (!missing.isEmpty()) {
+                throw new IllegalArgumentException("Inactive students require: " + String.join(", ", missing) + ".");
+            }
+        } else if (request.status() == RecordStatus.ACTIVE) {
+            if (request.dateOfBirth() == null) missing.add("Date of birth");
+            if (request.idNo() == null || request.idNo().isBlank()) missing.add("National ID no.");
+            if (request.mobile() == null || request.mobile().isBlank()) missing.add("Mobile no.");
+            if (request.whatsapp() == null || request.whatsapp().isBlank()) missing.add("WhatsApp no.");
+            if (request.email() == null || request.email().isBlank()) missing.add("Email address");
+            if (request.university() == null || request.university().isBlank()) missing.add("University");
+            if (request.currentYear() == null || request.currentYear().isBlank()) missing.add("Current year");
+            if (request.address() == null || request.address().isBlank()) missing.add("Permanent address");
+            if (request.hasMedicalCondition() && (request.medicalConditionDetails() == null || request.medicalConditionDetails().isBlank())) {
+                missing.add("Medical condition details");
+            }
+            if (request.emergencyContacts() == null || request.emergencyContacts().size() < 2) {
+                missing.add("Two emergency contacts");
+            }
+            if (!missing.isEmpty()) {
+                throw new IllegalArgumentException("Active students require all registration details except Notice to Check-Out date and Check-Out date. Missing: " + String.join(", ", missing) + ".");
+            }
         }
-        if (request.vacatedDate() != null && request.vacatedDate().isBefore(request.startDate())) {
+
+        if (request.vacatedDate() != null && request.startDate() != null && request.vacatedDate().isBefore(request.startDate())) {
             throw new IllegalArgumentException("Check-Out date cannot be before the accommodation start date.");
         }
-        if (request.status() != RecordStatus.ACTIVE) return;
-        var missing = new ArrayList<String>();
-        if (request.idNo() == null || request.idNo().isBlank()) missing.add("National ID no.");
-        if (request.mobile() == null || request.mobile().isBlank()) missing.add("Mobile no.");
-        if (request.email() == null || request.email().isBlank()) missing.add("Email address");
-        if (request.address() == null || request.address().isBlank()) missing.add("Permanent address");
-        if (!missing.isEmpty()) throw new IllegalArgumentException("Active students require: " + String.join(", ", missing) + ".");
     }
 
     private Student find(String registrationNo) { return students.findByRegistrationNoIgnoreCase(registrationNo).orElseThrow(() -> new NotFoundException("Student not found.")); }
