@@ -25,7 +25,7 @@ public class AgreementPdfService implements DisposableBean {
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
     private static final String DEFAULT_EMAIL = "management@perkhaven.lk";
     private static final String DEFAULT_TELEPHONE = "+94 74 020 1621";
-    static final String PAGE_MARGIN_TOP = "62mm";
+    static final String PAGE_MARGIN_TOP = "64mm";
     static final String PAGE_MARGIN_BOTTOM = "15mm";
     static final String PAGE_MARGIN_LEFT = "20mm";
     static final String PAGE_MARGIN_RIGHT = "20mm";
@@ -37,7 +37,7 @@ public class AgreementPdfService implements DisposableBean {
 
     public AgreementPdfService() {
         this.template = readText("agreement-template/agreement-template.html");
-        this.logoDataUri = dataUri("perkhaven-logo.png", "image/png");
+        this.logoDataUri = dataUri("agreement-template/perkhaven-agreement-header-final.jpg", "image/jpeg");
     }
 
     public record Signature(String name, String date) {}
@@ -473,7 +473,7 @@ public class AgreementPdfService implements DisposableBean {
 
     private void addPrintStyles(Document doc) {
         doc.head().appendElement("style").attr("data-perkhaven-print", "true").appendText("""
-                @page { size: A4; margin: 62mm 20mm 15mm 20mm; }
+                @page { size: A4; margin: 64mm 20mm 15mm 20mm; }
                 * { box-sizing: border-box; }
                 html, body {
                   background: #fff !important;
@@ -738,20 +738,8 @@ public class AgreementPdfService implements DisposableBean {
 
     private String headerTemplate() {
         return """
-                <div style="box-sizing:border-box;width:100%%;height:58mm;padding:3mm 10mm 0;font-family:Arial,Helvetica,sans-serif;">
-                  <div style="width:100%%;height:52mm;display:flex;align-items:center;justify-content:center;">
-                    <img src="%s" alt="The Perk Haven" style="display:block;width:42mm;height:42mm;object-fit:contain;flex:0 0 auto;" />
-                    <div style="height:39mm;border-left:0.45mm solid #d8b798;margin:0 5mm 0 3mm;flex:0 0 auto;"></div>
-                    <div style="min-width:0;flex:1;display:flex;flex-direction:column;justify-content:center;">
-                      <div style="font-size:31px;line-height:1;font-weight:700;letter-spacing:0.5px;color:#1f5422;white-space:nowrap;">THE PERK HAVEN</div>
-                      <div style="margin-top:3mm;font-size:16px;line-height:1;letter-spacing:6px;color:#244f28;white-space:nowrap;">PITIPANA <span style="color:#c95f43;letter-spacing:1px;">&#8226;</span> HOMAGAMA</div>
-                      <div style="margin-top:4mm;display:flex;align-items:center;gap:3mm;color:#b77b53;white-space:nowrap;">
-                        <span style="height:0.3mm;background:#d8b798;flex:1 1 auto;"></span>
-                        <span style="font-family:Georgia,'Times New Roman',serif;font-size:9px;letter-spacing:4px;">FEMALE STUDENTS&#8217; HOSTEL</span>
-                        <span style="height:0.3mm;background:#d8b798;flex:1 1 auto;"></span>
-                      </div>
-                    </div>
-                  </div>
+                <div style="box-sizing:border-box;width:100%%;height:59mm;padding:2mm 8mm 0;display:flex;align-items:flex-start;justify-content:center;">
+                  <img src="%s" alt="The Perk Haven" style="display:block;width:100%%;max-width:194mm;height:auto;object-fit:contain;margin:0 auto;" />
                 </div>
                 """.formatted(logoDataUri);
     }
