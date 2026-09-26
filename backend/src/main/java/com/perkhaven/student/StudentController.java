@@ -297,7 +297,9 @@ public class StudentController {
     private String text(Object value) { return value == null ? "" : value.toString(); }
 
     private void requestAccessInvitation(Student student) {
-        if (student.getEmail() != null && !student.getEmail().isBlank()) {
+        if (student.getStatus() == RecordStatus.ACTIVE
+                && student.getEmail() != null
+                && !student.getEmail().isBlank()) {
             events.publishEvent(new StudentAccessRequestedEvent(student.getRegistrationNo()));
         }
     }
