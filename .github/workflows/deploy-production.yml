@@ -356,6 +356,7 @@ jobs:
           terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
           echo "cluster=$(terraform output -raw ecs_cluster_name)" >> "$GITHUB_OUTPUT"
           echo "service=$(terraform output -raw ecs_service_name)" >> "$GITHUB_OUTPUT"
+          echo "task_definition=$(terraform output -raw ecs_task_definition_arn)" >> "$GITHUB_OUTPUT"
 
       - name: Configure application deployment credentials
         uses: aws-actions/configure-aws-credentials@v5
@@ -367,10 +368,12 @@ jobs:
         env:
           CLUSTER: ${{ steps.infra.outputs.cluster }}
           SERVICE: ${{ steps.infra.outputs.service }}
+          TASK_DEFINITION: ${{ steps.infra.outputs.task_definition }}
         run: |
           aws ecs update-service \
             --cluster "$CLUSTER" \
             --service "$SERVICE" \
+            --task-definition "$TASK_DEFINITION" \
             --desired-count 1 \
             --force-new-deployment >/dev/null
           aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
