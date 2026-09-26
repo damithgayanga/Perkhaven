@@ -54,7 +54,7 @@ public class AgreementPdfService implements DisposableBean {
                     .setFormat("A4")
                     .setPrintBackground(true)
                     .setDisplayHeaderFooter(true)
-                    .setHeaderTemplate(headerTemplate())
+                    .setHeaderTemplate("<div></div>")
                     .setFooterTemplate(footerTemplate(data))
                     .setMargin(new Margin()
                             .setTop(PAGE_MARGIN_TOP)
@@ -115,9 +115,16 @@ public class AgreementPdfService implements DisposableBean {
         }
 
         // The converted DOCX HTML contains decorative shape images in the old
-        // signature/footer layout. Those elements are replaced by the clean
-        // print header, footer and signature block above.
+        // signature/footer layout. Remove those before adding the production
+        // header image back as a fixed print element. Chromium repeats fixed
+        // elements on every printed page, while keeping the image inside the
+        // normal document context where data-URI images render reliably.
         doc.select("img").remove();
+        Element printHeader = new Element("div").addClass("agreement-print-header");
+        printHeader.appendElement("img")
+                .attr("src", logoDataUri)
+                .attr("alt", "The Perk Haven");
+        doc.body().prependChild(printHeader);
 
         markHeadingsAndSpacing(doc);
         rebuildLegalNumbering(doc);
@@ -492,6 +499,22 @@ public class AgreementPdfService implements DisposableBean {
                 body * {
                   color: #000 !important;
                 }
+                .agreement-print-header {
+                  position: fixed !important;
+                  top: -60mm !important;
+                  left: 0 !important;
+                  width: 170mm !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  z-index: 1000 !important;
+                }
+                .agreement-print-header img {
+                  display: block !important;
+                  width: 170mm !important;
+                  height: auto !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
                 font {
                   font-family: inherit !important;
                   font-size: inherit !important;
@@ -735,14 +758,6 @@ public class AgreementPdfService implements DisposableBean {
                   font-size: 7.5pt !important;
                 }
                 """);
-    }
-
-    private String headerTemplate() {
-        return """
-                <div style="box-sizing:border-box;width:170mm;margin:0;padding:0;">
-                  <img src="%s" alt="The Perk Haven" style="display:block;width:170mm;height:auto;margin:0;padding:0;" />
-                </div>
-                """.formatted(logoDataUri);
     }
 
     private String footerTemplate(JsonNode data) {
