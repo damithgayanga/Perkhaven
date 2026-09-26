@@ -6,18 +6,13 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.Margin;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -36,13 +31,13 @@ public class AgreementPdfService implements DisposableBean {
     static final String PAGE_MARGIN_RIGHT = "20mm";
 
     private final String template;
-    private final byte[] headerImageBytes;
+    private final String logoDataUri;
     private Playwright playwright;
     private Browser browser;
 
     public AgreementPdfService() {
         this.template = readText("agreement-template/agreement-template.html");
-        this.headerImageBytes = readBytes("agreement-template/perkhaven-agreement-header-final.jpg");
+        this.logoDataUri = dataUri("agreement-template/perkhaven-agreement-header-final.jpg", "image/jpeg");
     }
 
     public record Signature(String name, String date) {}
@@ -54,11 +49,11 @@ public class AgreementPdfService implements DisposableBean {
         try {
             page.setContent(html);
             page.emulateMedia(new Page.EmulateMediaOptions().setMedia(com.microsoft.playwright.options.Media.PRINT));
-            byte[] basePdf = page.pdf(new Page.PdfOptions()
+            return page.pdf(new Page.PdfOptions()
                     .setFormat("A4")
                     .setPrintBackground(true)
                     .setDisplayHeaderFooter(true)
-                    .setHeaderTemplate("<div></div>")
+                    .setHeaderTemplate(headerTemplate())
                     .setFooterTemplate(footerTemplate(data))
                     .setMargin(new Margin()
                             .setTop(PAGE_MARGIN_TOP)
@@ -67,7 +62,6 @@ public class AgreementPdfService implements DisposableBean {
                             .setLeft(PAGE_MARGIN_LEFT))
                     .setScale(1)
                     .setPreferCSSPageSize(false));
-            return stampHeader(basePdf);
         } finally {
             page.close();
         }
@@ -742,44 +736,12 @@ public class AgreementPdfService implements DisposableBean {
                 """);
     }
 
-    private byte[] stampHeader(byte[] basePdf) {
-        try (PDDocument document = Loader.loadPDF(basePdf);
-             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            PDImageXObject headerImage = PDImageXObject.createFromByteArray(
-                    document,
-                    headerImageBytes,
-                    "perkhaven-agreement-header");
-
-            float sideMargin = mmToPoints(20f);
-            float topOffset = mmToPoints(4f);
-
-            for (PDPage page : document.getPages()) {
-                float pageWidth = page.getMediaBox().getWidth();
-                float pageHeight = page.getMediaBox().getHeight();
-                float headerWidth = pageWidth - (2 * sideMargin);
-                float headerHeight = headerWidth * headerImage.getHeight() / headerImage.getWidth();
-                float x = sideMargin;
-                float y = pageHeight - topOffset - headerHeight;
-
-                try (PDPageContentStream contentStream = new PDPageContentStream(
-                        document,
-                        page,
-                        PDPageContentStream.AppendMode.APPEND,
-                        true,
-                        true)) {
-                    contentStream.drawImage(headerImage, x, y, headerWidth, headerHeight);
-                }
-            }
-
-            document.save(output);
-            return output.toByteArray();
-        } catch (IOException exception) {
-            throw new IllegalStateException("Unable to stamp agreement header onto PDF", exception);
-        }
-    }
-
-    private static float mmToPoints(float millimetres) {
-        return millimetres * 72f / 25.4f;
+    private String headerTemplate() {
+        return """
+                <div style="box-sizing:border-box;width:170mm;margin:0;padding:0;">
+                  <img src="%s" alt="The Perk Haven" style="display:block;width:170mm;height:auto;margin:0;padding:0;" />
+                </div>
+                """.formatted(logoDataUri);
     }
 
     private String footerTemplate(JsonNode data) {
@@ -865,9 +827,11 @@ public class AgreementPdfService implements DisposableBean {
         }
     }
 
-    private static byte[] readBytes(String path) {
+    private static String dataUri(String path, String mimeType) {
         try {
-            return new ClassPathResource(path).getInputStream().readAllBytes();
+            ClassPathResource resource = new ClassPathResource(path);
+            return "data:" + mimeType + ";base64," +
+                    Base64.getEncoder().encodeToString(resource.getInputStream().readAllBytes());
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to load agreement asset: " + path, exception);
         }
