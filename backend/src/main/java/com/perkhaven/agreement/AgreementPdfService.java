@@ -37,7 +37,7 @@ public class AgreementPdfService implements DisposableBean {
 
     public AgreementPdfService() {
         this.template = readText("agreement-template/agreement-template.html");
-        this.logoDataUri = dataUri("perkhaven-logo.png", "image/png");
+        this.logoDataUri = dataUri("agreement-template/perkhaven-agreement-header.jpg", "image/jpeg");
     }
 
     public record Signature(String name, String date) {}
@@ -738,12 +738,8 @@ public class AgreementPdfService implements DisposableBean {
 
     private String headerTemplate() {
         return """
-                <div style="box-sizing:border-box;width:100%%;height:19mm;padding:2.5mm 20mm 0;display:flex;align-items:flex-start;font-family:Arial,sans-serif;color:#000;">
-                  <img src="%s" style="width:15mm;height:15mm;object-fit:contain;margin-right:5mm;" />
-                  <div style="padding-top:1mm;">
-                    <div style="font-size:14px;line-height:1.1;font-weight:700;color:#3a6b1f;">THE PERK HAVEN</div>
-                    <div style="font-size:7px;letter-spacing:1.8px;margin-top:1.4mm;">P I T I P A N A &nbsp; · &nbsp; H O M A G A M A</div>
-                  </div>
+                <div style="box-sizing:border-box;width:100%%;height:26mm;padding:1mm 20mm 0;display:flex;align-items:flex-start;justify-content:center;">
+                  <img src="%s" alt="The Perk Haven" style="display:block;height:24mm;width:auto;max-width:100%%;object-fit:contain;" />
                 </div>
                 """.formatted(logoDataUri);
     }
