@@ -41,7 +41,7 @@ class AgreementPdfServiceTest {
         assertTrue(html.contains("electronically signed"));
         assertTrue(html.contains("class=\"appendix-two\""));
         assertTrue(html.contains("data-perkhaven-print=\"true\""));
-        assertTrue(html.contains("@page { size: A4; margin: 28mm 20mm 15mm 20mm; }"));
+        assertTrue(html.contains("@page { size: A4; margin: 62mm 20mm 15mm 20mm; }"));
         assertFalse(html.contains("@page { size: A4; margin: 0; }"));
         assertFalse(html.contains("margin-left: 1.25in"));
         assertFalse(html.contains("margin-right: 1.25in"));
@@ -51,7 +51,7 @@ class AgreementPdfServiceTest {
         assertTrue(html.contains("display: none !important"));
         assertTrue(html.contains("class=\"agreement-execution\""));
         assertTrue(html.contains("font-size: 8.2pt !important"));
-        assertEquals("28mm", AgreementPdfService.PAGE_MARGIN_TOP);
+        assertEquals("62mm", AgreementPdfService.PAGE_MARGIN_TOP);
         assertEquals("15mm", AgreementPdfService.PAGE_MARGIN_BOTTOM);
         assertEquals("20mm", AgreementPdfService.PAGE_MARGIN_LEFT);
         assertEquals("20mm", AgreementPdfService.PAGE_MARGIN_RIGHT);
