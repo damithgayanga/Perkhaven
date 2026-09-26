@@ -1,6 +1,7 @@
 package com.perkhaven.identity;
 
 import com.perkhaven.common.error.ConflictException;
+import com.perkhaven.common.domain.RecordStatus;
 import com.perkhaven.common.error.NotFoundException;
 import com.perkhaven.student.StudentRepository;
 import java.util.List;
@@ -37,13 +38,15 @@ public class CognitoStudentAccessService {
         if (userPoolId.isBlank()) throw new IllegalStateException("Cognito student access is not configured.");
         var student = students.findByRegistrationNoIgnoreCase(registrationNo)
                 .orElseThrow(() -> new NotFoundException("Student not found."));
+        if (student.getStatus() != RecordStatus.ACTIVE)
+            throw new ConflictException("Student access can only be enabled for active students.");
         if (student.getEmail() == null || student.getEmail().isBlank() || student.getEmail().endsWith("@invalid.perkhaven.local"))
             throw new ConflictException("A valid student email address is required before access can be enabled.");
-        var username = student.getRegistrationNo();
+        var username = student.getEmail().trim().toLowerCase(java.util.Locale.ROOT);
         var attributes = List.of(
-                AttributeType.builder().name("email").value(student.getEmail()).build(),
+                AttributeType.builder().name("email").value(username).build(),
                 AttributeType.builder().name("email_verified").value("true").build(),
-                AttributeType.builder().name("preferred_username").value(username).build());
+                AttributeType.builder().name("preferred_username").value(student.getRegistrationNo()).build());
         try {
             var existing = cognito.adminGetUser(AdminGetUserRequest.builder()
                     .userPoolId(userPoolId).username(username).build());
