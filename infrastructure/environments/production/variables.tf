@@ -47,13 +47,13 @@ variable "enable_ses_domain" {
 }
 
 variable "enable_mymailportal_mail" {
-  description = "Create the Domain.lk mymailportal.lk email DNS records for domain_name."
+  description = "Create the Domain.lk mymailportal.lk inbound-mail DNS records for domain_name. This can coexist with SES application sending."
   type        = bool
   default     = false
 
   validation {
-    condition     = !var.enable_mymailportal_mail || (var.enable_custom_domain && !var.enable_ses_domain)
-    error_message = "enable_mymailportal_mail requires enable_custom_domain and cannot be enabled with enable_ses_domain."
+    condition     = !var.enable_mymailportal_mail || var.enable_custom_domain
+    error_message = "enable_mymailportal_mail requires enable_custom_domain."
   }
 }
 

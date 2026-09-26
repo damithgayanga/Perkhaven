@@ -40,7 +40,9 @@ env:
   TF_INPUT: "false"
   TF_VAR_domain_name: "perkhaven.lk"
   TF_VAR_enable_custom_domain: "true"
-  TF_VAR_enable_ses_domain: ${{ vars.ENABLE_SES_DOMAIN || 'false' }}
+  # Transactional email is enabled for production. Terraform still exposes
+  # enable_ses_domain for non-production/recovery use.
+  TF_VAR_enable_ses_domain: "true"
   TF_VAR_enable_mymailportal_mail: ${{ vars.ENABLE_MYMAILPORTAL_MAIL || 'true' }}
   TF_VAR_create_route53_zone: "false"
   TF_VAR_database_backup_retention_days: ${{ vars.RDS_BACKUP_RETENTION_DAYS || '1' }}

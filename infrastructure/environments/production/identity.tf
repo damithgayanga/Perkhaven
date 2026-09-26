@@ -231,13 +231,13 @@ resource "aws_ses_domain_identity" "main" {
 }
 
 resource "aws_route53_record" "ses_verification" {
-  count   = var.enable_ses_domain ? 1 : 0
-  zone_id = local.route53_zone_id
-  name    = "_amazonses.${var.domain_name}"
-  type    = "TXT"
-  ttl     = 600
+  count           = var.enable_ses_domain ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = "_amazonses.${var.domain_name}"
+  type            = "TXT"
+  ttl             = 600
   allow_overwrite = true
-  records = [aws_ses_domain_identity.main[0].verification_token]
+  records         = [aws_ses_domain_identity.main[0].verification_token]
 }
 
 resource "aws_ses_domain_identity_verification" "main" {
@@ -254,46 +254,51 @@ resource "aws_ses_domain_dkim" "main" {
 resource "aws_route53_record" "ses_dkim" {
   count = var.enable_ses_domain ? 3 : 0
 
-  zone_id = local.route53_zone_id
-  name    = "${aws_ses_domain_dkim.main[0].dkim_tokens[count.index]}._domainkey.${var.domain_name}"
-  type    = "CNAME"
-  ttl     = 600
+  zone_id         = local.route53_zone_id
+  name            = "${aws_ses_domain_dkim.main[0].dkim_tokens[count.index]}._domainkey.${var.domain_name}"
+  type            = "CNAME"
+  ttl             = 600
   allow_overwrite = true
-  records = ["${aws_ses_domain_dkim.main[0].dkim_tokens[count.index]}.dkim.amazonses.com"]
+  records         = ["${aws_ses_domain_dkim.main[0].dkim_tokens[count.index]}.dkim.amazonses.com"]
 }
 
 resource "aws_ses_domain_mail_from" "main" {
-  count            = var.enable_ses_domain ? 1 : 0
-  domain           = aws_ses_domain_identity.main[0].domain
-  mail_from_domain = "mail.${var.domain_name}"
+  count  = var.enable_ses_domain ? 1 : 0
+  domain = aws_ses_domain_identity.main[0].domain
+  # Keep mail.<domain> available for the hosted mailbox provider. SES only
+  # needs a dedicated MAIL FROM subdomain for SPF/bounce alignment.
+  mail_from_domain = "bounce.${var.domain_name}"
 }
 
 resource "aws_route53_record" "ses_mail_from_mx" {
-  count   = var.enable_ses_domain ? 1 : 0
-  zone_id = local.route53_zone_id
-  name    = aws_ses_domain_mail_from.main[0].mail_from_domain
-  type    = "MX"
-  ttl     = 600
+  count           = var.enable_ses_domain ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = aws_ses_domain_mail_from.main[0].mail_from_domain
+  type            = "MX"
+  ttl             = 600
   allow_overwrite = true
-  records = ["10 feedback-smtp.${var.aws_region}.amazonses.com"]
+  records         = ["10 feedback-smtp.${var.aws_region}.amazonses.com"]
 }
 
 resource "aws_route53_record" "ses_mail_from_spf" {
-  count   = var.enable_ses_domain ? 1 : 0
-  zone_id = local.route53_zone_id
-  name    = aws_ses_domain_mail_from.main[0].mail_from_domain
-  type    = "TXT"
-  ttl     = 600
+  count           = var.enable_ses_domain ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = aws_ses_domain_mail_from.main[0].mail_from_domain
+  type            = "TXT"
+  ttl             = 600
   allow_overwrite = true
-  records = ["v=spf1 include:amazonses.com -all"]
+  records         = ["v=spf1 include:amazonses.com -all"]
 }
 
 resource "aws_route53_record" "dmarc" {
-  count   = var.enable_ses_domain ? 1 : 0
-  zone_id = local.route53_zone_id
-  name    = "_dmarc.${var.domain_name}"
-  type    = "TXT"
-  ttl     = 600
+  count           = var.enable_ses_domain || var.enable_mymailportal_mail ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = "_dmarc.${var.domain_name}"
+  type            = "TXT"
+  ttl             = var.enable_ses_domain ? 600 : 3600
   allow_overwrite = true
-  records = ["v=DMARC1; p=none; rua=mailto:admin@${var.domain_name}"]
+  records = [var.enable_ses_domain
+    ? "v=DMARC1; p=none; rua=mailto:admin@${var.domain_name}"
+    : "v=DMARC1; p=none; rua=mailto:dmarc-reports@${var.domain_name}"
+  ]
 }
