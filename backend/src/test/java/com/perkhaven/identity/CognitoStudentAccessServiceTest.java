@@ -6,7 +6,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.perkhaven.common.domain.RecordStatus;\nimport com.perkhaven.student.Student;
+import com.perkhaven.common.domain.RecordStatus;
+import com.perkhaven.student.Student;
 import com.perkhaven.student.StudentRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,8 @@ class CognitoStudentAccessServiceTest {
         var cognito = mock(CognitoIdentityProviderClient.class);
         var student = mock(Student.class);
         when(student.getRegistrationNo()).thenReturn("PH-2026-123");
-        when(student.getEmail()).thenReturn("student@example.com");\n        when(student.getStatus()).thenReturn(RecordStatus.ACTIVE);
+        when(student.getEmail()).thenReturn("student@example.com");
+        when(student.getStatus()).thenReturn(RecordStatus.ACTIVE);
         when(students.findByRegistrationNoIgnoreCase("PH-2026-123")).thenReturn(Optional.of(student));
         when(cognito.adminGetUser(any(AdminGetUserRequest.class)))
                 .thenThrow(UserNotFoundException.builder().message("not found").build());

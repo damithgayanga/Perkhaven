@@ -10,11 +10,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.event.ApplicationEvents;
@@ -38,6 +40,12 @@ class CoreApiIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @Autowired ApplicationEvents applicationEvents;
+    @Autowired JdbcTemplate jdbc;
+
+    @BeforeEach
+    void keepSharedIntegrationTestRoomsAvailable() {
+        jdbc.update("UPDATE rooms SET beds = 100 WHERE room_no IN ('104', '105')");
+    }
 
     @Test
     void adminCanReadCoreRegistersAndOpenApi() throws Exception {
@@ -218,7 +226,7 @@ class CoreApiIntegrationTest {
         var today = LocalDate.now(ZoneId.of("Asia/Colombo"));
         var registrationNo = "PH-EVIDENCE-903";
         var studentRequest = """
-                {"registrationNo":"%s","firstName":"Evidence","lastName":"Student","idNo":"E903",
+                {"registrationNo":"%s","firstName":"Evidence","lastName":"Student","dateOfBirth":"2003-01-01","idNo":"E903",
                  "mobile":"+94770000903","whatsapp":"+94770000903","email":"evidence903@example.com",
                  "university":"Test","currentYear":"Year 1","address":"Test","registeredDate":"%s",
                  "startDate":"%s","roomNo":"105","monthlyRent":25000.00,"depositPayable":1000.00,
@@ -623,7 +631,7 @@ class CoreApiIntegrationTest {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
         var incomplete = """
                 {"registrationNo":"PH-INVITE-905","firstName":"Invite","lastName":"Resident",
-                 "registeredDate":"2025-01-01","startDate":"2025-01-01","vacatedDate":"2025-01-31",
+                 "registeredDate":"2025-01-01","startDate":"2025-01-01","vacatedDate":"2025-01-31","roomNo":"105",
                  "monthlyRent":0.00,"depositPayable":0.00,"status":"INACTIVE","emergencyContacts":[]}
                 """;
         mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
@@ -650,9 +658,10 @@ class CoreApiIntegrationTest {
     void backendAssignsSequentialRegistrationNumbersAndAdminCanDeleteStudentWithFinancialRecords() throws Exception {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
         var firstStudent = """
-                {"firstName":"Sequence","lastName":"One","idNo":"SEQ001","mobile":"+94770000101",
-                 "email":"sequence.one@example.com","address":"Test","registeredDate":"2026-08-13",
-                 "startDate":"2099-08-15","monthlyRent":22500.00,"depositPayable":67500.00,
+                {"firstName":"Sequence","lastName":"One","dateOfBirth":"2003-01-01","idNo":"SEQ001","mobile":"+94770000101",
+                 "whatsapp":"+94770000101","email":"sequence.one@example.com","university":"Test University","currentYear":"Year 1",
+                 "address":"Test","registeredDate":"2026-08-13","startDate":"2099-08-15","roomNo":"105",
+                 "monthlyRent":22500.00,"depositPayable":67500.00,
                  "status":"ACTIVE","emergencyContacts":[
                     {"name":"Primary Contact","phone":"+94771111111","relationship":"Parent","address":"Test address"},
                     {"name":"Secondary Contact","phone":"+94772222222","relationship":"Sibling","address":"Test address"}
@@ -697,9 +706,10 @@ class CoreApiIntegrationTest {
     void bankSpreadsheetImportIsIdempotentAndPaymentCannotBeReconciledTwice() throws Exception {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
         var student = """
-                {"registrationNo":"PH-BANK-950","firstName":"Bank","lastName":"Test","idNo":"BANK950",
-                 "mobile":"+94770000950","email":"bank.test@example.com","address":"Test",
-                 "registeredDate":"2026-08-18","startDate":"2099-08-18","monthlyRent":1000.00,
+                {"registrationNo":"PH-BANK-950","firstName":"Bank","lastName":"Test","dateOfBirth":"2003-01-01","idNo":"BANK950",
+                 "mobile":"+94770000950","whatsapp":"+94770000950","email":"bank.test@example.com",
+                 "university":"Test University","currentYear":"Year 1","address":"Test",
+                 "registeredDate":"2026-08-18","startDate":"2099-08-18","roomNo":"105","monthlyRent":1000.00,
                  "depositPayable":1000.00,"status":"ACTIVE","emergencyContacts":[
                     {"name":"Primary Contact","phone":"+94771111111","relationship":"Parent","address":"Test address"},
                     {"name":"Secondary Contact","phone":"+94772222222","relationship":"Sibling","address":"Test address"}

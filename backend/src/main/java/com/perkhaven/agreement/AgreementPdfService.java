@@ -13,6 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -22,7 +23,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AgreementPdfService implements DisposableBean {
-    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.US);
     private static final String DEFAULT_EMAIL = "management@perkhaven.lk";
     private static final String DEFAULT_TELEPHONE = "+94 74 020 1621";
     static final String PAGE_MARGIN_TOP = "64mm";
