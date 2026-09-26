@@ -222,7 +222,10 @@ class CoreApiIntegrationTest {
                  "mobile":"+94770000903","whatsapp":"+94770000903","email":"evidence903@example.com",
                  "university":"Test","currentYear":"Year 1","address":"Test","registeredDate":"%s",
                  "startDate":"%s","roomNo":"105","monthlyRent":25000.00,"depositPayable":1000.00,
-                 "status":"ACTIVE","emergencyContacts":[]}
+                 "status":"ACTIVE","emergencyContacts":[
+                    {"name":"Primary Contact","phone":"+94771111111","relationship":"Parent","address":"Test address"},
+                    {"name":"Secondary Contact","phone":"+94772222222","relationship":"Sibling","address":"Test address"}
+                  ]}
                 """.formatted(registrationNo, today, today);
         mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON).content(studentRequest))
@@ -341,7 +344,10 @@ class CoreApiIntegrationTest {
                   "monthlyRent":22500.00,
                   "depositPayable":67500.00,
                   "status":"ACTIVE",
-                  "emergencyContacts":[]
+                  "emergencyContacts":[
+                    {"name":"Primary Contact","phone":"+94771111111","relationship":"Parent","address":"Test address"},
+                    {"name":"Secondary Contact","phone":"+94772222222","relationship":"Sibling","address":"Test address"}
+                  ]
                 }
                 """.formatted(today, startDate);
         mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
@@ -420,9 +426,12 @@ class CoreApiIntegrationTest {
         var expectedInvoices = currentMonthIncluded ? 4 : 3;
         var student = """
                 {"registrationNo":"PH-HISTORY-901","firstName":"Historical","lastName":"Student","idNo":"H901",
-                 "mobile":"+94770000001","whatsapp":"+94770000001","email":"history@example.com","university":"Test",
+                 "dateOfBirth":"2003-01-01","mobile":"+94770000001","whatsapp":"+94770000001","email":"history@example.com","university":"Test",
                  "currentYear":"Year 1","address":"Test","registeredDate":"%s","startDate":"%s","roomNo":"104",
-                 "monthlyRent":20000.00,"depositPayable":60000.00,"status":"ACTIVE","emergencyContacts":[]}
+                 "monthlyRent":20000.00,"depositPayable":60000.00,"status":"ACTIVE","emergencyContacts":[
+                    {"name":"Primary Contact","phone":"+94771111111","relationship":"Parent","address":"Test address"},
+                    {"name":"Secondary Contact","phone":"+94772222222","relationship":"Sibling","address":"Test address"}
+                  ]}
                 """.formatted(start, start);
         mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(student))
                 .andExpect(status().isCreated());
@@ -435,7 +444,7 @@ class CoreApiIntegrationTest {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
         var student = """
                 {"registrationNo":"PH-HISTORY-902","firstName":"Former","lastName":"Resident",
-                 "startDate":"2025-01-01","vacatedDate":"2025-04-30","roomNo":"104",
+                 "registeredDate":"2025-01-01","startDate":"2025-01-01","vacatedDate":"2025-04-30","roomNo":"104",
                  "monthlyRent":20000.00,"depositPayable":60000.00,"status":"INACTIVE","emergencyContacts":[]}
                 """;
 
@@ -461,8 +470,12 @@ class CoreApiIntegrationTest {
         var original = """
                 {"registrationNo":"PH-EDIT-903","firstName":"Edit","lastName":"Original","idNo":"EDIT903",
                  "mobile":"+94770000903","email":"edit.903@example.com","address":"Original address",
-                 "registeredDate":"2026-08-01","startDate":"2099-08-01","monthlyRent":20000.00,
-                 "depositPayable":0.00,"status":"ACTIVE","emergencyContacts":[]}
+                 "dateOfBirth":"2003-01-01","whatsapp":"+94770000903","university":"Test","currentYear":"Year 1",
+                  "registeredDate":"2026-08-01","startDate":"2099-08-01","roomNo":"104","monthlyRent":20000.00,
+                 "depositPayable":0.00,"status":"ACTIVE","emergencyContacts":[
+                    {"name":"Primary Contact","phone":"+94771111111","relationship":"Parent","address":"Test address"},
+                    {"name":"Secondary Contact","phone":"+94772222222","relationship":"Sibling","address":"Test address"}
+                  ]}
                 """;
         mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON).content(original))
@@ -489,9 +502,13 @@ class CoreApiIntegrationTest {
         var activeWithFutureCheckout = """
                 {"registrationNo":"PH-STATUS-904","firstName":"Status","lastName":"Resident","idNo":"STATUS904",
                  "mobile":"+94770000904","email":"status.904@example.com","address":"Test address",
-                 "registeredDate":"2026-08-01","startDate":"2098-01-01","noticeToVacateDate":"2099-03-01",
+                 "dateOfBirth":"2003-01-01","whatsapp":"+94770000904","university":"Test","currentYear":"Year 1",
+                  "registeredDate":"2026-08-01","startDate":"2098-01-01","roomNo":"104","noticeToVacateDate":"2099-03-01",
                  "vacatedDate":"2099-04-01","monthlyRent":20000.00,"depositPayable":0.00,
-                 "status":"ACTIVE","emergencyContacts":[]}
+                 "status":"ACTIVE","emergencyContacts":[
+                    {"name":"Primary Contact","phone":"+94771111111","relationship":"Parent","address":"Test address"},
+                    {"name":"Secondary Contact","phone":"+94772222222","relationship":"Sibling","address":"Test address"}
+                  ]}
                 """;
         mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON).content(activeWithFutureCheckout))
@@ -508,9 +525,13 @@ class CoreApiIntegrationTest {
         var reactivated = """
                 {"registrationNo":"PH-STATUS-904","firstName":"Status","lastName":"Resident","idNo":"STATUS904",
                  "mobile":"+94770000904","email":"status.904@example.com","address":"Test address",
-                 "registeredDate":"2026-08-01","startDate":"2098-01-01","noticeToVacateDate":null,
+                 "dateOfBirth":"2003-01-01","whatsapp":"+94770000904","university":"Test","currentYear":"Year 1",
+                  "registeredDate":"2026-08-01","startDate":"2098-01-01","roomNo":"104","noticeToVacateDate":null,
                  "vacatedDate":null,"monthlyRent":20000.00,"depositPayable":0.00,
-                 "status":"ACTIVE","emergencyContacts":[]}
+                 "status":"ACTIVE","emergencyContacts":[
+                    {"name":"Primary Contact","phone":"+94771111111","relationship":"Parent","address":"Test address"},
+                    {"name":"Secondary Contact","phone":"+94772222222","relationship":"Sibling","address":"Test address"}
+                  ]}
                 """;
         mvc.perform(put("/api/v1/students/PH-STATUS-904").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON).content(reactivated))
@@ -525,7 +546,7 @@ class CoreApiIntegrationTest {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
         var original = """
                 {"registrationNo":"PH-CHECKOUT-906","firstName":"Checkout","lastName":"Resident",
-                 "registeredDate":"2026-01-01","startDate":"2026-01-01","noticeToVacateDate":"2026-11-01",
+                 "registeredDate":"2026-01-01","startDate":"2026-01-01","roomNo":"104","noticeToVacateDate":"2026-11-01",
                  "vacatedDate":"2026-11-30","monthlyRent":27500.00,"depositPayable":82500.00,
                  "status":"INACTIVE","emergencyContacts":[
                    {"name":"First Contact","phone":"+94770000961","relationship":"Mother","address":"First address"},
@@ -620,8 +641,8 @@ class CoreApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("invite.905@example.com"));
         if (applicationEvents.stream(com.perkhaven.identity.StudentAccessRequestedEvent.class)
-                .noneMatch(event -> "PH-INVITE-905".equals(event.registrationNo()))) {
-            throw new AssertionError("Expected invitation after a real email address was added");
+                .anyMatch(event -> "PH-INVITE-905".equals(event.registrationNo()))) {
+            throw new AssertionError("Inactive residents must not receive access invitations");
         }
     }
 
@@ -632,7 +653,10 @@ class CoreApiIntegrationTest {
                 {"firstName":"Sequence","lastName":"One","idNo":"SEQ001","mobile":"+94770000101",
                  "email":"sequence.one@example.com","address":"Test","registeredDate":"2026-08-13",
                  "startDate":"2099-08-15","monthlyRent":22500.00,"depositPayable":67500.00,
-                 "status":"ACTIVE","emergencyContacts":[]}
+                 "status":"ACTIVE","emergencyContacts":[
+                    {"name":"Primary Contact","phone":"+94771111111","relationship":"Parent","address":"Test address"},
+                    {"name":"Secondary Contact","phone":"+94772222222","relationship":"Sibling","address":"Test address"}
+                  ]}
                 """;
         var secondStudent = firstStudent.replace("One", "Two")
                 .replace("SEQ001", "SEQ002")
@@ -676,7 +700,10 @@ class CoreApiIntegrationTest {
                 {"registrationNo":"PH-BANK-950","firstName":"Bank","lastName":"Test","idNo":"BANK950",
                  "mobile":"+94770000950","email":"bank.test@example.com","address":"Test",
                  "registeredDate":"2026-08-18","startDate":"2099-08-18","monthlyRent":1000.00,
-                 "depositPayable":1000.00,"status":"ACTIVE","emergencyContacts":[]}
+                 "depositPayable":1000.00,"status":"ACTIVE","emergencyContacts":[
+                    {"name":"Primary Contact","phone":"+94771111111","relationship":"Parent","address":"Test address"},
+                    {"name":"Secondary Contact","phone":"+94772222222","relationship":"Sibling","address":"Test address"}
+                  ]}
                 """;
         mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON).content(student)).andExpect(status().isCreated());
