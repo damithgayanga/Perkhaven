@@ -738,8 +738,8 @@ public class AgreementPdfService implements DisposableBean {
 
     private String headerTemplate() {
         return """
-                <div style="box-sizing:border-box;width:100%%;height:59mm;padding:2mm 8mm 0;display:flex;align-items:flex-start;justify-content:center;">
-                  <img src="%s" alt="The Perk Haven" style="display:block;width:100%%;max-width:194mm;height:auto;object-fit:contain;margin:0 auto;" />
+                <div style="box-sizing:border-box;width:170mm;margin:0;padding:0;">
+                  <img src="%s" alt="The Perk Haven" style="display:block;width:170mm;height:auto;margin:0;padding:0;" />
                 </div>
                 """.formatted(logoDataUri);
     }
