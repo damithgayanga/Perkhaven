@@ -7,6 +7,7 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.Margin;
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -20,6 +21,7 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.graphics.image.JPEGFactory;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.jsoup.Jsoup;
@@ -748,10 +750,10 @@ public class AgreementPdfService implements DisposableBean {
     byte[] stampFixedHeader(byte[] basePdf) {
         try (PDDocument document = Loader.loadPDF(basePdf);
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            PDImageXObject header = PDImageXObject.createFromByteArray(
-                    document,
-                    fixedHeaderImage,
-                    "perkhaven-fixed-agreement-header");
+            PDImageXObject header;
+            try (ByteArrayInputStream imageStream = new ByteArrayInputStream(fixedHeaderImage)) {
+                header = JPEGFactory.createFromStream(document, imageStream);
+            }
 
             float sideMargin = mmToPoints(20f);
             float topOffset = mmToPoints(3f);
