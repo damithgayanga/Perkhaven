@@ -45,7 +45,7 @@ public class AgreementPdfService implements DisposableBean {
 
     public AgreementPdfService() {
         this.template = readText("agreement-template/agreement-template.html");
-        this.fixedHeaderImage = readBytes("agreement-template/perkhaven-agreement-header-final.jpg");
+        this.fixedHeaderImage = readBytes("agreement-template/perkhaven-agreement-header.jpg");
     }
 
     public record Signature(String name, String date) {}
@@ -753,7 +753,7 @@ public class AgreementPdfService implements DisposableBean {
             }
 
             float sideMargin = mmToPoints(20f);
-            float topOffset = mmToPoints(6f);
+            float topOffset = mmToPoints(3f);
 
             for (PDPage pdfPage : document.getPages()) {
                 float pageWidth = pdfPage.getMediaBox().getWidth();
