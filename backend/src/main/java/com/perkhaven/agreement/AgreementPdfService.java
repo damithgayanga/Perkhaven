@@ -7,7 +7,6 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.Margin;
 import java.io.IOException;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -21,7 +20,7 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.graphics.image.JPEGFactory;
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.jsoup.Jsoup;
@@ -48,7 +47,7 @@ public class AgreementPdfService implements DisposableBean {
 
     public AgreementPdfService() {
         this.template = readText("agreement-template/agreement-template.html");
-        this.fixedHeaderImage = readBytes("agreement-template/perkhaven-agreement-header.jpg");
+        this.fixedHeaderImage = readBytes("agreement-template/perkhaven-agreement-header.png");
     }
 
     public record Signature(String name, String date) {}
@@ -750,10 +749,11 @@ public class AgreementPdfService implements DisposableBean {
     byte[] stampFixedHeader(byte[] basePdf) {
         try (PDDocument document = Loader.loadPDF(basePdf);
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            PDImageXObject header;
-            try (ByteArrayInputStream imageStream = new ByteArrayInputStream(fixedHeaderImage)) {
-                header = JPEGFactory.createFromStream(document, imageStream);
+            var bufferedHeader = ImageIO.read(new java.io.ByteArrayInputStream(fixedHeaderImage));
+            if (bufferedHeader == null) {
+                throw new IllegalStateException("Unable to decode approved PNG agreement header");
             }
+            PDImageXObject header = LosslessFactory.createFromImage(document, bufferedHeader);
 
             float sideMargin = mmToPoints(20f);
             float topOffset = mmToPoints(3f);
