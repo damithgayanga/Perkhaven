@@ -5589,7 +5589,7 @@ function AgreementDocumentPreview({
   signature?: AgreementSignature;
   agreementId?: number;
 }) {
-  const [url, setUrl] = useState<string | null>(null);
+  const [html, setHtml] = useState("");
   const [error, setError] = useState("");
   const request = useRef(0);
 
@@ -5598,14 +5598,20 @@ function AgreementDocumentPreview({
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
-          const blob = agreementId
-            ? await issuedAgreementPdfBlob(agreementId)
-            : await agreementPdfBlob(data, "Agreement-Preview.pdf", signature);
-          if (request.current !== requestId) return;
-          setUrl((current) => {
-            if (current) URL.revokeObjectURL(current);
-            return URL.createObjectURL(blob);
+          const response = await fetch("/api/v1/agreements/render-preview", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              agreementData: withAgreementContacts(data),
+              signedName: signature?.name,
+              signedAt: signature?.date,
+              filename: agreementId ? `Agreement-${agreementId}.pdf` : "Agreement-Preview.pdf",
+            }),
           });
+          if (!response.ok) throw new Error("Unable to prepare agreement preview.");
+          const rendered = await response.text();
+          if (request.current !== requestId) return;
+          setHtml(rendered);
           setError("");
         } catch (reason) {
           if (request.current !== requestId) return;
@@ -5614,21 +5620,12 @@ function AgreementDocumentPreview({
       })();
     }, agreementId ? 0 : 180);
 
-    return () => {
-      window.clearTimeout(timer);
-    };
+    return () => window.clearTimeout(timer);
   }, [agreementId, data, signature?.name, signature?.date]);
-
-  useEffect(() => () => {
-    setUrl((current) => {
-      if (current) URL.revokeObjectURL(current);
-      return null;
-    });
-  }, []);
 
   return <div className="agreement-preview-shell">
     {error && <div className="error-banner">{error}</div>}
-    {url ? <iframe className="agreement-pdf-preview" src={url} title="Agreement PDF preview" /> : <div className="preview-loading">Preparing agreement preview…</div>}
+    {html ? <iframe className="agreement-pdf-preview" srcDoc={html} title="Agreement preview" /> : <div className="preview-loading">Preparing agreement preview…</div>}
   </div>;
 }
 
