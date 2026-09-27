@@ -22,6 +22,8 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -35,7 +37,7 @@ public class AgreementPdfService implements DisposableBean {
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.US);
     private static final String DEFAULT_EMAIL = "management@perkhaven.lk";
     private static final String DEFAULT_TELEPHONE = "+94 74 020 1621";
-    static final String PAGE_MARGIN_TOP = "64mm";
+    static final String PAGE_MARGIN_TOP = "42mm";
     static final String PAGE_MARGIN_BOTTOM = "15mm";
     static final String PAGE_MARGIN_LEFT = "20mm";
     static final String PAGE_MARGIN_RIGHT = "20mm";
@@ -47,7 +49,7 @@ public class AgreementPdfService implements DisposableBean {
 
     public AgreementPdfService() {
         this.template = readText("agreement-template/agreement-template.html");
-        this.fixedHeaderImage = readBytes("agreement-template/perkhaven-agreement-header.png");
+        this.fixedHeaderImage = readBytes("perkhaven-logo.png");
     }
 
     public record Signature(String name, String date) {}
@@ -749,30 +751,77 @@ public class AgreementPdfService implements DisposableBean {
     byte[] stampFixedHeader(byte[] basePdf) {
         try (PDDocument document = Loader.loadPDF(basePdf);
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            var bufferedHeader = ImageIO.read(new java.io.ByteArrayInputStream(fixedHeaderImage));
-            if (bufferedHeader == null) {
-                throw new IllegalStateException("Unable to decode approved PNG agreement header");
+            var bufferedLogo = ImageIO.read(new java.io.ByteArrayInputStream(fixedHeaderImage));
+            if (bufferedLogo == null) {
+                throw new IllegalStateException("Unable to decode existing Perk Haven logo");
             }
-            PDImageXObject header = LosslessFactory.createFromImage(document, bufferedHeader);
+            PDImageXObject logo = LosslessFactory.createFromImage(document, bufferedLogo);
+            PDType1Font titleFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            PDType1Font regularFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
 
             float sideMargin = mmToPoints(20f);
             float topOffset = mmToPoints(3f);
+            float headerHeight = mmToPoints(32f);
+            float logoSize = mmToPoints(28f);
+            float dividerXOffset = mmToPoints(36f);
+            float textXOffset = mmToPoints(45f);
 
             for (PDPage pdfPage : document.getPages()) {
                 float pageWidth = pdfPage.getMediaBox().getWidth();
                 float pageHeight = pdfPage.getMediaBox().getHeight();
-                float headerWidth = pageWidth - (2f * sideMargin);
-                float headerHeight = headerWidth * header.getHeight() / header.getWidth();
                 float x = sideMargin;
-                float y = pageHeight - topOffset - headerHeight;
+                float yTop = pageHeight - topOffset;
+                float yBottom = yTop - headerHeight;
 
-                try (PDPageContentStream contentStream = new PDPageContentStream(
+                try (PDPageContentStream cs = new PDPageContentStream(
                         document,
                         pdfPage,
                         PDPageContentStream.AppendMode.APPEND,
                         true,
                         true)) {
-                    contentStream.drawImage(header, x, y, headerWidth, headerHeight);
+                    cs.drawImage(logo, x, yBottom + mmToPoints(2f), logoSize, logoSize);
+
+                    cs.setStrokingColor(205, 185, 150);
+                    cs.setLineWidth(0.8f);
+                    float dividerX = x + dividerXOffset;
+                    cs.moveTo(dividerX, yBottom + mmToPoints(2f));
+                    cs.lineTo(dividerX, yTop - mmToPoints(2f));
+                    cs.stroke();
+
+                    float textX = x + textXOffset;
+                    float titleY = yTop - mmToPoints(9f);
+                    cs.setNonStrokingColor(54, 103, 35);
+                    cs.beginText();
+                    cs.setFont(titleFont, 20f);
+                    cs.newLineAtOffset(textX, titleY);
+                    cs.showText("THE PERK HAVEN");
+                    cs.endText();
+
+                    cs.setNonStrokingColor(70, 70, 70);
+                    cs.beginText();
+                    cs.setFont(regularFont, 8.5f);
+                    cs.newLineAtOffset(textX + mmToPoints(15f), titleY - mmToPoints(5.5f));
+                    cs.showText("PITIPANA  -  HOMAGAMA");
+                    cs.endText();
+
+                    float hostelY = titleY - mmToPoints(13f);
+                    cs.setStrokingColor(205, 185, 150);
+                    cs.setLineWidth(0.8f);
+                    cs.moveTo(textX, hostelY + mmToPoints(1.5f));
+                    cs.lineTo(textX + mmToPoints(22f), hostelY + mmToPoints(1.5f));
+                    cs.stroke();
+
+                    cs.setNonStrokingColor(70, 70, 70);
+                    cs.beginText();
+                    cs.setFont(titleFont, 8.5f);
+                    cs.newLineAtOffset(textX + mmToPoints(25f), hostelY);
+                    cs.showText("FEMALE STUDENTS' HOSTEL");
+                    cs.endText();
+
+                    cs.setStrokingColor(205, 185, 150);
+                    cs.moveTo(textX + mmToPoints(77f), hostelY + mmToPoints(1.5f));
+                    cs.lineTo(pageWidth - sideMargin, hostelY + mmToPoints(1.5f));
+                    cs.stroke();
                 }
             }
 
