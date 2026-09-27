@@ -29,12 +29,12 @@ resource "aws_route53_record" "cloudfront_certificate" {
     }
   } : {}
 
-  zone_id = local.route53_zone_id
-  name    = each.value.name
-  type    = each.value.type
-  ttl     = 60
+  zone_id         = local.route53_zone_id
+  name            = each.value.name
+  type            = each.value.type
+  ttl             = 60
   allow_overwrite = true
-  records = [each.value.record]
+  records         = [each.value.record]
 }
 
 resource "aws_acm_certificate_validation" "cloudfront" {
