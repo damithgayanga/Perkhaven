@@ -485,7 +485,7 @@ public class AgreementPdfService implements DisposableBean {
 
     private void addPrintStyles(Document doc) {
         doc.head().appendElement("style").attr("data-perkhaven-print", "true").appendText("""
-                @page { size: A4; margin: 64mm 20mm 15mm 20mm; }
+                @page { size: A4; margin: 42mm 20mm 15mm 20mm; }
                 * { box-sizing: border-box; }
                 html, body {
                   background: #fff !important;
