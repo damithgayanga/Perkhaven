@@ -123,10 +123,10 @@ resource "aws_s3_bucket_policy" "frontend" {
 }
 
 resource "aws_route53_record" "apex" {
-  count   = var.enable_custom_domain ? 1 : 0
-  zone_id = local.route53_zone_id
-  name    = var.domain_name
-  type    = "A"
+  count           = var.enable_custom_domain ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = var.domain_name
+  type            = "A"
   allow_overwrite = true
   alias {
     name                   = aws_cloudfront_distribution.main.domain_name
@@ -136,10 +136,10 @@ resource "aws_route53_record" "apex" {
 }
 
 resource "aws_route53_record" "apex_ipv6" {
-  count   = var.enable_custom_domain ? 1 : 0
-  zone_id = local.route53_zone_id
-  name    = var.domain_name
-  type    = "AAAA"
+  count           = var.enable_custom_domain ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = var.domain_name
+  type            = "AAAA"
   allow_overwrite = true
   alias {
     name                   = aws_cloudfront_distribution.main.domain_name
@@ -149,10 +149,10 @@ resource "aws_route53_record" "apex_ipv6" {
 }
 
 resource "aws_route53_record" "www" {
-  count   = var.enable_custom_domain ? 1 : 0
-  zone_id = local.route53_zone_id
-  name    = "www.${var.domain_name}"
-  type    = "A"
+  count           = var.enable_custom_domain ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = "www.${var.domain_name}"
+  type            = "A"
   allow_overwrite = true
   alias {
     name                   = aws_cloudfront_distribution.main.domain_name
@@ -162,10 +162,10 @@ resource "aws_route53_record" "www" {
 }
 
 resource "aws_route53_record" "www_ipv6" {
-  count   = var.enable_custom_domain ? 1 : 0
-  zone_id = local.route53_zone_id
-  name    = "www.${var.domain_name}"
-  type    = "AAAA"
+  count           = var.enable_custom_domain ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = "www.${var.domain_name}"
+  type            = "AAAA"
   allow_overwrite = true
   alias {
     name                   = aws_cloudfront_distribution.main.domain_name
