@@ -2,12 +2,6 @@ package com.perkhaven.agreement;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import java.io.ByteArrayOutputStream;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.cos.COSName;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.jsoup.Jsoup;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -16,39 +10,18 @@ class AgreementPdfServiceTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
-    void fixedHeaderStampingAddsImageToEveryPageWithoutChangingPageCount() throws Exception {
+    void fixedHeaderTemplateUsesEmbeddedApprovedHeaderAndReservedGeometry() {
         var service = new AgreementPdfService();
 
-        byte[] basePdf;
-        try (PDDocument document = new PDDocument();
-             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            for (int i = 0; i < 3; i++) {
-                PDPage page = new PDPage();
-                document.addPage(page);
-                try (PDPageContentStream content = new PDPageContentStream(document, page)) {
-                    content.moveTo(50, 700);
-                    content.lineTo(200, 700);
-                    content.stroke();
-                }
-            }
-            document.save(output);
-            basePdf = output.toByteArray();
-        }
+        String header = service.fixedHeaderTemplate();
 
-        byte[] stamped = service.stampFixedHeader(basePdf);
-
-        try (PDDocument document = Loader.loadPDF(stamped)) {
-            assertEquals(3, document.getNumberOfPages());
-            for (PDPage page : document.getPages()) {
-                var resources = page.getResources();
-                assertNotNull(resources);
-                int imageCount = 0;
-                for (COSName name : resources.getXObjectNames()) {
-                    if (resources.isImageXObject(name)) imageCount++;
-                }
-                assertTrue(imageCount >= 1, "Expected fixed header image on every page");
-            }
-        }
+        assertTrue(header.contains("data:image/jpeg;base64,"));
+        assertTrue(header.contains("padding:3mm 20mm 0 20mm"));
+        assertTrue(header.contains("width:170mm"));
+        assertTrue(header.contains("height:auto"));
+        assertFalse(header.contains("file://"));
+        assertFalse(header.contains("http://"));
+        assertEquals("64mm", AgreementPdfService.PAGE_MARGIN_TOP);
 
         service.destroy();
     }
