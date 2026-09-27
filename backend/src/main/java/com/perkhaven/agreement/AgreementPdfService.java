@@ -6,21 +6,14 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.Margin;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.graphics.image.JPEGFactory;
-import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -57,11 +50,11 @@ public class AgreementPdfService implements DisposableBean {
         try {
             page.setContent(html);
             page.emulateMedia(new Page.EmulateMediaOptions().setMedia(com.microsoft.playwright.options.Media.PRINT));
-            byte[] basePdf = page.pdf(new Page.PdfOptions()
+            return page.pdf(new Page.PdfOptions()
                     .setFormat("A4")
                     .setPrintBackground(true)
                     .setDisplayHeaderFooter(true)
-                    .setHeaderTemplate("<div></div>")
+                    .setHeaderTemplate(fixedHeaderTemplate())
                     .setFooterTemplate(footerTemplate(data))
                     .setMargin(new Margin()
                             .setTop(PAGE_MARGIN_TOP)
@@ -70,7 +63,6 @@ public class AgreementPdfService implements DisposableBean {
                             .setLeft(PAGE_MARGIN_LEFT))
                     .setScale(1)
                     .setPreferCSSPageSize(false));
-            return stampFixedHeader(basePdf);
         } finally {
             page.close();
         }
@@ -744,40 +736,14 @@ public class AgreementPdfService implements DisposableBean {
                 """);
     }
 
-    byte[] stampFixedHeader(byte[] basePdf) {
-        try (PDDocument document = Loader.loadPDF(basePdf);
-             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            PDImageXObject header;
-            try (ByteArrayInputStream imageStream = new ByteArrayInputStream(fixedHeaderImage)) {
-                header = JPEGFactory.createFromStream(document, imageStream);
-            }
-
-            float sideMargin = mmToPoints(20f);
-            float topOffset = mmToPoints(3f);
-
-            for (PDPage pdfPage : document.getPages()) {
-                float pageWidth = pdfPage.getMediaBox().getWidth();
-                float pageHeight = pdfPage.getMediaBox().getHeight();
-                float headerWidth = pageWidth - (2f * sideMargin);
-                float headerHeight = headerWidth * header.getHeight() / header.getWidth();
-                float x = sideMargin;
-                float y = pageHeight - topOffset - headerHeight;
-
-                try (PDPageContentStream contentStream = new PDPageContentStream(
-                        document,
-                        pdfPage,
-                        PDPageContentStream.AppendMode.APPEND,
-                        true,
-                        true)) {
-                    contentStream.drawImage(header, x, y, headerWidth, headerHeight);
-                }
-            }
-
-            document.save(output);
-            return output.toByteArray();
-        } catch (IOException | RuntimeException exception) {
-            throw new IllegalStateException("Unable to apply fixed agreement header", exception);
-        }
+    String fixedHeaderTemplate() {
+        String encodedHeader = Base64.getEncoder().encodeToString(fixedHeaderImage);
+        return """
+                <div style="width:100%%; box-sizing:border-box; padding:3mm 20mm 0 20mm; margin:0;">
+                  <img src="data:image/jpeg;base64,%s"
+                       style="display:block; width:170mm; max-width:170mm; height:auto; margin:0; padding:0;" />
+                </div>
+                """.formatted(encodedHeader);
     }
 
     private static float mmToPoints(float millimetres) {
