@@ -89,7 +89,9 @@ public class AgreementController {
         var signature = request.signedName() == null || request.signedName().isBlank()
                 ? null
                 : new AgreementPdfService.Signature(request.signedName().trim(), request.signedAt());
-        return Map.of("pages", pdf.renderPreviewPages(request.agreementData(), signature));
+        return Map.of(
+                "pages", pdf.renderPreviewPages(request.agreementData(), signature),
+                "header", pdf.previewHeaderDataUri());
     }
 
     @PostMapping(value = "/render-pdf", produces = MediaType.APPLICATION_PDF_VALUE)
