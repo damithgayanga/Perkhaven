@@ -739,7 +739,7 @@ public class AgreementPdfService implements DisposableBean {
     String fixedHeaderTemplate() {
         String encodedHeader = Base64.getEncoder().encodeToString(fixedHeaderImage);
         return """
-                <div style="width:100%; box-sizing:border-box; padding:3mm 20mm 0 20mm; margin:0;">
+                <div style="width:100%%; box-sizing:border-box; padding:3mm 20mm 0 20mm; margin:0;">
                   <img src="data:image/jpeg;base64,%s"
                        style="display:block; width:170mm; max-width:170mm; height:auto; margin:0; padding:0;" />
                 </div>
