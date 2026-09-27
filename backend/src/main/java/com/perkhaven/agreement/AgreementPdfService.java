@@ -750,6 +750,57 @@ public class AgreementPdfService implements DisposableBean {
         return millimetres * 72f / 25.4f;
     }
 
+    String renderPreviewHtml(JsonNode data, Signature signature) {
+        Document doc = Jsoup.parse(renderHtml(data, signature));
+        doc.outputSettings().prettyPrint(false);
+
+        Element previewStyle = doc.createElement("style");
+        previewStyle.attr("data-agreement-browser-preview", "true");
+        previewStyle.text("""
+                html { background:#eceff3; }
+                body {
+                  width:210mm;
+                  min-height:297mm;
+                  margin:12px auto;
+                  padding:0 20mm 20mm;
+                  box-sizing:border-box;
+                  background:#fff;
+                  color:#000;
+                }
+                .agreement-browser-header {
+                  width:170mm;
+                  margin:0 auto 8mm;
+                  padding-top:3mm;
+                  box-sizing:border-box;
+                }
+                .agreement-browser-header img {
+                  display:block;
+                  width:170mm;
+                  max-width:170mm;
+                  height:auto;
+                  margin:0;
+                  padding:0;
+                }
+                @media (max-width: 900px) {
+                  body { width:100%; margin:0; padding-left:16px; padding-right:16px; }
+                  .agreement-browser-header,
+                  .agreement-browser-header img { width:100%; max-width:100%; }
+                }
+                """);
+        doc.head().appendChild(previewStyle);
+
+        String encodedHeader = Base64.getEncoder().encodeToString(fixedHeaderImage);
+        Element header = doc.createElement("div");
+        header.addClass("agreement-browser-header");
+        Element image = doc.createElement("img");
+        image.attr("src", "data:image/jpeg;base64," + encodedHeader);
+        image.attr("alt", "The Perk Haven");
+        header.appendChild(image);
+        doc.body().prependChild(header);
+
+        return doc.outerHtml();
+    }
+
     private String footerTemplate(JsonNode data) {
         String telephone = escapeHtml(text(data, "hostelTelephone", DEFAULT_TELEPHONE));
         String email = escapeHtml(text(data, "hostelEmail", DEFAULT_EMAIL));
