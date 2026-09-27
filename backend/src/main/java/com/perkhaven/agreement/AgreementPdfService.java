@@ -753,7 +753,7 @@ public class AgreementPdfService implements DisposableBean {
             }
 
             float sideMargin = mmToPoints(20f);
-            float topOffset = mmToPoints(6f);
+            float topOffset = mmToPoints(3f);
 
             for (PDPage pdfPage : document.getPages()) {
                 float pageWidth = pdfPage.getMediaBox().getWidth();
