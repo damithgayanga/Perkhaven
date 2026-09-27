@@ -45,7 +45,7 @@ public class AgreementPdfService implements DisposableBean {
 
     public AgreementPdfService() {
         this.template = readText("agreement-template/agreement-template.html");
-        this.fixedHeaderImage = readBytes("agreement-template/perkhaven-agreement-header-final.jpg");
+        this.fixedHeaderImage = readBytes("agreement-template/perkhaven-agreement-header.jpg");
     }
 
     public record Signature(String name, String date) {}
