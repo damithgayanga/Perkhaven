@@ -5589,7 +5589,7 @@ function AgreementDocumentPreview({
   signature?: AgreementSignature;
   agreementId?: number;
 }) {
-  const [html, setHtml] = useState("");
+  const [pages, setPages] = useState<string[]>([]);
   const [error, setError] = useState("");
   const request = useRef(0);
 
@@ -5598,7 +5598,7 @@ function AgreementDocumentPreview({
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
-          const response = await fetch("/api/v1/agreements/render-preview", {
+          const response = await fetch("/api/v1/agreements/render-preview-pages", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
@@ -5609,9 +5609,9 @@ function AgreementDocumentPreview({
             }),
           });
           if (!response.ok) throw new Error("Unable to prepare agreement preview.");
-          const rendered = await response.text();
+          const result = await response.json() as { pages?: string[] };
           if (request.current !== requestId) return;
-          setHtml(rendered);
+          setPages(result.pages || []);
           setError("");
         } catch (reason) {
           if (request.current !== requestId) return;
@@ -5625,7 +5625,9 @@ function AgreementDocumentPreview({
 
   return <div className="agreement-preview-shell">
     {error && <div className="error-banner">{error}</div>}
-    {html ? <iframe className="agreement-pdf-preview" srcDoc={html} title="Agreement preview" /> : <div className="preview-loading">Preparing agreement preview…</div>}
+    {pages.length ? <div className="agreement-page-preview-list">
+      {pages.map((page, index) => <img key={index} className="agreement-page-preview-image" src={page} alt={`Agreement page ${index + 1}`} />)}
+    </div> : <div className="preview-loading">Preparing agreement preview…</div>}
   </div>;
 }
 
