@@ -7,6 +7,7 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.Margin;
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -14,6 +15,9 @@ import java.util.Base64;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import javax.imageio.ImageIO;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -748,6 +752,26 @@ public class AgreementPdfService implements DisposableBean {
 
     private static float mmToPoints(float millimetres) {
         return millimetres * 72f / 25.4f;
+    }
+
+    java.util.List<String> renderPreviewPages(JsonNode data, Signature signature) {
+        byte[] pdfBytes = renderPdf(data, signature);
+        try (var document = Loader.loadPDF(pdfBytes)) {
+            var renderer = new PDFRenderer(document);
+            var pages = new java.util.ArrayList<String>(document.getNumberOfPages());
+            for (int pageIndex = 0; pageIndex < document.getNumberOfPages(); pageIndex++) {
+                var image = renderer.renderImageWithDPI(pageIndex, 110f);
+                try (var output = new ByteArrayOutputStream()) {
+                    if (!ImageIO.write(image, "png", output)) {
+                        throw new IllegalStateException("Unable to encode agreement preview page.");
+                    }
+                    pages.add("data:image/png;base64," + Base64.getEncoder().encodeToString(output.toByteArray()));
+                }
+            }
+            return pages;
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to render agreement preview pages.", exception);
+        }
     }
 
     String renderPreviewHtml(JsonNode data, Signature signature) {

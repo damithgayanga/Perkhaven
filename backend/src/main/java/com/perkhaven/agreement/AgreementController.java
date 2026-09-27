@@ -83,15 +83,13 @@ public class AgreementController {
         return Map.of("agreement", Response.from(agreement));
     }
 
-    @PostMapping(value = "/render-preview", produces = MediaType.TEXT_HTML_VALUE)
+    @PostMapping(value = "/render-preview-pages", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<String> renderPreview(@Valid @RequestBody PdfRequest request) {
+    public Map<String, Object> renderPreviewPages(@Valid @RequestBody PdfRequest request) {
         var signature = request.signedName() == null || request.signedName().isBlank()
                 ? null
                 : new AgreementPdfService.Signature(request.signedName().trim(), request.signedAt());
-        return ResponseEntity.ok()
-                .contentType(MediaType.TEXT_HTML)
-                .body(pdf.renderPreviewHtml(request.agreementData(), signature));
+        return Map.of("pages", pdf.renderPreviewPages(request.agreementData(), signature));
     }
 
     @PostMapping(value = "/render-pdf", produces = MediaType.APPLICATION_PDF_VALUE)
