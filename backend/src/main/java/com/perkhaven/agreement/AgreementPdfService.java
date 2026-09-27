@@ -754,6 +754,10 @@ public class AgreementPdfService implements DisposableBean {
         return millimetres * 72f / 25.4f;
     }
 
+    String previewHeaderDataUri() {
+        return "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(fixedHeaderImage);
+    }
+
     java.util.List<String> renderPreviewPages(JsonNode data, Signature signature) {
         byte[] pdfBytes = renderPdf(data, signature);
         try (var document = Loader.loadPDF(pdfBytes)) {
