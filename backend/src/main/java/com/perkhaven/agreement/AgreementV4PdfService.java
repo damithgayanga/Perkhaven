@@ -5,6 +5,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
@@ -13,8 +15,8 @@ import java.util.zip.GZIPInputStream;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -78,8 +80,8 @@ public class AgreementV4PdfService extends AgreementPdfService {
                         "Approved V4 agreement master must contain exactly 9 pages.");
             }
 
-            PDFont regular = findMasterFont(document, false);
-            PDFont bold = findMasterFont(document, true);
+            PDFont regular = loadLiberationSans(document, false);
+            PDFont bold = loadLiberationSans(document, true);
 
             // Page 1 - Definitions and commercial variables.
             stamp(document, 0, regular, 141.45f, 267.551f, 9.0f, 399f,
@@ -175,28 +177,22 @@ public class AgreementV4PdfService extends AgreementPdfService {
         return font.getStringWidth(text) * size / 1000f;
     }
 
-    private static PDFont findMasterFont(PDDocument document, boolean bold) throws IOException {
-        for (var page : document.getPages()) {
-            var resources = page.getResources();
-            if (resources == null) {
-                continue;
-            }
-            for (COSName name : resources.getFontNames()) {
-                PDFont font = resources.getFont(name);
-                if (font == null || font.getName() == null) {
-                    continue;
-                }
-                String normalized = font.getName().toLowerCase(Locale.ROOT);
-                boolean isLiberationSans = normalized.contains("liberationsans");
-                boolean isBold = normalized.contains("bold");
-                if (isLiberationSans && isBold == bold) {
-                    return font;
+    private static PDFont loadLiberationSans(PDDocument document, boolean bold) throws IOException {
+        String fileName = bold ? "LiberationSans-Bold.ttf" : "LiberationSans-Regular.ttf";
+        Path[] candidates = {
+                Path.of("/usr/share/fonts/truetype/liberation", fileName),
+                Path.of("/usr/share/fonts/truetype/liberation2", fileName)
+        };
+        for (Path path : candidates) {
+            if (Files.isRegularFile(path)) {
+                try (var input = Files.newInputStream(path)) {
+                    return PDType0Font.load(document, input, true);
                 }
             }
         }
         throw new IllegalStateException(
-                "Approved V4 master is missing embedded Liberation Sans "
-                        + (bold ? "Bold" : "Regular") + " font.");
+                "Liberation Sans font is not installed in the agreement rendering environment: "
+                        + fileName);
     }
 
     private static String latinSafe(String value) {
