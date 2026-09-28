@@ -18,7 +18,9 @@ class AgreementPdfServiceTest {
         assertTrue(header.contains("data:image/jpeg;base64,"));
         assertTrue(header.contains("padding:3mm 20mm 0 20mm"));
         assertTrue(header.contains("width:159.5mm"));
-        assertTrue(header.contains("height:40.3mm"));\n        assertTrue(header.contains("height:53.17mm"));\n        assertTrue(header.contains("margin:-6.43mm 0 0 0"));
+        assertTrue(header.contains("height:40.3mm"));
+        assertTrue(header.contains("height:53.17mm"));
+        assertTrue(header.contains("margin:-6.43mm 0 0 0"));
         assertFalse(header.contains("file://"));
         assertFalse(header.contains("http://"));
         assertEquals("43.7mm", AgreementPdfService.PAGE_MARGIN_TOP);
@@ -64,8 +66,8 @@ class AgreementPdfServiceTest {
         assertFalse(html.contains("margin-right: 1.25in"));
         assertFalse(html.contains("margin-top: 0.39in"));
         assertFalse(html.contains("margin-bottom: 0.27in"));
-        assertTrue(html.contains(".blank-spacer {"));
-        assertTrue(html.contains("display: none !important"));
+        assertTrue(html.contains(".agreement-title"));
+        assertTrue(html.contains("line-height: 1.0583"));
         assertTrue(html.contains("class=\"agreement-execution\""));
         assertTrue(html.contains("font-size: 8.2pt !important"));
         assertEquals("43.7mm", AgreementPdfService.PAGE_MARGIN_TOP);
@@ -105,8 +107,10 @@ class AgreementPdfServiceTest {
         assertTrue(alphaMarkers.contains("a."));
         assertTrue(alphaMarkers.contains("b."));
         assertTrue(alphaMarkers.contains("c."));
-        assertTrue(html.contains("grid-template-columns: 13mm minmax(0, 1fr)"));
-        assertTrue(html.contains("grid-template-columns: 9mm minmax(0, 1fr)"));
+        assertTrue(html.contains("padding: 0 0 0 13.21mm"));
+        assertTrue(html.contains("margin: 0 0 1.59mm 13.21mm"));
+        assertTrue(html.contains("padding: 0 0 0 9.14mm"));
+        assertEquals(0, renderedDocument.select(".blank-spacer").size());
         assertFalse(html.contains("agreement-number-marker"));
         assertFalse(html.contains("agreement-alpha-marker"));
         assertEquals(0, renderedDocument.select("ol").size());
