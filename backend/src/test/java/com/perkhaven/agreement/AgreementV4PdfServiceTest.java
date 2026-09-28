@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.pdfbox.Loader;
 import org.junit.jupiter.api.Test;
 
 class AgreementV4PdfServiceTest {
@@ -43,6 +44,38 @@ class AgreementV4PdfServiceTest {
             assertTrue(html.contains("management@perkhaven.lk"));
             assertTrue(html.contains("+94 74 020 1621"));
             assertFalse(html.contains("{{"));
+        } finally {
+            service.destroy();
+        }
+    }
+
+    @Test
+    void rendersFixedV4PdfAsNinePages() throws Exception {
+        AgreementV4PdfService service = new AgreementV4PdfService();
+        try {
+            var data = objectMapper.readTree("""
+                    {
+                      "studentName": "Wansadi Oneli Mawanana Hewage",
+                      "studentId": "200657601225",
+                      "wardenName": "Hostel Warden",
+                      "wardenId": "",
+                      "startDate": "2025-01-01",
+                      "roomNo": "101",
+                      "monthlyRent": "25000",
+                      "monthlyRentWords": "Twenty Five Thousand Rupees",
+                      "depositAmount": "50000",
+                      "depositAmountWords": "Fifty Thousand Rupees",
+                      "agreementDate": "2025-01-01",
+                      "hostelTelephone": "+94 74 020 1621",
+                      "hostelEmail": "management@perkhaven.lk"
+                    }
+                    """);
+
+            byte[] pdf = service.renderPdf(data, null);
+            assertTrue(pdf.length > 1000);
+            try (var document = Loader.loadPDF(pdf)) {
+                assertEquals(9, document.getNumberOfPages());
+            }
         } finally {
             service.destroy();
         }
