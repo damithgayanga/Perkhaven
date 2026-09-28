@@ -8,8 +8,8 @@ export const metadata: Metadata = {
     "codex-preview": "development",
   },
   icons: {
-    icon: "/perkhaven-logo.png",
-    shortcut: "/perkhaven-logo.png",
+    icon: "/perkhaven-logo.png?brand=20260929-1",
+    shortcut: "/perkhaven-logo.png?brand=20260929-1",
   },
 };
 
