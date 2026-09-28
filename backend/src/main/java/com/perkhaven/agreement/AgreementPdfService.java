@@ -30,7 +30,7 @@ public class AgreementPdfService implements DisposableBean {
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.US);
     private static final String DEFAULT_EMAIL = "management@perkhaven.lk";
     private static final String DEFAULT_TELEPHONE = "+94 74 020 1621";
-    static final String PAGE_MARGIN_TOP = "64mm";
+    static final String PAGE_MARGIN_TOP = "43.7mm";
     static final String PAGE_MARGIN_BOTTOM = "15mm";
     static final String PAGE_MARGIN_LEFT = "20mm";
     static final String PAGE_MARGIN_RIGHT = "20mm";
@@ -152,6 +152,9 @@ public class AgreementPdfService implements DisposableBean {
             String label = paragraph.text().replaceAll("\\s+", " ").trim();
             if (label.isEmpty() && paragraph.select("table, img, svg, canvas").isEmpty()) {
                 paragraph.addClass("blank-spacer");
+            }
+            if ("HOSTEL ACCOMMODATION AGREEMENT".equalsIgnoreCase(label)) {
+                paragraph.addClass("agreement-title");
             }
             if (paragraph == appendixOneHeading) {
                 paragraph.addClass("appendix-heading appendix-one-heading");
@@ -477,14 +480,14 @@ public class AgreementPdfService implements DisposableBean {
 
     private void addPrintStyles(Document doc) {
         doc.head().appendElement("style").attr("data-perkhaven-print", "true").appendText("""
-                @page { size: A4; margin: 64mm 20mm 15mm 20mm; }
+                @page { size: A4; margin: 43.7mm 20mm 15mm 20mm; }
                 * { box-sizing: border-box; }
                 html, body {
                   background: #fff !important;
                   color: #000 !important;
                   font-family: Arial, Helvetica, sans-serif !important;
                   font-size: 10pt !important;
-                  line-height: 1.20 !important;
+                  line-height: 1.0583 !important;
                   border: 0 !important;
                   padding: 0 !important;
                   margin: 0 !important;
@@ -492,9 +495,7 @@ public class AgreementPdfService implements DisposableBean {
                   print-color-adjust: exact !important;
                   hyphens: none !important;
                 }
-                body * {
-                  color: #000 !important;
-                }
+                body * { color: #000 !important; }
                 font {
                   font-family: inherit !important;
                   font-size: inherit !important;
@@ -502,15 +503,69 @@ public class AgreementPdfService implements DisposableBean {
                 p {
                   font-family: Arial, Helvetica, sans-serif !important;
                   font-size: 10pt !important;
-                  line-height: 1.20 !important;
-                  margin-top: 0 !important;
-                  margin-bottom: 1.8mm !important;
+                  line-height: 1.0583 !important;
+                  margin: 0 0 1.59mm 0 !important;
                   height: auto !important;
                   min-height: 0 !important;
                   max-height: none !important;
                   overflow: visible !important;
-                  orphans: 3 !important;
-                  widows: 3 !important;
+                  orphans: 2 !important;
+                  widows: 2 !important;
+                }
+                .agreement-title {
+                  font-size: 12pt !important;
+                  font-weight: 700 !important;
+                  line-height: 1.0 !important;
+                  text-align: center !important;
+                  margin: 0 0 2.82mm 0 !important;
+                  break-after: avoid-page !important;
+                  page-break-after: avoid !important;
+                }
+                ol, ul { margin: 0 !important; padding: 0 !important; }
+
+                /* V4 Word-style hanging indent. The row itself can fragment
+                   naturally across pages, so a long clause such as 1.10 or 1.12
+                   remains one continuous paragraph instead of being squeezed
+                   into a grid cell or pushed as an atomic block. */
+                .legal-row {
+                  position: relative !important;
+                  display: block !important;
+                  padding: 0 0 0 13.21mm !important;
+                  margin: 0 0 1.59mm 0 !important;
+                  width: 100% !important;
+                  min-width: 0 !important;
+                  break-inside: auto !important;
+                  page-break-inside: auto !important;
+                }
+                .legal-number {
+                  position: absolute !important;
+                  left: 0 !important;
+                  top: 0 !important;
+                  width: 11.2mm !important;
+                  display: block !important;
+                  white-space: nowrap !important;
+                  text-align: left !important;
+                  line-height: 1.0583 !important;
+                }
+                .legal-text {
+                  min-width: 0 !important;
+                  display: block !important;
+                  text-align: justify !important;
+                  line-height: 1.0583 !important;
+                  orphans: 2 !important;
+                  widows: 2 !important;
+                  overflow-wrap: normal !important;
+                  word-break: normal !important;
+                }
+                .legal-section-heading {
+                  font-weight: 700 !important;
+                  margin-top: 1.41mm !important;
+                  margin-bottom: 1.59mm !important;
+                  break-after: avoid-page !important;
+                  page-break-after: avoid !important;
+                }
+                .agreement-title + .legal-section-heading {
+                  margin-top: 0 !important;
                 }
                 .blank-spacer {
                   display: none !important;
@@ -522,94 +577,46 @@ public class AgreementPdfService implements DisposableBean {
                   line-height: 0 !important;
                 }
                 .blank-spacer br { display: none !important; }
-                ol, ul {
-                  margin-top: 0 !important;
-                  margin-bottom: 0 !important;
-                }
-                .legal-row {
-                  display: grid !important;
-                  grid-template-columns: 13mm minmax(0, 1fr) !important;
-                  column-gap: 2mm !important;
-                  align-items: start !important;
-                  margin: 0 0 1.8mm 0 !important;
-                  padding: 0 !important;
-                  width: 100% !important;
-                  break-inside: auto !important;
-                  page-break-inside: auto !important;
-                }
-                .legal-number {
-                  display: block !important;
-                  white-space: nowrap !important;
-                  text-align: left !important;
-                  line-height: 1.20 !important;
-                }
-                .legal-text {
-                  min-width: 0 !important;
-                  display: block !important;
-                  text-align: justify !important;
-                  line-height: 1.20 !important;
-                  orphans: 3 !important;
-                  widows: 3 !important;
-                  overflow-wrap: normal !important;
-                  word-break: normal !important;
-                }
-                .legal-section-heading {
-                  font-weight: 700 !important;
-                  break-after: avoid-page !important;
-                  page-break-after: avoid !important;
-                  margin-bottom: 1.2mm !important;
-                }
+
+                /* Level 3 begins exactly at the Level 1/2 text column, then
+                   hangs its own text a further 9.14 mm, matching approved V4. */
                 .legal-alpha-list {
                   display: block !important;
-                  margin: 0 0 1.8mm 4mm !important;
+                  margin: 0 0 1.59mm 13.21mm !important;
                   padding: 0 !important;
                 }
                 .legal-alpha-row {
-                  display: grid !important;
-                  grid-template-columns: 9mm minmax(0, 1fr) !important;
-                  column-gap: 2mm !important;
-                  align-items: start !important;
-                  margin: 0 0 1.3mm 0 !important;
-                  padding: 0 !important;
-                  break-inside: avoid-page !important;
-                  page-break-inside: avoid !important;
+                  position: relative !important;
+                  display: block !important;
+                  padding: 0 0 0 9.14mm !important;
+                  margin: 0 0 1.06mm 0 !important;
+                  min-width: 0 !important;
+                  break-inside: auto !important;
+                  page-break-inside: auto !important;
                 }
                 .legal-alpha-marker {
+                  position: absolute !important;
+                  left: 0 !important;
+                  top: 0 !important;
+                  width: 7.1mm !important;
                   display: block !important;
                   white-space: nowrap !important;
                   text-align: left !important;
-                  line-height: 1.20 !important;
+                  line-height: 1.0583 !important;
                 }
                 .legal-alpha-text {
                   min-width: 0 !important;
                   display: block !important;
                   text-align: justify !important;
-                  line-height: 1.20 !important;
+                  line-height: 1.0583 !important;
                   overflow-wrap: normal !important;
                   word-break: normal !important;
                 }
-                li {
-                  break-inside: auto !important;
-                  page-break-inside: auto !important;
-                }
-                li > p {
-                  orphans: 3 !important;
-                  widows: 3 !important;
-                }
-                .keep-with-next {
-                  break-after: avoid-page !important;
-                  page-break-after: avoid !important;
-                }
-                .section-intro {
-                  break-inside: avoid-page !important;
-                  page-break-inside: avoid !important;
-                  break-after: auto !important;
-                  page-break-after: auto !important;
-                }
+
+                .keep-with-next,
                 .agreement-section-heading {
                   break-after: avoid-page !important;
                   page-break-after: avoid !important;
-                  margin-bottom: 1.2mm !important;
                 }
                 .appendix-heading {
                   break-before: page !important;
@@ -617,9 +624,10 @@ public class AgreementPdfService implements DisposableBean {
                   break-after: avoid-page !important;
                   page-break-after: avoid !important;
                   margin-top: 0 !important;
-                  margin-bottom: 2mm !important;
+                  margin-bottom: 1.59mm !important;
                   text-align: center !important;
                 }
+
                 table.agreement-table {
                   width: 100% !important;
                   max-width: 100% !important;
@@ -651,14 +659,13 @@ public class AgreementPdfService implements DisposableBean {
                   background: #f1f1f1 !important;
                   vertical-align: middle !important;
                 }
+
                 .agreement-execution {
                   break-inside: avoid-page !important;
                   page-break-inside: avoid !important;
-                  margin-top: 2mm !important;
+                  margin-top: 1.41mm !important;
                 }
-                .agreement-execution p {
-                  margin-bottom: 1.5mm !important;
-                }
+                .agreement-execution p { margin-bottom: 1.59mm !important; }
                 .agreement-signature-layout {
                   display: grid !important;
                   grid-template-columns: 1fr 1fr !important;
@@ -687,6 +694,7 @@ public class AgreementPdfService implements DisposableBean {
                   display: block !important;
                   overflow-wrap: anywhere !important;
                 }
+
                 .appendix-two {
                   break-before: page !important;
                   page-break-before: always !important;
@@ -700,7 +708,6 @@ public class AgreementPdfService implements DisposableBean {
                   line-height: 1.15 !important;
                   margin-bottom: 1.8mm !important;
                 }
-                .appendix-two .blank-spacer { display: none !important; }
                 .appendix-two p {
                   font-size: 8.4pt !important;
                   line-height: 1.08 !important;
@@ -743,9 +750,11 @@ public class AgreementPdfService implements DisposableBean {
     String fixedHeaderTemplate() {
         String encodedHeader = Base64.getEncoder().encodeToString(fixedHeaderImage);
         return """
-                <div style="width:100%%; box-sizing:border-box; padding:3mm 20mm 0 20mm; margin:0;">
-                  <img src="data:image/jpeg;base64,%s"
-                       style="display:block; width:170mm; max-width:170mm; height:auto; margin:0; padding:0;" />
+                <div style="width:100%%;box-sizing:border-box;padding:3mm 20mm 0 20mm;margin:0;">
+                  <div style="width:159.5mm;height:40.3mm;overflow:hidden;margin:0 auto;padding:0;">
+                    <img src="data:image/jpeg;base64,%s"
+                         style="display:block;width:159.5mm;height:53.17mm;max-width:none;margin:-6.43mm 0 0 0;padding:0;" />
+                  </div>
                 </div>
                 """.formatted(encodedHeader);
     }
