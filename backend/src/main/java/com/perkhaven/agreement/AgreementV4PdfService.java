@@ -167,7 +167,7 @@ public class AgreementV4PdfService extends AgreementPdfService {
                 .replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
-                .replace(""", "&quot;")
+                .replace(String.valueOf('"'), "&quot;")
                 .replace("'", "&#39;");
     }
 
