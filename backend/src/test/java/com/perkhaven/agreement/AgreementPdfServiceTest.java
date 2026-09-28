@@ -17,11 +17,11 @@ class AgreementPdfServiceTest {
 
         assertTrue(header.contains("data:image/jpeg;base64,"));
         assertTrue(header.contains("padding:3mm 20mm 0 20mm"));
-        assertTrue(header.contains("width:170mm"));
-        assertTrue(header.contains("height:auto"));
+        assertTrue(header.contains("width:159.5mm"));
+        assertTrue(header.contains("height:40.3mm"));\n        assertTrue(header.contains("height:53.17mm"));\n        assertTrue(header.contains("margin:-6.43mm 0 0 0"));
         assertFalse(header.contains("file://"));
         assertFalse(header.contains("http://"));
-        assertEquals("64mm", AgreementPdfService.PAGE_MARGIN_TOP);
+        assertEquals("43.7mm", AgreementPdfService.PAGE_MARGIN_TOP);
 
         service.destroy();
     }
@@ -58,7 +58,7 @@ class AgreementPdfServiceTest {
         assertTrue(html.contains("electronically signed"));
         assertTrue(html.contains("class=\"appendix-two\""));
         assertTrue(html.contains("data-perkhaven-print=\"true\""));
-        assertTrue(html.contains("@page { size: A4; margin: 64mm 20mm 15mm 20mm; }"));
+        assertTrue(html.contains("@page { size: A4; margin: 43.7mm 20mm 15mm 20mm; }"));
         assertFalse(html.contains("@page { size: A4; margin: 0; }"));
         assertFalse(html.contains("margin-left: 1.25in"));
         assertFalse(html.contains("margin-right: 1.25in"));
@@ -68,7 +68,7 @@ class AgreementPdfServiceTest {
         assertTrue(html.contains("display: none !important"));
         assertTrue(html.contains("class=\"agreement-execution\""));
         assertTrue(html.contains("font-size: 8.2pt !important"));
-        assertEquals("64mm", AgreementPdfService.PAGE_MARGIN_TOP);
+        assertEquals("43.7mm", AgreementPdfService.PAGE_MARGIN_TOP);
         assertEquals("15mm", AgreementPdfService.PAGE_MARGIN_BOTTOM);
         assertEquals("20mm", AgreementPdfService.PAGE_MARGIN_LEFT);
         assertEquals("20mm", AgreementPdfService.PAGE_MARGIN_RIGHT);
@@ -120,6 +120,44 @@ class AgreementPdfServiceTest {
         assertFalse(html.contains("joanne.fernando@yahoo.com"));
         assertFalse(html.contains("title=\"header\""));
         assertFalse(html.contains("title=\"footer\""));
+
+        var accommodationPeriod = mainClauses.stream()
+                .filter(element -> "1.10".equals(element.attr("data-agreement-number")))
+                .findFirst().orElseThrow();
+        assertEquals(1, accommodationPeriod.select(".legal-text").size());
+        assertTrue(accommodationPeriod.selectFirst(".legal-text").text().contains("Minimum Stay Period"));
+        assertTrue(accommodationPeriod.selectFirst(".legal-text").text().contains("approval of the Proprietor"));
+
+        var monthlyFee = mainClauses.stream()
+                .filter(element -> "1.12".equals(element.attr("data-agreement-number")))
+                .findFirst().orElseThrow();
+        assertEquals(1, monthlyFee.select(".legal-text").size());
+        assertTrue(monthlyFee.selectFirst(".legal-text").text().contains("45,000.00"));
+        assertTrue(monthlyFee.selectFirst(".legal-text").text().contains("Room/Bed A-12"));
+
+        var otherResident = json.readTree("""
+                {
+                  "studentName":"Second Resident",
+                  "studentId":"200012345678",
+                  "wardenName":"Other Warden",
+                  "wardenId":"771234567V",
+                  "startDate":"2026-10-01",
+                  "agreementDate":"2026-10-01",
+                  "roomNo":"B-07",
+                  "monthlyRent":"52,500.00",
+                  "monthlyRentWords":"Fifty Two Thousand Five Hundred Rupees Only",
+                  "depositAmount":"105,000.00",
+                  "depositAmountWords":"One Hundred Five Thousand Rupees Only",
+                  "hostelTelephone":"+94 74 020 1621",
+                  "hostelEmail":"management@perkhaven.lk"
+                }
+                """);
+        var otherHtml = service.renderHtml(otherResident, null);
+        assertTrue(otherHtml.contains("Second Resident"));
+        assertTrue(otherHtml.contains("B-07"));
+        assertTrue(otherHtml.contains("52,500.00"));
+        assertFalse(otherHtml.contains("Demo Resident"));
+        assertFalse(otherHtml.equals(html));
 
         service.destroy();
     }
