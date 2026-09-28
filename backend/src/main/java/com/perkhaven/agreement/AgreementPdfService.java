@@ -36,7 +36,7 @@ public class AgreementPdfService implements DisposableBean {
     static final String PAGE_MARGIN_RIGHT = "20mm";
 
     private final String template;
-    private static final int HEADER_CHUNK_COUNT = 16;\n    private final byte[] fixedHeaderImage;
+    private final byte[] fixedHeaderImage;
     private Playwright playwright;
     private Browser browser;
 
