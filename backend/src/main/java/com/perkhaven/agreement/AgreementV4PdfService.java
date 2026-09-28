@@ -82,56 +82,56 @@ public class AgreementV4PdfService extends AgreementPdfService {
             PDFont bold = findMasterFont(document, true);
 
             // Page 1 - Definitions and commercial variables.
-            stamp(document, 0, regular, 141.45f, 267.551f, 6.75f, 399f,
+            stamp(document, 0, regular, 141.45f, 267.551f, 9.0f, 399f,
                     " - The Resident is " + studentName + " (NIC - " + studentId + ").");
-            stamp(document, 0, regular, 168.65f, 283.001f, 6.75f, 372f,
+            stamp(document, 0, regular, 168.65f, 283.001f, 9.0f, 372f,
                     " - The Hostel Warden is " + wardenName + " (NIC " + wardenId
                             + ") or any other person appointed by the ");
-            stamp(document, 0, regular, 219.70f, 469.751f, 6.75f, 321f,
+            stamp(document, 0, regular, 219.70f, 469.751f, 9.0f, 321f,
                     " - The Accommodation Start Date is " + startDate
                             + ", being the date on which the ");
-            stamp(document, 0, regular, 94.45f, 603.701f, 6.75f, 446f,
+            stamp(document, 0, regular, 94.45f, 603.701f, 9.0f, 446f,
                     "allocated to the Resident under this Agreement shall be LKR "
                             + monthlyRent + " (" + monthlyRentWords + "). ");
-            stamp(document, 0, regular, 94.45f, 614.651f, 6.75f, 446f,
+            stamp(document, 0, regular, 94.45f, 614.651f, 9.0f, 446f,
                     "The Resident is initially allocated Room/Bed " + roomNo
                             + " on the single/sharing basis specified in the Resident's ");
-            stamp(document, 0, regular, 94.45f, 706.751f, 6.75f, 446f,
+            stamp(document, 0, regular, 94.45f, 706.751f, 9.0f, 446f,
                     "Resident shall be LKR " + depositAmount + " (" + depositAmountWords
                             + ") and shall be paid before the Accommodation Start Date unless ");
 
             // Page 5 - resident acknowledgement.
-            stamp(document, 4, regular, 57.00f, 744.451f, 6.75f, 484f,
+            stamp(document, 4, regular, 57.00f, 744.451f, 9.0f, 484f,
                     "I, " + studentName + " (NIC " + studentId
                             + "), acknowledge that I have read and understood this Hostel Accommodation Agreement, ");
 
             // Page 6 - execution page.
-            stamp(document, 5, regular, 62.35f, 338.301f, 6.75f, 190f,
+            stamp(document, 5, regular, 62.35f, 338.301f, 9.0f, 190f,
                     "Date: " + agreementDate);
-            stamp(document, 5, regular, 303.15f, 302.601f, 6.75f, 230f,
+            stamp(document, 5, regular, 303.15f, 302.601f, 9.0f, 230f,
                     residentSignatureName);
-            stamp(document, 5, regular, 303.15f, 314.501f, 6.75f, 230f,
+            stamp(document, 5, regular, 303.15f, 314.501f, 9.0f, 230f,
                     "NIC: " + studentId);
-            stamp(document, 5, regular, 303.15f, 326.401f, 6.75f, 230f,
+            stamp(document, 5, regular, 303.15f, 326.401f, 9.0f, 230f,
                     "Date: " + residentSignatureDate);
 
             // Page 9 - Appendix 2 resident particulars.
-            stamp(document, 8, regular, 57.00f, 151.201f, 6.75f, 245f,
+            stamp(document, 8, regular, 57.00f, 151.201f, 9.0f, 245f,
                     "Resident: " + studentName);
-            stamp(document, 8, regular, 57.00f, 164.101f, 6.75f, 245f,
+            stamp(document, 8, regular, 57.00f, 164.101f, 9.0f, 245f,
                     "Room/Bed Initially Allocated: " + roomNo);
-            stamp(document, 8, regular, 57.00f, 177.001f, 6.75f, 245f,
+            stamp(document, 8, regular, 57.00f, 177.001f, 9.0f, 245f,
                     "Accommodation Start Date: " + startDate);
-            stamp(document, 8, regular, 57.00f, 492.351f, 6.75f, 125f,
+            stamp(document, 8, regular, 57.00f, 492.351f, 9.0f, 125f,
                     "Date: " + startDate);
 
             // Contact variables: footer on all pages and the two body references.
             for (int pageIndex = 0; pageIndex < 9; pageIndex++) {
-                stamp(document, pageIndex, bold, 101.5f, 814.801f, 5.25f, 80f, telephone);
-                stamp(document, pageIndex, bold, 440.4f, 814.801f, 5.25f, 94f, email);
+                stamp(document, pageIndex, bold, 101.5f, 814.801f, 7.0f, 80f, telephone);
+                stamp(document, pageIndex, bold, 440.4f, 814.801f, 7.0f, 94f, email);
             }
-            stamp(document, 1, regular, 327.4f, 610.801f, 6.75f, 113f, email);
-            stamp(document, 3, regular, 94.45f, 698.101f, 6.75f, 113f, email);
+            stamp(document, 1, regular, 327.4f, 610.801f, 9.0f, 113f, email);
+            stamp(document, 3, regular, 94.45f, 698.101f, 9.0f, 113f, email);
 
             document.save(output);
             return output.toByteArray();
