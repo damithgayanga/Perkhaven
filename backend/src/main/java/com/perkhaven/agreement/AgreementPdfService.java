@@ -567,6 +567,16 @@ public class AgreementPdfService implements DisposableBean {
                 .agreement-title + .legal-section-heading {
                   margin-top: 0 !important;
                 }
+                .blank-spacer {
+                  display: none !important;
+                  height: 0 !important;
+                  min-height: 0 !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  font-size: 0 !important;
+                  line-height: 0 !important;
+                }
+                .blank-spacer br { display: none !important; }
 
                 /* Level 3 begins exactly at the Level 1/2 text column, then
                    hangs its own text a further 9.14 mm, matching approved V4. */
