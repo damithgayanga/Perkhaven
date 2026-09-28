@@ -42,7 +42,7 @@ public class AgreementPdfService implements DisposableBean {
 
     public AgreementPdfService() {
         this.template = readText("agreement-template/agreement-template.html");
-        this.fixedHeaderImage = readChunkedBase64("agreement-template/header-b64/part-", HEADER_CHUNK_COUNT);
+        this.fixedHeaderImage = readBytes("agreement-template/perkhaven-agreement-header.jpg");
     }
 
     public record Signature(String name, String date) {}
@@ -741,8 +741,10 @@ public class AgreementPdfService implements DisposableBean {
         String encodedHeader = Base64.getEncoder().encodeToString(fixedHeaderImage);
         return """
                 <div style="width:100%%;box-sizing:border-box;padding:3mm 20mm 0 20mm;margin:0;">
-                  <img src="data:image/png;base64,%s"
-                       style="display:block;width:159.5mm;max-width:159.5mm;height:auto;margin:0 auto;padding:0;" />
+                  <div style="width:159.5mm;height:40.3mm;overflow:hidden;margin:0 auto;padding:0;">
+                    <img src="data:image/jpeg;base64,%s"
+                         style="display:block;width:159.5mm;height:53.17mm;max-width:none;margin:-6.43mm 0 0 0;padding:0;" />
+                  </div>
                 </div>
                 """.formatted(encodedHeader);
     }
@@ -814,7 +816,7 @@ public class AgreementPdfService implements DisposableBean {
         Element header = doc.createElement("div");
         header.addClass("agreement-browser-header");
         Element image = doc.createElement("img");
-        image.attr("src", "data:image/png;base64," + encodedHeader);
+        image.attr("src", "data:image/jpeg;base64," + encodedHeader);
         image.attr("alt", "The Perk Haven");
         header.appendChild(image);
         doc.body().prependChild(header);
@@ -902,18 +904,6 @@ public class AgreementPdfService implements DisposableBean {
             return new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to load agreement HTML template: " + path, exception);
-        }
-    }
-
-    private static byte[] readChunkedBase64(String prefix, int count) {
-        StringBuilder encoded = new StringBuilder();
-        for (int index = 0; index < count; index++) {
-            encoded.append(readText(prefix + "%02d.b64".formatted(index)).trim());
-        }
-        try {
-            return Base64.getDecoder().decode(encoded.toString());
-        } catch (IllegalArgumentException exception) {
-            throw new IllegalStateException("Unable to decode approved agreement header.", exception);
         }
     }
 
