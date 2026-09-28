@@ -17490,7 +17490,7 @@ function AddStaff({
             min="0"
             required={!managementCreator}
           />
-          <Field name="startDate" label="Accommodation start date" type="date" required={!managementCreator} />
+          <Field name="startDate" label="Employment Start Date" type="date" required={!managementCreator} />
           <Field name="finishDate" label="Finish date" type="date" />
           <label>
             Status
@@ -17714,7 +17714,7 @@ function EditStaff({
             />
             <Field
               name="startDate"
-              label="Accommodation start date"
+              label="Employment Start Date"
               type="date"
               defaultValue={member.startDate}
               required
