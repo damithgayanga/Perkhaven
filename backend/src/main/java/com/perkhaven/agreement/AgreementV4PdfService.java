@@ -13,9 +13,8 @@ import java.util.zip.GZIPInputStream;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.font.PDFont;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -79,8 +78,8 @@ public class AgreementV4PdfService extends AgreementPdfService {
                         "Approved V4 agreement master must contain exactly 9 pages.");
             }
 
-            PDFont regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-            PDFont bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            PDFont regular = findMasterFont(document, false);
+            PDFont bold = findMasterFont(document, true);
 
             // Page 1 - Definitions and commercial variables.
             stamp(document, 0, regular, 141.45f, 267.551f, 6.75f, 399f,
@@ -152,8 +151,9 @@ public class AgreementV4PdfService extends AgreementPdfService {
             String rawText) throws IOException {
         String text = latinSafe(rawText);
         float size = requestedSize;
-        while (size > 4.25f && width(font, text, size) > maxWidth) {
-            size -= 0.15f;
+        if (width(font, text, size) > maxWidth) {
+            throw new IllegalStateException(
+                    "Agreement variable text exceeds approved line width: " + text);
         }
         var page = document.getPage(pageIndex);
         float y = page.getMediaBox().getHeight() - topBaseline;
@@ -173,6 +173,30 @@ public class AgreementV4PdfService extends AgreementPdfService {
 
     private static float width(PDFont font, String text, float size) throws IOException {
         return font.getStringWidth(text) * size / 1000f;
+    }
+
+    private static PDFont findMasterFont(PDDocument document, boolean bold) throws IOException {
+        for (var page : document.getPages()) {
+            var resources = page.getResources();
+            if (resources == null) {
+                continue;
+            }
+            for (COSName name : resources.getFontNames()) {
+                PDFont font = resources.getFont(name);
+                if (font == null || font.getName() == null) {
+                    continue;
+                }
+                String normalized = font.getName().toLowerCase(Locale.ROOT);
+                boolean isLiberationSans = normalized.contains("liberationsans");
+                boolean isBold = normalized.contains("bold");
+                if (isLiberationSans && isBold == bold) {
+                    return font;
+                }
+            }
+        }
+        throw new IllegalStateException(
+                "Approved V4 master is missing embedded Liberation Sans "
+                        + (bold ? "Bold" : "Regular") + " font.");
     }
 
     private static String latinSafe(String value) {
