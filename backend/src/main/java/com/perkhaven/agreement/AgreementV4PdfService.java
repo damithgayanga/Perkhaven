@@ -153,10 +153,10 @@ public class AgreementV4PdfService extends AgreementPdfService {
             String rawText) throws IOException {
         String text = latinSafe(rawText);
         float size = requestedSize;
-        if (width(font, text, size) > maxWidth) {
-            throw new IllegalStateException(
-                    "Agreement variable text exceeds approved line width: " + text);
-        }
+        float textWidth = width(font, text, size);
+        float horizontalScale = textWidth > maxWidth
+                ? Math.max(75f, (maxWidth / textWidth) * 100f)
+                : 100f;
         var page = document.getPage(pageIndex);
         float y = page.getMediaBox().getHeight() - topBaseline;
         try (var stream = new PDPageContentStream(
@@ -167,6 +167,7 @@ public class AgreementV4PdfService extends AgreementPdfService {
                 true)) {
             stream.beginText();
             stream.setFont(font, size);
+            stream.setHorizontalScaling(horizontalScale);
             stream.newLineAtOffset(x, y);
             stream.showText(text);
             stream.endText();
