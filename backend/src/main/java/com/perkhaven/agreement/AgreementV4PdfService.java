@@ -1,68 +1,129 @@
 package com.perkhaven.agreement;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.microsoft.playwright.Browser;
-import com.microsoft.playwright.BrowserType;
-import com.microsoft.playwright.Page;
-import com.microsoft.playwright.Playwright;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.Base64;
-import java.util.List;
 import java.util.Locale;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 /**
- * Agreement renderer locked to the approved nine-page V4 geometry.
+ * Browser-free renderer for the approved nine-page V4 agreement.
  *
- * <p>The template contains nine fixed A4 SVG pages reconstructed from the
- * approved V4 PDF. Only the agreement variables are substituted at runtime.
- * No browser reflow is allowed, so headings, clauses, appendix content, page
- * breaks, header and footer positions remain fixed.</p>
+ * <p>The approved template is a set of fixed-position SVG pages. The renderer
+ * substitutes the resident/agreement variables first, then maps every text,
+ * line and header-image element directly to PDFBox drawing commands. This
+ * keeps the V4 pagination and geometry fixed and avoids any Chromium/Playwright
+ * dependency in production.</p>
  */
 @Service
 @Primary
 public class AgreementV4PdfService extends AgreementPdfService {
+    private static final float PAGE_WIDTH = 595.304f;
+    private static final float PAGE_HEIGHT = 841.890f;
     private static final DateTimeFormatter DISPLAY_DATE =
             DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.US);
     private static final String DEFAULT_EMAIL = "management@perkhaven.lk";
     private static final String DEFAULT_TELEPHONE = "+94 74 020 1621";
 
     private final String fixedTemplate;
-    private final String headerDataUri;
-    private Playwright playwright;
-    private Browser browser;
+    private final byte[] headerImageBytes;
 
     public AgreementV4PdfService() {
         super();
         this.fixedTemplate = readText("agreement-template/agreement-v4-fixed.html");
-        this.headerDataUri = "data:image/jpeg;base64,"
-                + Base64.getEncoder().encodeToString(
-                        readBytes("agreement-template/perkhaven-agreement-header.jpg"));
+        this.headerImageBytes = readBytes("agreement-template/perkhaven-agreement-header.jpg");
     }
 
     @Override
     public synchronized byte[] renderPdf(JsonNode data, AgreementPdfService.Signature signature) {
         String html = renderFixedHtml(data, signature);
-        ensureFixedBrowser();
-        Page page = browser.newPage();
-        try {
-            page.setContent(html);
-            page.emulateMedia(new Page.EmulateMediaOptions()
-                    .setMedia(com.microsoft.playwright.options.Media.PRINT));
-            return page.pdf(new Page.PdfOptions()
-                    .setPrintBackground(true)
-                    .setDisplayHeaderFooter(false)
-                    .setPreferCSSPageSize(true)
-                    .setWidth("595.304pt")
-                    .setHeight("841.890pt")
-                    .setScale(1));
-        } finally {
-            page.close();
+        var parsed = Jsoup.parse(html);
+        var pageElements = parsed.select("div.page");
+        if (pageElements.size() != 9) {
+            throw new IllegalStateException(
+                    "Approved V4 agreement must contain exactly 9 pages, found " + pageElements.size());
+        }
+
+        try (var document = new PDDocument();
+             var output = new ByteArrayOutputStream()) {
+            var regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            var bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            var italic = new PDType1Font(Standard14Fonts.FontName.HELVETICA_OBLIQUE);
+            var boldItalic = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD_OBLIQUE);
+            var header = PDImageXObject.createFromByteArray(
+                    document, headerImageBytes, "perkhaven-agreement-header");
+
+            for (Element pageElement : pageElements) {
+                var page = new PDPage(new PDRectangle(PAGE_WIDTH, PAGE_HEIGHT));
+                document.addPage(page);
+                try (var canvas = new PDPageContentStream(document, page)) {
+                    Element svg = pageElement.selectFirst("svg");
+                    if (svg == null) {
+                        throw new IllegalStateException("V4 agreement page is missing its SVG.");
+                    }
+
+                    for (Element image : svg.select("image")) {
+                        float x = number(image.attr("x"), 0);
+                        float y = number(image.attr("y"), 0);
+                        float width = number(image.attr("width"), 0);
+                        float height = number(image.attr("height"), 0);
+                        canvas.drawImage(header, x, PAGE_HEIGHT - y - height, width, height);
+                    }
+
+                    canvas.setLineWidth(0.5f);
+                    for (Element line : svg.select("line")) {
+                        float x1 = number(line.attr("x1"), 0);
+                        float y1 = number(line.attr("y1"), 0);
+                        float x2 = number(line.attr("x2"), 0);
+                        float y2 = number(line.attr("y2"), 0);
+                        canvas.moveTo(x1, PAGE_HEIGHT - y1);
+                        canvas.lineTo(x2, PAGE_HEIGHT - y2);
+                        canvas.stroke();
+                    }
+
+                    for (Element text : svg.select("text")) {
+                        String value = text.text().replace('\u00A0', ' ');
+                        if (value.isEmpty()) {
+                            continue;
+                        }
+                        float x = number(text.attr("x"), 0);
+                        float y = number(text.attr("y"), 0);
+                        float size = number(text.attr("font-size"), 6.75f);
+                        boolean isBold = "700".equals(text.attr("font-weight"))
+                                || "bold".equalsIgnoreCase(text.attr("font-weight"));
+                        boolean isItalic = "italic".equalsIgnoreCase(text.attr("font-style"));
+                        PDFont font = isBold
+                                ? (isItalic ? boldItalic : bold)
+                                : (isItalic ? italic : regular);
+
+                        canvas.beginText();
+                        canvas.setFont(font, size);
+                        canvas.newLineAtOffset(x, PAGE_HEIGHT - y);
+                        canvas.showText(encodable(font, value));
+                        canvas.endText();
+                    }
+                }
+            }
+
+            document.save(output);
+            return output.toByteArray();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to render approved V4 agreement PDF.", exception);
         }
     }
 
@@ -82,7 +143,7 @@ public class AgreementV4PdfService extends AgreementPdfService {
         }
 
         String html = fixedTemplate;
-        html = replace(html, "headerDataUri", headerDataUri);
+        html = replace(html, "headerDataUri", "");
         html = replace(html, "studentName", studentName);
         html = replace(html, "studentId", studentId);
         html = replace(html, "wardenName", value(data, "wardenName", "Hostel Warden"));
@@ -102,33 +163,6 @@ public class AgreementV4PdfService extends AgreementPdfService {
         html = replace(html, "hostelEmail",
                 value(data, "hostelEmail", DEFAULT_EMAIL));
         return html;
-    }
-
-    private void ensureFixedBrowser() {
-        if (browser != null && browser.isConnected()) {
-            return;
-        }
-        if (playwright != null) {
-            playwright.close();
-        }
-        playwright = Playwright.create();
-        browser = playwright.chromium().launch(new BrowserType.LaunchOptions()
-                .setHeadless(true)
-                .setChromiumSandbox(false)
-                .setArgs(List.of("--disable-dev-shm-usage")));
-    }
-
-    @Override
-    public synchronized void destroy() {
-        if (browser != null) {
-            browser.close();
-            browser = null;
-        }
-        if (playwright != null) {
-            playwright.close();
-            playwright = null;
-        }
-        super.destroy();
     }
 
     private static String replace(String source, String token, String value) {
@@ -157,6 +191,40 @@ public class AgreementV4PdfService extends AgreementPdfService {
         } catch (RuntimeException ignored) {
             return raw;
         }
+    }
+
+    private static float number(String raw, float fallback) {
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Float.parseFloat(raw.replace("pt", "").trim());
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static String encodable(PDFont font, String value) {
+        StringBuilder result = new StringBuilder(value.length());
+        for (int offset = 0; offset < value.length();) {
+            int codePoint = value.codePointAt(offset);
+            String character = new String(Character.toChars(codePoint));
+            offset += Character.charCount(codePoint);
+            try {
+                font.encode(character);
+                result.append(character);
+            } catch (IllegalArgumentException exception) {
+                result.append(switch (codePoint) {
+                    case 0x2018, 0x2019 -> "'";
+                    case 0x201C, 0x201D -> "\"";
+                    case 0x2013 -> "-";
+                    case 0x2014 -> "--";
+                    case 0x2026 -> "...";
+                    default -> "?";
+                });
+            }
+        }
+        return result.toString();
     }
 
     private static String escapeXml(String value) {
