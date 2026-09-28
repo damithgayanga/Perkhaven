@@ -213,7 +213,7 @@ public class AgreementV4PdfService extends AgreementPdfService {
             try {
                 font.encode(character);
                 result.append(character);
-            } catch (IllegalArgumentException exception) {
+            } catch (IllegalArgumentException | IOException exception) {
                 result.append(switch (codePoint) {
                     case 0x2018, 0x2019 -> "'";
                     case 0x201C, 0x201D -> "\"";
