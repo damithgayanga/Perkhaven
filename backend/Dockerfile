@@ -15,7 +15,7 @@ RUN ./gradlew clean bootJar --no-daemon
 FROM mcr.microsoft.com/playwright/java:v1.63.0-noble
 USER root
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends openjdk-21-jre-headless \
+    && apt-get install -y --no-install-recommends openjdk-21-jre-headless fonts-liberation \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system perkhaven \
     && useradd --system --gid perkhaven --create-home perkhaven
