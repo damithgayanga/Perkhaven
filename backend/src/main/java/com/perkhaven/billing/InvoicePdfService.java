@@ -82,10 +82,10 @@ public class InvoicePdfService {
     }
 
     private void drawLogo(PDDocument document, PDPageContentStream canvas) throws IOException {
-        var resource = new ClassPathResource("perkhaven-logo.png");
+        var resource = new ClassPathResource("perkhaven-logo-pdf.png");
         if (!resource.exists()) return;
-        var image = PDImageXObject.createFromByteArray(document, resource.getInputStream().readAllBytes(), "perkhaven-logo");
-        canvas.drawImage(image, 50, 742, 92, 88);
+        var image = PDImageXObject.createFromByteArray(document, resource.getInputStream().readAllBytes(), "perkhaven-logo-pdf");
+        canvas.drawImage(image, 50, 738, 100, 96);
     }
     private String fullName(com.perkhaven.student.Student student) { return java.util.stream.Stream.of(student.getFirstName(), student.getMiddleNames(), student.getLastName()).filter(v -> v != null && !v.isBlank()).reduce((a,b) -> a + " " + b).orElse(""); }
     private String label(AdjustmentType type) { return switch (type) { case LATE_START -> "Late Start Adjustment"; case EARLY_VACATE -> "Early Vacate Adjustment"; case VACATION_DISCOUNT -> "Vacation Discount"; case OTHER -> "Other Adjustment"; }; }
