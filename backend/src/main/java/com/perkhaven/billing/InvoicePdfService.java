@@ -82,9 +82,9 @@ public class InvoicePdfService {
     }
 
     private void drawLogo(PDDocument document, PDPageContentStream canvas) throws IOException {
-        var resource = new ClassPathResource("perkhaven-logo-pdf.png");
+        var resource = new ClassPathResource("perkhaven-logo-pdf-safe.jpg");
         if (!resource.exists()) return;
-        var image = PDImageXObject.createFromByteArray(document, resource.getInputStream().readAllBytes(), "perkhaven-logo-pdf");
+        var image = PDImageXObject.createFromByteArray(document, resource.getInputStream().readAllBytes(), "perkhaven-logo-pdf-safe");
         canvas.drawImage(image, 50, 738, 100, 96);
     }
     private String fullName(com.perkhaven.student.Student student) { return java.util.stream.Stream.of(student.getFirstName(), student.getMiddleNames(), student.getLastName()).filter(v -> v != null && !v.isBlank()).reduce((a,b) -> a + " " + b).orElse(""); }

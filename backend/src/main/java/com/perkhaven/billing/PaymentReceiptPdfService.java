@@ -20,8 +20,8 @@ public class PaymentReceiptPdfService {
             try (var canvas = new PDPageContentStream(document, page)) {
                 var regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
                 var bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
-                try (var logo = PaymentReceiptPdfService.class.getResourceAsStream("/perkhaven-logo-pdf.png")) {
-                    if (logo != null) canvas.drawImage(PDImageXObject.createFromByteArray(document, logo.readAllBytes(), "perkhaven-logo-pdf"), 54, 772, 68, 68);
+                try (var logo = PaymentReceiptPdfService.class.getResourceAsStream("/perkhaven-logo-pdf-safe.jpg")) {
+                    if (logo != null) canvas.drawImage(PDImageXObject.createFromByteArray(document, logo.readAllBytes(), "perkhaven-logo-pdf-safe"), 54, 772, 68, 68);
                 }
                 text(canvas, bold, 18, 132, 808, "THE PERK HAVEN HOSTEL");
                 text(canvas, regular, 10, 132, 790, "PAYMENT RECEIPT");
