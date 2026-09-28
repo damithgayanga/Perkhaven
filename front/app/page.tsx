@@ -5597,9 +5597,13 @@ function AgreementDocumentPreview({
 
   useEffect(() => {
     const requestId = ++request.current;
-    onPdfReady?.(null);
-    setError("");
     const timer = window.setTimeout(() => {
+      setUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
+      setError("");
+      onPdfReady?.(null);
       void (async () => {
         let nextUrl: string | null = null;
         try {
