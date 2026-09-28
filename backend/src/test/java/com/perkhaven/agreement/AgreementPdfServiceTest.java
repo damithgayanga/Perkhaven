@@ -110,7 +110,8 @@ class AgreementPdfServiceTest {
         assertTrue(html.contains("padding: 0 0 0 13.21mm"));
         assertTrue(html.contains("margin: 0 0 1.59mm 13.21mm"));
         assertTrue(html.contains("padding: 0 0 0 9.14mm"));
-        assertTrue(html.contains(".blank-spacer {"));\n        assertTrue(html.contains("display: none !important"));
+        assertTrue(html.contains(".blank-spacer {"));
+        assertTrue(html.contains("display: none !important"));
         assertFalse(html.contains("agreement-number-marker"));
         assertFalse(html.contains("agreement-alpha-marker"));
         assertEquals(0, renderedDocument.select("ol").size());
