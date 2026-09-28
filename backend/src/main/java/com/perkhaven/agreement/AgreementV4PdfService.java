@@ -1,138 +1,68 @@
 package com.perkhaven.agreement;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 import java.util.Locale;
+import java.util.zip.GZIPInputStream;
+import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
-import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Element;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 /**
- * Browser-free renderer for the approved nine-page V4 agreement.
+ * Agreement renderer based on the approved nine-page V4 PDF master.
  *
- * <p>The approved template is a set of fixed-position SVG pages. The renderer
- * substitutes the resident/agreement variables first, then maps every text,
- * line and header-image element directly to PDFBox drawing commands. This
- * keeps the V4 pagination and geometry fixed and avoids any Chromium/Playwright
- * dependency in production.</p>
+ * <p>The approved PDF already contains the header, footer, page numbering,
+ * legal text, appendices and exact pagination. Resident-specific values are
+ * removed from the stored master and stamped back at generation time. This
+ * avoids browser layout/reflow and does not load a separate header image.</p>
  */
 @Service
 @Primary
 public class AgreementV4PdfService extends AgreementPdfService {
-    private static final float PAGE_WIDTH = 595.304f;
-    private static final float PAGE_HEIGHT = 841.890f;
     private static final DateTimeFormatter DISPLAY_DATE =
             DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.US);
     private static final String DEFAULT_EMAIL = "management@perkhaven.lk";
     private static final String DEFAULT_TELEPHONE = "+94 74 020 1621";
+    private static final int MASTER_PART_COUNT = 21;
 
-    private final String fixedTemplate;
-    private final byte[] headerImageBytes;
+    private final byte[] masterPdf;
 
     public AgreementV4PdfService() {
         super();
-        this.fixedTemplate = readText("agreement-template/agreement-v4-fixed.html");
-        this.headerImageBytes = readBytes("agreement-template/perkhaven-agreement-header.jpg");
+        this.masterPdf = loadMasterPdf();
     }
 
     @Override
     public synchronized byte[] renderPdf(JsonNode data, AgreementPdfService.Signature signature) {
-        String html = renderFixedHtml(data, signature);
-        var parsed = Jsoup.parse(html);
-        var pageElements = parsed.select("div.page");
-        if (pageElements.size() != 9) {
-            throw new IllegalStateException(
-                    "Approved V4 agreement must contain exactly 9 pages, found " + pageElements.size());
-        }
-
-        try (var document = new PDDocument();
-             var output = new ByteArrayOutputStream()) {
-            var regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-            var bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
-            var italic = new PDType1Font(Standard14Fonts.FontName.HELVETICA_OBLIQUE);
-            var boldItalic = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD_OBLIQUE);
-            var header = PDImageXObject.createFromByteArray(
-                    document, headerImageBytes, "perkhaven-agreement-header");
-
-            for (Element pageElement : pageElements) {
-                var page = new PDPage(new PDRectangle(PAGE_WIDTH, PAGE_HEIGHT));
-                document.addPage(page);
-                try (var canvas = new PDPageContentStream(document, page)) {
-                    Element svg = pageElement.selectFirst("svg");
-                    if (svg == null) {
-                        throw new IllegalStateException("V4 agreement page is missing its SVG.");
-                    }
-
-                    for (Element image : svg.select("image")) {
-                        float x = number(image.attr("x"), 0);
-                        float y = number(image.attr("y"), 0);
-                        float width = number(image.attr("width"), 0);
-                        float height = number(image.attr("height"), 0);
-                        canvas.drawImage(header, x, PAGE_HEIGHT - y - height, width, height);
-                    }
-
-                    canvas.setLineWidth(0.5f);
-                    for (Element line : svg.select("line")) {
-                        float x1 = number(line.attr("x1"), 0);
-                        float y1 = number(line.attr("y1"), 0);
-                        float x2 = number(line.attr("x2"), 0);
-                        float y2 = number(line.attr("y2"), 0);
-                        canvas.moveTo(x1, PAGE_HEIGHT - y1);
-                        canvas.lineTo(x2, PAGE_HEIGHT - y2);
-                        canvas.stroke();
-                    }
-
-                    for (Element text : svg.select("text")) {
-                        String value = text.text().replace('\u00A0', ' ');
-                        if (value.isEmpty()) {
-                            continue;
-                        }
-                        float x = number(text.attr("x"), 0);
-                        float y = number(text.attr("y"), 0);
-                        float size = number(text.attr("font-size"), 6.75f);
-                        boolean isBold = "700".equals(text.attr("font-weight"))
-                                || "bold".equalsIgnoreCase(text.attr("font-weight"));
-                        boolean isItalic = "italic".equalsIgnoreCase(text.attr("font-style"));
-                        PDFont font = isBold
-                                ? (isItalic ? boldItalic : bold)
-                                : (isItalic ? italic : regular);
-
-                        canvas.beginText();
-                        canvas.setFont(font, size);
-                        canvas.newLineAtOffset(x, PAGE_HEIGHT - y);
-                        canvas.showText(encodable(font, value));
-                        canvas.endText();
-                    }
-                }
-            }
-
-            document.save(output);
-            return output.toByteArray();
-        } catch (IOException exception) {
-            throw new IllegalStateException("Unable to render approved V4 agreement PDF.", exception);
-        }
-    }
-
-    String renderFixedHtml(JsonNode data, AgreementPdfService.Signature signature) {
         String studentName = value(data, "studentName", "");
         String studentId = value(data, "studentId", "");
+        String wardenName = value(data, "wardenName", "Hostel Warden");
+        String wardenId = value(data, "wardenId", "");
+        String startDate = displayDate(value(data, "startDate", ""));
+        String roomNo = value(data, "roomNo", "");
+        String monthlyRent = value(data, "monthlyRent", "");
+        String monthlyRentWords = value(data, "monthlyRentWords", "");
+        String depositAmount = value(data, "depositAmount", "");
+        String depositAmountWords = value(data, "depositAmountWords", "");
+        String agreementDate = displayDate(
+                value(data, "agreementDate", value(data, "startDate", "")));
+        String telephone = value(data, "hostelTelephone", DEFAULT_TELEPHONE);
+        String email = value(data, "hostelEmail", DEFAULT_EMAIL);
+
         String residentSignatureName = studentName;
         String residentSignatureDate = "__________________";
-
         if (signature != null) {
             if (signature.name() != null && !signature.name().isBlank()) {
                 residentSignatureName = signature.name().trim() + " (electronically signed)";
@@ -142,31 +72,121 @@ public class AgreementV4PdfService extends AgreementPdfService {
             }
         }
 
-        String html = fixedTemplate;
-        html = replace(html, "headerDataUri", "");
-        html = replace(html, "studentName", studentName);
-        html = replace(html, "studentId", studentId);
-        html = replace(html, "wardenName", value(data, "wardenName", "Hostel Warden"));
-        html = replace(html, "wardenId", value(data, "wardenId", ""));
-        html = replace(html, "startDate", displayDate(value(data, "startDate", "")));
-        html = replace(html, "roomNo", value(data, "roomNo", ""));
-        html = replace(html, "monthlyRent", value(data, "monthlyRent", ""));
-        html = replace(html, "monthlyRentWords", value(data, "monthlyRentWords", ""));
-        html = replace(html, "depositAmount", value(data, "depositAmount", ""));
-        html = replace(html, "depositAmountWords", value(data, "depositAmountWords", ""));
-        html = replace(html, "agreementDate",
-                displayDate(value(data, "agreementDate", value(data, "startDate", ""))));
-        html = replace(html, "residentSignatureName", residentSignatureName);
-        html = replace(html, "residentSignatureDate", residentSignatureDate);
-        html = replace(html, "hostelTelephone",
-                value(data, "hostelTelephone", DEFAULT_TELEPHONE));
-        html = replace(html, "hostelEmail",
-                value(data, "hostelEmail", DEFAULT_EMAIL));
-        return html;
+        try (PDDocument document = Loader.loadPDF(masterPdf);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            if (document.getNumberOfPages() != 9) {
+                throw new IllegalStateException(
+                        "Approved V4 agreement master must contain exactly 9 pages.");
+            }
+
+            PDFont regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            PDFont bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+
+            // Page 1 - Definitions and commercial variables.
+            stamp(document, 0, regular, 141.45f, 267.551f, 6.75f, 399f,
+                    " - The Resident is " + studentName + " (NIC - " + studentId + ").");
+            stamp(document, 0, regular, 168.65f, 283.001f, 6.75f, 372f,
+                    " - The Hostel Warden is " + wardenName + " (NIC " + wardenId
+                            + ") or any other person appointed by the ");
+            stamp(document, 0, regular, 219.70f, 469.751f, 6.75f, 321f,
+                    " - The Accommodation Start Date is " + startDate
+                            + ", being the date on which the ");
+            stamp(document, 0, regular, 94.45f, 603.701f, 6.75f, 446f,
+                    "allocated to the Resident under this Agreement shall be LKR "
+                            + monthlyRent + " (" + monthlyRentWords + "). ");
+            stamp(document, 0, regular, 94.45f, 614.651f, 6.75f, 446f,
+                    "The Resident is initially allocated Room/Bed " + roomNo
+                            + " on the single/sharing basis specified in the Resident's ");
+            stamp(document, 0, regular, 94.45f, 706.751f, 6.75f, 446f,
+                    "Resident shall be LKR " + depositAmount + " (" + depositAmountWords
+                            + ") and shall be paid before the Accommodation Start Date unless ");
+
+            // Page 5 - resident acknowledgement.
+            stamp(document, 4, regular, 57.00f, 744.451f, 6.75f, 484f,
+                    "I, " + studentName + " (NIC " + studentId
+                            + "), acknowledge that I have read and understood this Hostel Accommodation Agreement, ");
+
+            // Page 6 - execution page.
+            stamp(document, 5, regular, 62.35f, 338.301f, 6.75f, 190f,
+                    "Date: " + agreementDate);
+            stamp(document, 5, regular, 303.15f, 302.601f, 6.75f, 230f,
+                    residentSignatureName);
+            stamp(document, 5, regular, 303.15f, 314.501f, 6.75f, 230f,
+                    "NIC: " + studentId);
+            stamp(document, 5, regular, 303.15f, 326.401f, 6.75f, 230f,
+                    "Date: " + residentSignatureDate);
+
+            // Page 9 - Appendix 2 resident particulars.
+            stamp(document, 8, regular, 57.00f, 151.201f, 6.75f, 245f,
+                    "Resident: " + studentName);
+            stamp(document, 8, regular, 57.00f, 164.101f, 6.75f, 245f,
+                    "Room/Bed Initially Allocated: " + roomNo);
+            stamp(document, 8, regular, 57.00f, 177.001f, 6.75f, 245f,
+                    "Accommodation Start Date: " + startDate);
+            stamp(document, 8, regular, 57.00f, 492.351f, 6.75f, 125f,
+                    "Date: " + startDate);
+
+            // Contact variables: footer on all pages and the two body references.
+            for (int pageIndex = 0; pageIndex < 9; pageIndex++) {
+                stamp(document, pageIndex, bold, 101.5f, 814.801f, 5.25f, 80f, telephone);
+                stamp(document, pageIndex, bold, 440.4f, 814.801f, 5.25f, 94f, email);
+            }
+            stamp(document, 1, regular, 327.4f, 610.801f, 6.75f, 113f, email);
+            stamp(document, 3, regular, 94.45f, 698.101f, 6.75f, 113f, email);
+
+            document.save(output);
+            return output.toByteArray();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to render approved V4 agreement PDF.", exception);
+        }
     }
 
-    private static String replace(String source, String token, String value) {
-        return source.replace("{{" + token + "}}", escapeXml(value));
+    private static void stamp(
+            PDDocument document,
+            int pageIndex,
+            PDFont font,
+            float x,
+            float topBaseline,
+            float requestedSize,
+            float maxWidth,
+            String rawText) throws IOException {
+        String text = latinSafe(rawText);
+        float size = requestedSize;
+        while (size > 4.25f && width(font, text, size) > maxWidth) {
+            size -= 0.15f;
+        }
+        var page = document.getPage(pageIndex);
+        float y = page.getMediaBox().getHeight() - topBaseline;
+        try (var stream = new PDPageContentStream(
+                document,
+                page,
+                PDPageContentStream.AppendMode.APPEND,
+                true,
+                true)) {
+            stream.beginText();
+            stream.setFont(font, size);
+            stream.newLineAtOffset(x, y);
+            stream.showText(text);
+            stream.endText();
+        }
+    }
+
+    private static float width(PDFont font, String text, float size) throws IOException {
+        return font.getStringWidth(text) * size / 1000f;
+    }
+
+    private static String latinSafe(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace('\u2018', '\'')
+                .replace('\u2019', '\'')
+                .replace('\u201C', '"')
+                .replace('\u201D', '"')
+                .replace("\u2013", "-")
+                .replace("\u2014", "-")
+                .replace("\u2026", "...");
     }
 
     private static String value(JsonNode data, String field, String fallback) {
@@ -193,50 +213,18 @@ public class AgreementV4PdfService extends AgreementPdfService {
         }
     }
 
-    private static float number(String raw, float fallback) {
-        if (raw == null || raw.isBlank()) {
-            return fallback;
+    private static byte[] loadMasterPdf() {
+        StringBuilder encoded = new StringBuilder();
+        for (int i = 1; i <= MASTER_PART_COUNT; i++) {
+            encoded.append(readText(
+                    "agreement-template/v4-master/part-%02d.txt".formatted(i)).trim());
         }
-        try {
-            return Float.parseFloat(raw.replace("pt", "").trim());
-        } catch (NumberFormatException ignored) {
-            return fallback;
+        byte[] compressed = Base64.getDecoder().decode(encoded.toString());
+        try (var gzip = new GZIPInputStream(new ByteArrayInputStream(compressed))) {
+            return gzip.readAllBytes();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to load approved V4 agreement master.", exception);
         }
-    }
-
-    private static String encodable(PDFont font, String value) {
-        StringBuilder result = new StringBuilder(value.length());
-        for (int offset = 0; offset < value.length();) {
-            int codePoint = value.codePointAt(offset);
-            String character = new String(Character.toChars(codePoint));
-            offset += Character.charCount(codePoint);
-            try {
-                font.encode(character);
-                result.append(character);
-            } catch (IllegalArgumentException | IOException exception) {
-                result.append(switch (codePoint) {
-                    case 0x2018, 0x2019 -> "'";
-                    case 0x201C, 0x201D -> "\"";
-                    case 0x2013 -> "-";
-                    case 0x2014 -> "--";
-                    case 0x2026 -> "...";
-                    default -> "?";
-                });
-            }
-        }
-        return result.toString();
-    }
-
-    private static String escapeXml(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace(String.valueOf('"'), "&quot;")
-                .replace("'", "&#39;");
     }
 
     private static String readText(String path) {
