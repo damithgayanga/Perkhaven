@@ -173,3 +173,135 @@ resource "aws_route53_record" "student_ipv6" {
     evaluate_target_health = false
   }
 }
+
+
+resource "aws_cloudfront_origin_access_control" "public_site" {
+  name                              = "${local.name}-public-site"
+  description                       = "Private S3 access for the Perkhaven public website"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+resource "aws_cloudfront_distribution" "public_site" {
+  enabled             = true
+  is_ipv6_enabled     = true
+  comment             = "Perkhaven public website"
+  default_root_object = "index.html"
+  price_class         = "PriceClass_200"
+  aliases             = var.enable_custom_domain ? [var.domain_name, "www.${var.domain_name}"] : []
+
+  origin {
+    domain_name              = aws_s3_bucket.public_site.bucket_regional_domain_name
+    origin_id                = "public-site-s3"
+    origin_access_control_id = aws_cloudfront_origin_access_control.public_site.id
+  }
+
+  default_cache_behavior {
+    target_origin_id           = "public-site-s3"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD", "OPTIONS"]
+    compress                   = true
+    cache_policy_id            = data.aws_cloudfront_cache_policy.optimized.id
+    response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security.id
+  }
+
+  custom_error_response {
+    error_code         = 403
+    response_code      = 200
+    response_page_path = "/index.html"
+  }
+
+  custom_error_response {
+    error_code         = 404
+    response_code      = 200
+    response_page_path = "/index.html"
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = !var.enable_custom_domain
+    acm_certificate_arn            = var.enable_custom_domain ? aws_acm_certificate_validation.cloudfront[0].certificate_arn : null
+    ssl_support_method             = var.enable_custom_domain ? "sni-only" : null
+    minimum_protocol_version       = var.enable_custom_domain ? "TLSv1.2_2021" : "TLSv1"
+  }
+}
+
+data "aws_iam_policy_document" "public_site_bucket" {
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.public_site.arn}/*"]
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [aws_cloudfront_distribution.public_site.arn]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "public_site" {
+  bucket = aws_s3_bucket.public_site.id
+  policy = data.aws_iam_policy_document.public_site_bucket.json
+}
+
+resource "aws_route53_record" "apex" {
+  count           = var.enable_custom_domain ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = var.domain_name
+  type            = "A"
+  allow_overwrite = true
+  alias {
+    name                   = aws_cloudfront_distribution.public_site.domain_name
+    zone_id                = aws_cloudfront_distribution.public_site.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "apex_ipv6" {
+  count           = var.enable_custom_domain ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = var.domain_name
+  type            = "AAAA"
+  allow_overwrite = true
+  alias {
+    name                   = aws_cloudfront_distribution.public_site.domain_name
+    zone_id                = aws_cloudfront_distribution.public_site.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "www" {
+  count           = var.enable_custom_domain ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = "www.${var.domain_name}"
+  type            = "A"
+  allow_overwrite = true
+  alias {
+    name                   = aws_cloudfront_distribution.public_site.domain_name
+    zone_id                = aws_cloudfront_distribution.public_site.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "www_ipv6" {
+  count           = var.enable_custom_domain ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = "www.${var.domain_name}"
+  type            = "AAAA"
+  allow_overwrite = true
+  alias {
+    name                   = aws_cloudfront_distribution.public_site.domain_name
+    zone_id                = aws_cloudfront_distribution.public_site.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
