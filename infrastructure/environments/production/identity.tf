@@ -1,5 +1,5 @@
 locals {
-  application_public_url = "https://${var.enable_custom_domain ? var.domain_name : aws_cloudfront_distribution.main.domain_name}"
+  application_public_url = "https://${var.enable_custom_domain ? local.management_hostname : aws_cloudfront_distribution.main.domain_name}"
 }
 
 resource "aws_cognito_user_pool" "main" {
@@ -52,8 +52,8 @@ resource "aws_cognito_user_pool_client" "frontend" {
   allowed_oauth_scopes                 = ["openid", "email", "profile"]
   supported_identity_providers         = ["COGNITO"]
   explicit_auth_flows                  = ["ALLOW_USER_PASSWORD_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]
-  callback_urls                        = var.enable_custom_domain ? ["https://${var.domain_name}/", "https://www.${var.domain_name}/"] : ["${local.application_public_url}/"]
-  logout_urls                          = var.enable_custom_domain ? ["https://${var.domain_name}/", "https://www.${var.domain_name}/"] : ["${local.application_public_url}/"]
+  callback_urls                        = var.enable_custom_domain ? ["https://${local.management_hostname}/", "https://${local.student_hostname}/"] : ["${local.application_public_url}/"]
+  logout_urls                          = var.enable_custom_domain ? ["https://${local.management_hostname}/", "https://${local.student_hostname}/"] : ["${local.application_public_url}/"]
 
   access_token_validity  = 60
   id_token_validity      = 60
@@ -170,8 +170,8 @@ resource "aws_cognito_user_pool_client" "username_frontend" {
   allowed_oauth_scopes                 = ["openid", "email", "profile"]
   supported_identity_providers         = ["COGNITO"]
   explicit_auth_flows                  = ["ALLOW_USER_PASSWORD_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]
-  callback_urls                        = var.enable_custom_domain ? ["https://${var.domain_name}/", "https://www.${var.domain_name}/"] : ["${local.application_public_url}/"]
-  logout_urls                          = var.enable_custom_domain ? ["https://${var.domain_name}/", "https://www.${var.domain_name}/"] : ["${local.application_public_url}/"]
+  callback_urls                        = var.enable_custom_domain ? ["https://${local.management_hostname}/", "https://${local.student_hostname}/"] : ["${local.application_public_url}/"]
+  logout_urls                          = var.enable_custom_domain ? ["https://${local.management_hostname}/", "https://${local.student_hostname}/"] : ["${local.application_public_url}/"]
 
   access_token_validity  = 60
   id_token_validity      = 60
