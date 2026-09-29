@@ -22,11 +22,17 @@ function wireGallery(){
   const image=document.getElementById("galleryImage");
   if(!image)return;
   const photos=[
-    "/assets/property-1.webp",
-    "/assets/property-2.webp",
-    "/assets/property-3.webp",
-    "/assets/property-4.webp",
-    "/assets/property-5.webp"
+    "/assets/gallery-01.webp",
+    "/assets/gallery-02.webp",
+    "/assets/gallery-03.webp",
+    "/assets/gallery-04.webp",
+    "/assets/gallery-05.webp",
+    "/assets/gallery-06.webp",
+    "/assets/gallery-07.webp",
+    "/assets/gallery-08.webp",
+    "/assets/gallery-09.webp",
+    "/assets/gallery-10.webp",
+    "/assets/gallery-11.webp"
   ];
   const prev=content.querySelector(".gallery-prev");
   const next=content.querySelector(".gallery-next");
