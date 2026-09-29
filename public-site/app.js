@@ -21,13 +21,44 @@ function wirePanelButtons(){
 function wireGallery(){
   const image=document.getElementById("galleryImage");
   if(!image)return;
-  content.querySelectorAll(".gallery-thumbs button").forEach((button)=>{
-    button.addEventListener("click",()=>{
-      image.src=button.dataset.img;
-      content.querySelectorAll(".gallery-thumbs button").forEach((item)=>item.classList.remove("active"));
-      button.classList.add("active");
-    });
-  });
+  const photos=[
+    "/assets/property-1.webp",
+    "/assets/property-2.webp",
+    "/assets/property-3.webp",
+    "/assets/property-4.webp",
+    "/assets/property-5.webp"
+  ];
+  const prev=content.querySelector(".gallery-prev");
+  const next=content.querySelector(".gallery-next");
+  const position=content.querySelector("#galleryPosition");
+  const progress=content.querySelector("#galleryProgress");
+  let index=0;
+  let touchStartX=0;
+
+  const show=(nextIndex)=>{
+    index=(nextIndex+photos.length)%photos.length;
+    image.classList.add("gallery-changing");
+    window.setTimeout(()=>{
+      image.src=photos[index];
+      image.alt=`The Perk Haven property photo ${index+1}`;
+      if(position)position.textContent=`${index+1} / ${photos.length}`;
+      if(progress)progress.style.width=`${((index+1)/photos.length)*100}%`;
+      image.classList.remove("gallery-changing");
+    },120);
+  };
+
+  prev?.addEventListener("click",()=>show(index-1));
+  next?.addEventListener("click",()=>show(index+1));
+  image.addEventListener("touchstart",(event)=>{touchStartX=event.changedTouches[0]?.screenX||0},{passive:true});
+  image.addEventListener("touchend",(event)=>{
+    const delta=(event.changedTouches[0]?.screenX||0)-touchStartX;
+    if(Math.abs(delta)>45)show(index+(delta<0?1:-1));
+  },{passive:true});
+  panel.onkeydown=(event)=>{
+    if(event.key==="ArrowLeft")show(index-1);
+    if(event.key==="ArrowRight")show(index+1);
+  };
+  show(0);
 }
 
 function setActivePanelTab(name){
