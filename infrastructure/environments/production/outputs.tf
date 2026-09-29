@@ -26,6 +26,10 @@ output "frontend_bucket_name" {
   value = aws_s3_bucket.frontend.id
 }
 
+output "public_site_bucket_name" {
+  value = aws_s3_bucket.public_site.id
+}
+
 output "documents_bucket_name" {
   value = aws_s3_bucket.documents.id
 }
@@ -34,8 +38,20 @@ output "cloudfront_distribution_id" {
   value = aws_cloudfront_distribution.main.id
 }
 
+output "public_site_distribution_id" {
+  value = aws_cloudfront_distribution.public_site.id
+}
+
 output "cloudfront_domain_name" {
   value = aws_cloudfront_distribution.main.domain_name
+}
+
+output "public_site_cloudfront_domain_name" {
+  value = aws_cloudfront_distribution.public_site.domain_name
+}
+
+output "public_site_url" {
+  value = var.enable_custom_domain ? "https://${var.domain_name}" : "https://${aws_cloudfront_distribution.public_site.domain_name}"
 }
 
 output "application_url" {
