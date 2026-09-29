@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#133b32">
+  <meta name="description" content="The Perk Haven — premium female student residence near NSBM Green University in Pitipana, Homagama.">
+  <title>The Perk Haven | Premium Female Student Residence</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <div class="hero-bg" aria-hidden="true"></div>
+    <div class="shade" aria-hidden="true"></div>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="The Perk Haven home">
+        <span class="logo-wrap"><img src="/assets/perkhaven-logo.png" alt="The Perk Haven"></span>
+      </a>
+      <nav class="nav" aria-label="Main navigation">
+        <button data-panel="home">Home</button>
+        <button data-panel="hostel">The Hostel</button>
+        <button data-panel="rooms">Rooms</button>
+        <button data-panel="facilities">Facilities</button>
+        <button data-panel="safety">Safety</button>
+        <button data-panel="gallery">Gallery</button>
+      </nav>
+      <div class="login">
+        <button id="loginButton" class="login-button">Login <span>⌄</span></button>
+        <div id="loginMenu" class="login-menu" hidden>
+          <a href="https://student.perkhaven.lk">Student Portal</a>
+          <a href="https://management.perkhaven.lk">Staff &amp; Management</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="hero-copy" aria-labelledby="hero-title">
+      <p class="eyebrow">Premium female student residence · Pitipana, Homagama</p>
+      <h1 id="hero-title">Her independence.<br><em>Your peace of mind.</em></h1>
+      <p class="intro">A safe, comfortable and thoughtfully managed home for female university students near NSBM Green University.</p>
+      <div class="actions">
+        <button class="primary" data-panel="hostel">Explore The Perk Haven</button>
+        <button class="secondary" data-panel="safety">Why families trust us</button>
+      </div>
+    </section>
+
+    <aside class="trust" aria-label="Safety highlights">
+      <div><strong>Resident</strong><span>Lady Warden</span></div>
+      <div><strong>24/7</strong><span>Security</span></div>
+      <div><strong>42</strong><span>CCTV Cameras</span></div>
+      <div><strong>Smart</strong><span>Room Locks</span></div>
+    </aside>
+
+    <div class="location">Near NSBM Green University · Pitipana, Homagama</div>
+  </main>
+
+  <dialog id="panel" class="panel">
+    <button class="close" aria-label="Close">×</button>
+    <div id="panelContent"></div>
+  </dialog>
+
+  <template id="homeTemplate">
+    <section class="panel-section">
+      <p class="panel-kicker">Welcome</p>
+      <h2>A residence designed around study, safety and belonging.</h2>
+      <p>The Perk Haven combines thoughtfully furnished accommodation, managed communal spaces and practical student-focused services in one premium residence.</p>
+    </section>
+  </template>
+
+  <template id="hostelTemplate">
+    <section class="panel-section">
+      <p class="panel-kicker">The Hostel</p>
+      <h2>More than a room. A well-managed home away from home.</h2>
+      <p>Created for female university students who value comfort, privacy, security and a calm environment for study. The residence is professionally managed with a resident lady warden and controlled access.</p>
+      <div class="feature-grid">
+        <article><b>Purpose-built living</b><span>Spaces planned for student routines, study and rest.</span></article>
+        <article><b>Premium standard</b><span>Modern furnishings and carefully maintained common areas.</span></article>
+        <article><b>Close to university</b><span>Conveniently located in Pitipana near NSBM Green University.</span></article>
+      </div>
+    </section>
+  </template>
+
+  <template id="roomsTemplate">
+    <section class="panel-section">
+      <p class="panel-kicker">Rooms</p>
+      <h2>Choose the level of privacy that suits you.</h2>
+      <div class="feature-grid">
+        <article><b>Single Rooms</b><span>Private, furnished personal space for focused living.</span></article>
+        <article><b>Double Rooms</b><span>Comfortable shared accommodation for two students.</span></article>
+        <article><b>Shared Rooms</b><span>Well-planned student rooms with individual storage and study space.</span></article>
+      </div>
+      <p class="small">Room availability and current fee information can be confirmed directly with The Perk Haven management.</p>
+    </section>
+  </template>
+
+  <template id="facilitiesTemplate">
+    <section class="panel-section">
+      <p class="panel-kicker">Facilities</p>
+      <h2>Everything students need for comfortable everyday living.</h2>
+      <div class="facility-list">
+        <span>Fully furnished rooms</span><span>Modern shared kitchen</span><span>Student lounge</span>
+        <span>Dining area</span><span>Study-friendly spaces</span><span>Reception &amp; management support</span>
+        <span>Wi-Fi connectivity</span><span>Secure access</span><span>Housekeeping &amp; maintained common areas</span>
+      </div>
+    </section>
+  </template>
+
+  <template id="safetyTemplate">
+    <section class="panel-section">
+      <p class="panel-kicker">Safety</p>
+      <h2>Reassurance for students. Confidence for families.</h2>
+      <div class="feature-grid four">
+        <article><b>Resident Lady Warden</b><span>On-site oversight and student support.</span></article>
+        <article><b>24/7 Security</b><span>Continuous attention to residence safety.</span></article>
+        <article><b>42 CCTV Cameras</b><span>Extensive monitoring of relevant common and access areas.</span></article>
+        <article><b>Smart Room Locks</b><span>Controlled room access for added security and privacy.</span></article>
+      </div>
+    </section>
+  </template>
+
+  <template id="galleryTemplate">
+    <section class="panel-section gallery-panel">
+      <p class="panel-kicker">Gallery</p>
+      <h2>A closer look at The Perk Haven.</h2>
+      <div class="gallery-stage"><img id="galleryImage" src="/assets/property-2.webp" alt="The Perk Haven property"></div>
+      <div class="gallery-thumbs">
+        <button data-img="/assets/property-1.webp">01</button>
+        <button data-img="/assets/property-2.webp" class="active">02</button>
+        <button data-img="/assets/property-3.webp">03</button>
+        <button data-img="/assets/property-4.webp">04</button>
+        <button data-img="/assets/property-5.webp">05</button>
+      </div>
+    </section>
+  </template>
+  <script src="/app.js"></script>
+</body>
+</html>
