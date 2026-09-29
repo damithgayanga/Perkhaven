@@ -21,6 +21,10 @@ on:
         description: Build and deploy the frontend
         default: false
         type: boolean
+      deploy_public_site:
+        description: Deploy the public marketing website
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -61,6 +65,7 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       backend: ${{ steps.filter.outputs.backend }}
       infrastructure: ${{ steps.filter.outputs.infrastructure }}
+      public_site: ${{ steps.filter.outputs.public_site }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,6 +79,7 @@ jobs:
           DEPLOY_INFRASTRUCTURE: ${{ inputs.deploy_infrastructure }}
           DEPLOY_BACKEND: ${{ inputs.deploy_backend }}
           DEPLOY_FRONTEND: ${{ inputs.deploy_frontend }}
+          DEPLOY_PUBLIC_SITE: ${{ inputs.deploy_public_site }}
         run: |
           if [[ "$MANUAL_RUN" == "true" ]]; then
             echo "Manual stage selection requested."
@@ -81,6 +87,7 @@ jobs:
             echo "frontend=$DEPLOY_FRONTEND" >> "$GITHUB_OUTPUT"
             echo "backend=$DEPLOY_BACKEND" >> "$GITHUB_OUTPUT"
             echo "infrastructure=$DEPLOY_INFRASTRUCTURE" >> "$GITHUB_OUTPUT"
+            echo "public_site=$DEPLOY_PUBLIC_SITE" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -91,6 +98,7 @@ jobs:
           changed=$(git diff --name-only "$base" "$GITHUB_SHA")
           echo "$changed"
           if grep -q '^front/' <<< "$changed"; then echo 'frontend=true' >> "$GITHUB_OUTPUT"; else echo 'frontend=false' >> "$GITHUB_OUTPUT"; fi
+          if grep -q '^public-site/' <<< "$changed"; then echo 'public_site=true' >> "$GITHUB_OUTPUT"; else echo 'public_site=false' >> "$GITHUB_OUTPUT"; fi
           if grep -q '^backend/' <<< "$changed" || grep -q '^Dockerfile$' <<< "$changed"; then
             echo 'build_image=true' >> "$GITHUB_OUTPUT"
             echo 'backend=true' >> "$GITHUB_OUTPUT"
@@ -499,6 +507,47 @@ jobs:
             --desired-count 1 \
             --force-new-deployment >/dev/null
           aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
+
+
+  public-site-deploy:
+    name: Public website deployment
+    needs: [aws-ready, changes, infrastructure-deploy]
+    if: ${{ always() && needs.aws-ready.outputs.ready == 'true' && (needs.changes.outputs.public_site == 'true' || needs.changes.outputs.infrastructure == 'true') && (needs.infrastructure-deploy.result == 'success' || needs.infrastructure-deploy.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure deployment credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.5"
+      - name: Read public website infrastructure outputs
+        id: public-infra
+        working-directory: infrastructure/environments/production
+        shell: bash
+        run: |
+          terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
+          echo "bucket=$(terraform output -raw public_site_bucket_name)" >> "$GITHUB_OUTPUT"
+          echo "distribution=$(terraform output -raw public_site_distribution_id)" >> "$GITHUB_OUTPUT"
+          echo "url=$(terraform output -raw public_site_url)" >> "$GITHUB_OUTPUT"
+      - name: Publish public website
+        env:
+          BUCKET: ${{ steps.public-infra.outputs.bucket }}
+        run: |
+          aws s3 sync public-site "s3://${BUCKET}" --delete --cache-control 'public, max-age=3600'
+          aws s3 cp front/public/perkhaven-logo.png "s3://${BUCKET}/assets/perkhaven-logo.png" --cache-control 'public, max-age=86400'
+          aws s3 cp public-site/index.html "s3://${BUCKET}/index.html" --cache-control 'no-cache, no-store, must-revalidate'
+      - name: Invalidate public website CloudFront
+        run: aws cloudfront create-invalidation --distribution-id "${{ steps.public-infra.outputs.distribution }}" --paths '/*'
+      - name: Verify public website
+        env:
+          PUBLIC_SITE_URL: ${{ steps.public-infra.outputs.url }}
+        run: curl --fail --retry 18 --retry-delay 10 --retry-all-errors "${PUBLIC_SITE_URL}/"
 
   frontend-deploy:
     name: Frontend deployment
