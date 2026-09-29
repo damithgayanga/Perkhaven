@@ -4,15 +4,17 @@ resource "aws_route53_zone" "main" {
 }
 
 locals {
-  route53_zone_id = var.enable_custom_domain ? (var.create_route53_zone ? aws_route53_zone.main[0].zone_id : var.route53_zone_id) : null
+  route53_zone_id     = var.enable_custom_domain ? (var.create_route53_zone ? aws_route53_zone.main[0].zone_id : var.route53_zone_id) : null
+  management_hostname = "management.${var.domain_name}"
+  student_hostname    = "student.${var.domain_name}"
 }
 
 resource "aws_acm_certificate" "cloudfront" {
   count    = var.enable_custom_domain ? 1 : 0
   provider = aws.us_east_1
 
-  domain_name               = var.domain_name
-  subject_alternative_names = ["www.${var.domain_name}"]
+  domain_name               = local.management_hostname
+  subject_alternative_names = [local.student_hostname]
   validation_method         = "DNS"
 
   lifecycle {
