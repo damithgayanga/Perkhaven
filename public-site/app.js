@@ -29,13 +29,21 @@ function wireGallery(){
   });
 }
 
+function setActivePanelTab(name){
+  panel.querySelectorAll(".panel-nav [data-panel]").forEach((button)=>{
+    button.classList.toggle("active",button.dataset.panel===name);
+  });
+}
+
 function openPanel(name){
   const template=document.getElementById(templates[name]||templates.hostel);
   if(!template)return;
   content.replaceChildren(template.content.cloneNode(true));
   wirePanelButtons();
   wireGallery();
-  panel.showModal();
+  setActivePanelTab(name);
+  if(!panel.open)panel.showModal();
+  content.scrollTop=0;
 }
 
 document.querySelectorAll("[data-panel]").forEach((button)=>{
@@ -57,3 +65,7 @@ if(slides.length){
     dots[currentSlide]?.classList.add("active");
   },5200);
 }
+
+panel.querySelectorAll(".panel-nav [data-panel]").forEach((button)=>{
+  button.addEventListener("click",()=>openPanel(button.dataset.panel));
+});
