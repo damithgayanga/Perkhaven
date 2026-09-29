@@ -5,38 +5,72 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#133b32">
   <meta name="description" content="The Perk Haven — premium female student residence near NSBM Green University in Pitipana, Homagama.">
-  <title>The Perk Haven | Premium Female Student Residence</title>
-  <link rel="stylesheet" href="/styles.css?v=20260930-logo-fix-2">
+  <title>The Perk Haven | Premium Female Student Residence near NSBM</title>
+  <link rel="stylesheet" href="/styles.css?v=20260930-premium-2">
 </head>
 <body>
   <main class="shell">
     <div class="hero-bg" aria-hidden="true"></div>
     <div class="shade" aria-hidden="true"></div>
+
     <header class="topbar">
       <a class="brand" href="/" aria-label="The Perk Haven home">
         <span class="logo-wrap"><img src="/assets/site-logo.webp" alt="The Perk Haven"></span>
       </a>
+
       <nav class="nav" aria-label="Main navigation">
         <button data-panel="rooms">Rooms</button>
         <button data-panel="facilities">Facilities</button>
-        <button data-panel="safety">Safety</button>
+        <button data-panel="safety">Security</button>
+        <button data-panel="parents">For Parents</button>
+        <button data-panel="location">Location</button>
         <button data-panel="gallery">Gallery</button>
       </nav>
+
       <div class="login">
         <a class="login-button" href="https://student.perkhaven.lk">Student Login</a>
       </div>
     </header>
 
     <section class="hero-copy" aria-labelledby="hero-title">
-      <p class="eyebrow">Premium female student residence · Pitipana, Homagama</p>
-      <h1 id="hero-title">Her independence.<br><em>Your peace of mind.</em></h1>
-      <p class="intro">A safe, comfortable and thoughtfully managed home for female university students near NSBM Green University.</p>
+      <p class="eyebrow">Premium female student residence · Near NSBM Green University</p>
+      <h1 id="hero-title">Everything taken care of.<br><em>So she can focus on her future.</em></h1>
+      <p class="intro">A professionally managed home for female university students, designed around security, comfort and uninterrupted study.</p>
+
       <div class="actions">
         <button class="primary" data-panel="hostel">Explore The Perk Haven</button>
-        <button class="secondary" data-panel="safety">Why families trust us</button>
+        <button class="secondary" data-panel="visit">Arrange a Private Visit</button>
+      </div>
+
+      <div class="proof-row" aria-label="Residence highlights">
+        <span>Female residence</span>
+        <span>In-house Lady Warden</span>
+        <span>Smart secure access</span>
+        <span>Short walk to NSBM</span>
       </div>
     </section>
 
+    <aside class="student-experience" aria-live="polite">
+      <p class="experience-kicker">Student experience</p>
+      <div class="experience-slide active">
+        <p>Quiet, comfortable spaces designed to make focused study easier.</p>
+        <span>Study-first living</span>
+      </div>
+      <div class="experience-slide">
+        <p>Everyday essentials are already taken care of, from furnished rooms to laundry and kitchen facilities.</p>
+        <span>Effortless daily life</span>
+      </div>
+      <div class="experience-slide">
+        <p>A secure, well-supported home close to university, with professional on-site oversight.</p>
+        <span>Confidence and support</span>
+      </div>
+      <div class="experience-dots" aria-hidden="true"><i class="active"></i><i></i><i></i></div>
+    </aside>
+
+    <button class="location-chip" data-panel="location">
+      <b>Near NSBM</b>
+      <span>View walking route</span>
+    </button>
   </main>
 
   <dialog id="panel" class="panel">
@@ -44,23 +78,20 @@
     <div id="panelContent"></div>
   </dialog>
 
-  <template id="homeTemplate">
-    <section class="panel-section">
-      <p class="panel-kicker">Welcome</p>
-      <h2>A residence designed around study, safety and belonging.</h2>
-      <p>The Perk Haven combines thoughtfully furnished accommodation, managed communal spaces and practical student-focused services in one premium residence.</p>
-    </section>
-  </template>
-
   <template id="hostelTemplate">
     <section class="panel-section">
-      <p class="panel-kicker">The Hostel</p>
-      <h2>More than a room. A well-managed home away from home.</h2>
-      <p>Created for female university students who value comfort, privacy, security and a calm environment for study. The residence is professionally managed with a resident lady warden and controlled access.</p>
+      <p class="panel-kicker">The Perk Haven</p>
+      <h2>Her only job is to study. We take care of the rest.</h2>
+      <p class="panel-lead">The Perk Haven is a premium female student residence created for families who expect more than a room. Furnished accommodation, security, cleaning, laundry, kitchen facilities and on-site support come together in one professionally managed home near NSBM.</p>
+
       <div class="feature-grid">
-        <article><b>Purpose-built living</b><span>Spaces planned for student routines, study and rest.</span></article>
-        <article><b>Premium standard</b><span>Modern furnishings and carefully maintained common areas.</span></article>
-        <article><b>Close to university</b><span>Conveniently located in Pitipana near NSBM Green University.</span></article>
+        <article><b>Study-first living</b><span>Comfortable rooms and a calm environment planned around university life.</span></article>
+        <article><b>Professionally managed</b><span>Resident Lady Warden, security presence and day-to-day management support.</span></article>
+        <article><b>Ready from day one</b><span>Furniture, attached bathrooms, kitchen appliances and laundry facilities are already in place.</span></article>
+      </div>
+
+      <div class="signature-banner">
+        <span>Sleep well.</span><span>Study well.</span><span>Live securely.</span><strong>Focus on the future.</strong>
       </div>
     </section>
   </template>
@@ -68,37 +99,129 @@
   <template id="roomsTemplate">
     <section class="panel-section">
       <p class="panel-kicker">Rooms</p>
-      <h2>Choose the level of privacy that suits you.</h2>
+      <h2>Comfort and privacy, designed around student life.</h2>
+      <p class="panel-lead">Fully furnished accommodation with practical storage, study space and attached bathroom facilities, so students can arrive ready to settle in and focus.</p>
+
       <div class="feature-grid">
-        <article><b>Single Rooms</b><span>Private, furnished personal space for focused living.</span></article>
-        <article><b>Double Rooms</b><span>Comfortable shared accommodation for two students.</span></article>
-        <article><b>Shared Rooms</b><span>Well-planned student rooms with individual storage and study space.</span></article>
+        <article><b>Single Rooms</b><span>Private furnished space for students who value maximum privacy and focused study.</span></article>
+        <article><b>Double Rooms</b><span>A premium shared option for two students with personal storage and study space.</span></article>
+        <article><b>Shared Rooms</b><span>Well-planned accommodation with individual space for everyday student routines.</span></article>
       </div>
-      <p class="small">Room availability and current fee information can be confirmed directly with The Perk Haven management.</p>
+
+      <div class="included-strip">
+        <span>Furnished room</span><span>Attached bathroom</span><span>Study space</span><span>Storage</span><span>Smart door lock</span>
+      </div>
+
+      <button class="inline-cta" data-panel="visit">Enquire about availability</button>
     </section>
   </template>
 
   <template id="facilitiesTemplate">
     <section class="panel-section">
       <p class="panel-kicker">Facilities</p>
-      <h2>Everything students need for comfortable everyday living.</h2>
-      <div class="facility-list">
-        <span>Fully furnished rooms</span><span>Modern shared kitchen</span><span>Student lounge</span>
-        <span>Dining area</span><span>Study-friendly spaces</span><span>Reception &amp; management support</span>
-        <span>Wi-Fi connectivity</span><span>Secure access</span><span>Housekeeping &amp; maintained common areas</span>
+      <h2>Everything she needs. Already here.</h2>
+      <p class="panel-lead">The residence is designed to remove the everyday distractions of student living.</p>
+
+      <div class="facility-groups">
+        <article><span>01</span><b>Room &amp; Bathroom</b><p>Fully furnished rooms, attached bathrooms, storage and student study space.</p></article>
+        <article><span>02</span><b>Kitchen</b><p>Fridge, cooker and shared kitchen facilities for convenient everyday meals.</p></article>
+        <article><span>03</span><b>Laundry</b><p>Washing machine facilities available within the residence.</p></article>
+        <article><span>04</span><b>Cleaning</b><p>Managed cleaning services to maintain a comfortable living environment.</p></article>
+        <article><span>05</span><b>Security</b><p>Security officer, CCTV, facial-recognition entry and smart room locks.</p></article>
+        <article><span>06</span><b>On-site Support</b><p>Resident Lady Warden and professional management support for students.</p></article>
+      </div>
+
+      <div class="study-callout">
+        <small>The idea is simple</small>
+        <strong>Students should spend their energy on university — not managing accommodation.</strong>
       </div>
     </section>
   </template>
 
   <template id="safetyTemplate">
     <section class="panel-section">
-      <p class="panel-kicker">Safety</p>
-      <h2>Reassurance for students. Confidence for families.</h2>
-      <div class="feature-grid four">
-        <article><b>Resident Lady Warden</b><span>On-site oversight and student support.</span></article>
-        <article><b>24/7 Security</b><span>Continuous attention to residence safety.</span></article>
-        <article><b>42 CCTV Cameras</b><span>Extensive monitoring of relevant common and access areas.</span></article>
-        <article><b>Smart Room Locks</b><span>Controlled room access for added security and privacy.</span></article>
+      <p class="panel-kicker">Security</p>
+      <h2>Security designed into everyday living.</h2>
+      <p class="panel-lead">The Perk Haven uses multiple layers of controlled access and on-site oversight rather than relying on a single security measure.</p>
+
+      <div class="security-flow">
+        <article><em>01</em><b>Facial Recognition Entry</b><span>Controlled resident entry at the property.</span></article>
+        <article><em>02</em><b>Smart Door Locks</b><span>Controlled room access for privacy and added security.</span></article>
+        <article><em>03</em><b>CCTV Monitoring</b><span>Monitoring of relevant common and access areas.</span></article>
+        <article><em>04</em><b>Security Officer</b><span>Dedicated on-site security presence.</span></article>
+        <article><em>05</em><b>Resident Lady Warden</b><span>An adult point of contact living within the residence.</span></article>
+      </div>
+
+      <p class="disclaimer">Security measures are designed to reduce risk and support resident wellbeing; no accommodation provider can guarantee absolute security.</p>
+    </section>
+  </template>
+
+  <template id="parentsTemplate">
+    <section class="panel-section">
+      <p class="panel-kicker">For Parents</p>
+      <h2>Peace of mind, built into her everyday routine.</h2>
+      <p class="panel-lead">Accommodation is not simply about where a student sleeps. It is about knowing she has a secure, comfortable and properly managed place to live while she studies.</p>
+
+      <div class="parent-grid">
+        <article><b>On-site adult support</b><span>A resident Lady Warden provides an accessible point of contact within the residence.</span></article>
+        <article><b>Managed environment</b><span>Cleaning, security and common facilities are professionally coordinated.</span></article>
+        <article><b>Close to university</b><span>A short walking route to NSBM helps reduce unnecessary daily travel.</span></article>
+        <article><b>Designed for female students</b><span>The residence is purpose-positioned for female university students and their families.</span></article>
+      </div>
+
+      <div class="comparison">
+        <div><strong>What families look for</strong><span>The Perk Haven approach</span></div>
+        <div><strong>Secure resident access</strong><span>Facial recognition + smart room locks</span></div>
+        <div><strong>On-site oversight</strong><span>Security officer + resident Lady Warden</span></div>
+        <div><strong>Everyday convenience</strong><span>Furnished living + kitchen + laundry + cleaning</span></div>
+        <div><strong>Study convenience</strong><span>Close to NSBM with a study-first living environment</span></div>
+      </div>
+
+      <button class="inline-cta" data-panel="visit">Arrange a private visit</button>
+    </section>
+  </template>
+
+  <template id="locationTemplate">
+    <section class="panel-section">
+      <p class="panel-kicker">Location</p>
+      <h2>Close enough to make university life easier.</h2>
+      <p class="panel-lead">The Perk Haven is located on MR School Lane, off Pitipana–Thalagala Road, within a short walk of NSBM Green University.</p>
+
+      <div class="location-card">
+        <div>
+          <small>Destination</small>
+          <b>NSBM Green University</b>
+          <p>Open the verified Google Maps walking route between The Perk Haven and NSBM.</p>
+        </div>
+        <a class="map-button" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/NSBM+Green+University,+Mahenwaththa,+Sri+Lanka/THE+PERK+HAVEN,+MR+School+Lane,+Pitipana+-+Thalagala+Rd,+10206,+Sri+Lanka/@6.8229867,80.0386877,773m/data=!3m2!1e3!4b1!4m14!4m13!1m5!1m1!1s0x3ae2523b05555555:0x546c34cd99f6f488!2m2!1d80.0415729!2d6.8213291!1m5!1m1!1s0x3ae2539ada46146b:0x2196310f000597ae!2m2!1d80.038001!2d6.823732!3e2?entry=ttu">Open walking route ↗</a>
+      </div>
+
+      <div class="feature-grid">
+        <article><b>Less time travelling</b><span>More time for study, rest and university life.</span></article>
+        <article><b>Easy for families to inspect</b><span>Arrange a private visit to see the residence and facilities in person.</span></article>
+        <article><b>Part of the NSBM community</b><span>A residence positioned around the needs of students studying nearby.</span></article>
+      </div>
+    </section>
+  </template>
+
+  <template id="visitTemplate">
+    <section class="panel-section visit-panel">
+      <p class="panel-kicker">Private Visit</p>
+      <h2>See The Perk Haven before making a decision.</h2>
+      <p class="panel-lead">We encourage parents and students to inspect the residence, understand the facilities and see the security arrangements in person.</p>
+
+      <div class="contact-grid">
+        <a href="tel:+94740201621"><small>Call</small><b>+94 74 020 1621</b></a>
+        <a href="tel:+94766982426"><small>Call</small><b>+94 76 698 2426</b></a>
+        <a href="mailto:admin@perkhaven.lk"><small>Email</small><b>admin@perkhaven.lk</b></a>
+        <a href="mailto:management@perkhaven.lk"><small>Email</small><b>management@perkhaven.lk</b></a>
+        <a href="mailto:warden@perkhaven.lk"><small>Warden</small><b>warden@perkhaven.lk</b></a>
+      </div>
+
+      <div class="feature-grid">
+        <article><b>Walk through the rooms</b><span>See the accommodation standard and attached bathroom facilities.</span></article>
+        <article><b>Review security</b><span>Understand resident entry, CCTV, smart locks and on-site oversight.</span></article>
+        <article><b>Discuss availability</b><span>Talk through room options and the student's accommodation requirements.</span></article>
       </div>
     </section>
   </template>
@@ -117,6 +240,7 @@
       </div>
     </section>
   </template>
-  <script src="/app.js"></script>
+
+  <script src="/app.js?v=20260930-premium-2"></script>
 </body>
 </html>
