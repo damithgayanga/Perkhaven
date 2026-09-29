@@ -3729,3 +3729,147 @@ table td[class*="amount"] {
   background: #fff;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
 }
+
+/* Perk Haven management experience — presentation layer only. */
+:root {
+  --ink: #18362f;
+  --muted: #71817b;
+  --line: #e0e9e3;
+  --navy: #123d35;
+  --blue: #19745f;
+  --canvas: #f5f8f5;
+  --red: #bf5548;
+  --green: #19745f;
+}
+body {
+  background:
+    radial-gradient(circle at 100% 0, rgba(235, 153, 78, .10), transparent 27rem),
+    linear-gradient(135deg, #f9fbf8 0%, #f1f6f2 100%);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+aside {
+  width: 258px;
+  padding: 24px 14px 18px;
+  background: linear-gradient(180deg, #123e35 0%, #0b2f2a 100%);
+  border-right: 1px solid rgba(255,255,255,.08);
+  box-shadow: 10px 0 28px rgba(19, 55, 45, .10);
+}
+.brand { padding: 3px 10px 25px; }
+.brand-logo {
+  width: 158px;
+  border-radius: 15px;
+  border: 1px solid rgba(255,255,255,.45);
+  box-shadow: 0 12px 26px rgba(0,0,0,.24);
+}
+aside nav { gap: 6px; }
+aside nav button {
+  height: 46px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  color: #c9d9d3;
+  padding: 0 13px;
+  transition: background .18s ease, color .18s ease, transform .18s ease;
+}
+aside nav button i { font-size: 17px; color: #a7c7bb; }
+aside nav button.active,
+aside nav button:hover {
+  background: linear-gradient(90deg, rgba(238,143,67,.23), rgba(255,255,255,.10));
+  border-color: rgba(245, 185, 120, .50);
+  color: #fff;
+  transform: translateX(2px);
+}
+aside nav button.active i,
+aside nav button:hover i { color: #f4b46f; }
+aside nav em { background: #ee974b; color: #17352f; box-shadow: 0 2px 8px rgba(0,0,0,.16); }
+.admin { border-color: rgba(255,255,255,.13); margin: 18px 6px 0; padding: 16px 2px 0; }
+.admin > i { background: #e9a259; color: #143d34; }
+.workspace { margin-left: 258px; }
+.workspace > header {
+  height: 92px;
+  padding: 18px 32px;
+  background: rgba(255,255,255,.90);
+  border-bottom-color: #e1e9e3;
+  box-shadow: 0 5px 20px rgba(23, 58, 48, .06);
+  backdrop-filter: blur(12px);
+}
+.workspace > header::after {
+  content: "";
+  position: absolute;
+  left: 32px;
+  bottom: 0;
+  width: 62px;
+  height: 3px;
+  background: linear-gradient(90deg, #e37d3d, #f0b260);
+  border-radius: 4px 4px 0 0;
+}
+.workspace h1 { color: #173d34; font: 700 27px Georgia, serif; }
+.workspace > header p, .tag { color: #799087; letter-spacing: 1.45px; }
+.content { padding: 26px 28px 48px; }
+.primary {
+  border-radius: 9px;
+  background: linear-gradient(135deg, #19745f, #105847);
+  box-shadow: 0 6px 14px rgba(20, 93, 74, .19);
+  transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+}
+.primary:hover { background: linear-gradient(135deg, #1d8068, #105847); box-shadow: 0 8px 18px rgba(20,93,74,.25); transform: translateY(-1px); }
+.secondary, .sort-button {
+  border-color: #bfd6cc;
+  background: #f7fbf8;
+  color: #196851;
+}
+.stat, .panel, .room {
+  border-color: #dfeae4;
+  border-radius: 14px;
+  box-shadow: 0 7px 20px rgba(31, 73, 57, .055);
+}
+.stat { padding: 20px; }
+.stat:hover, .panel:hover { box-shadow: 0 10px 26px rgba(31, 73, 57, .085); }
+.stat > i { border-radius: 12px; }
+.stat.blue > i { background: #e0f1eb; color: #19745f; }
+.stat.green > i { background: #dff3e8; color: #13734f; }
+.stat.amber > i { background: #fff0df; color: #c86c27; }
+.stat.violet > i { background: #e8f1ed; color: #347061; }
+.stat b { color: #183e35; }
+.panelhead, .section-heading { border-bottom-color: #e5eee8; }
+.panelhead { padding: 19px 22px; }
+.title h2, .panel h2 { color: #173d34; }
+.tablewrap { scrollbar-color: #b7d2c5 transparent; }
+th {
+  padding: 13px 15px;
+  background: #f4f8f5;
+  color: #6e8379;
+  border-bottom: 1px solid #dfe9e3;
+}
+td { padding: 14px 15px; border-top-color: #eaf0ec; color: #51665e; }
+td b { color: #1c4037; }
+tbody tr { transition: background .14s ease; }
+tbody tr:hover { background: #f2f8f4; }
+mark { background: #edf4f0; color: #315b4e; }
+.payment-tabs, .status-filter, .student-portal-tabs {
+  background: #edf3ef;
+  border-color: #dce8e0;
+  border-radius: 12px;
+}
+.payment-tabs button.active, .subtabs button.active, .status-filter button.active, .student-portal-tabs button.active {
+  color: #176a54;
+  box-shadow: 0 3px 9px rgba(22, 84, 65, .12);
+}
+.filters {
+  border-color: #dce8e0;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(31,73,57,.035);
+}
+.filters button, .filters input { border-color: #d5e4db; background: #fbfdfb; }
+input, select, textarea { border-color: #cbded3 !important; }
+input:focus, select:focus, textarea:focus { outline: 3px solid rgba(52, 139, 106, .16); outline-offset: 1px; }
+.modal { border-radius: 16px; box-shadow: 0 22px 60px rgba(10, 47, 39, .26); }
+.modalhead { background: linear-gradient(180deg, #fbfdfb, #f6faf7); border-bottom-color: #e0ebe4; }
+.backdrop { background: rgba(8, 41, 34, .62); backdrop-filter: blur(3px); }
+.toast { background: #174b3d; box-shadow: 0 12px 30px rgba(10,47,39,.34); }
+@media (max-width: 700px) {
+  aside { width: 67px; padding: 18px 8px; }
+  .workspace { margin-left: 67px; }
+  .workspace > header { padding: 16px 18px; }
+  .workspace > header::after { left: 18px; }
+  .content { padding: 20px 15px 36px; }
+}
