@@ -28,7 +28,7 @@ resource "aws_cloudfront_distribution" "main" {
   comment             = "Perkhaven production"
   default_root_object = "index.html"
   price_class         = "PriceClass_200"
-  aliases             = var.enable_custom_domain ? [var.domain_name, "www.${var.domain_name}"] : []
+  aliases             = var.enable_custom_domain ? [local.management_hostname, local.student_hostname] : []
 
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
@@ -122,10 +122,10 @@ resource "aws_s3_bucket_policy" "frontend" {
   policy = data.aws_iam_policy_document.frontend_bucket.json
 }
 
-resource "aws_route53_record" "apex" {
+resource "aws_route53_record" "management" {
   count           = var.enable_custom_domain ? 1 : 0
   zone_id         = local.route53_zone_id
-  name            = var.domain_name
+  name            = local.management_hostname
   type            = "A"
   allow_overwrite = true
   alias {
@@ -135,10 +135,10 @@ resource "aws_route53_record" "apex" {
   }
 }
 
-resource "aws_route53_record" "apex_ipv6" {
+resource "aws_route53_record" "management_ipv6" {
   count           = var.enable_custom_domain ? 1 : 0
   zone_id         = local.route53_zone_id
-  name            = var.domain_name
+  name            = local.management_hostname
   type            = "AAAA"
   allow_overwrite = true
   alias {
@@ -148,10 +148,10 @@ resource "aws_route53_record" "apex_ipv6" {
   }
 }
 
-resource "aws_route53_record" "www" {
+resource "aws_route53_record" "student" {
   count           = var.enable_custom_domain ? 1 : 0
   zone_id         = local.route53_zone_id
-  name            = "www.${var.domain_name}"
+  name            = local.student_hostname
   type            = "A"
   allow_overwrite = true
   alias {
@@ -161,10 +161,10 @@ resource "aws_route53_record" "www" {
   }
 }
 
-resource "aws_route53_record" "www_ipv6" {
+resource "aws_route53_record" "student_ipv6" {
   count           = var.enable_custom_domain ? 1 : 0
   zone_id         = local.route53_zone_id
-  name            = "www.${var.domain_name}"
+  name            = local.student_hostname
   type            = "AAAA"
   allow_overwrite = true
   alias {
