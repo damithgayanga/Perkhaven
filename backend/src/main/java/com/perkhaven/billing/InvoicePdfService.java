@@ -13,7 +13,8 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
-import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import javax.imageio.ImageIO;
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -82,10 +83,14 @@ public class InvoicePdfService {
     }
 
     private void drawLogo(PDDocument document, PDPageContentStream canvas) throws IOException {
-        var resource = new ClassPathResource("perkhaven-logo-pdf-safe.jpg");
+        var resource = new ClassPathResource("perkhaven-logo-system.webp");
         if (!resource.exists()) return;
-        var image = PDImageXObject.createFromByteArray(document, resource.getInputStream().readAllBytes(), "perkhaven-logo-pdf-safe");
-        canvas.drawImage(image, 50, 738, 100, 96);
+        try (var input = resource.getInputStream()) {
+            var buffered = ImageIO.read(input);
+            if (buffered == null) return;
+            var image = LosslessFactory.createFromImage(document, buffered);
+            canvas.drawImage(image, 50, 736, 104, 104);
+        }
     }
     private String fullName(com.perkhaven.student.Student student) { return java.util.stream.Stream.of(student.getFirstName(), student.getMiddleNames(), student.getLastName()).filter(v -> v != null && !v.isBlank()).reduce((a,b) -> a + " " + b).orElse(""); }
     private String label(AdjustmentType type) { return switch (type) { case LATE_START -> "Late Start Adjustment"; case EARLY_VACATE -> "Early Vacate Adjustment"; case VACATION_DISCOUNT -> "Vacation Discount"; case OTHER -> "Other Adjustment"; }; }

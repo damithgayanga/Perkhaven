@@ -6,6 +6,7 @@ COPY backend/gradle ./gradle
 RUN chmod +x gradlew
 COPY backend/src ./src
 COPY front/public/perkhaven-logo.png /front/public/perkhaven-logo.png
+COPY front/public/perkhaven-logo-system.webp /front/public/perkhaven-logo-system.webp
 COPY front/public/agreement-template /front/public/agreement-template
 RUN ./gradlew clean bootJar --no-daemon
 

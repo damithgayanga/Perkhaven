@@ -8,7 +8,8 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
-import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import javax.imageio.ImageIO;
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -20,8 +21,11 @@ public class PaymentReceiptPdfService {
             try (var canvas = new PDPageContentStream(document, page)) {
                 var regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
                 var bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
-                try (var logo = PaymentReceiptPdfService.class.getResourceAsStream("/perkhaven-logo-pdf-safe.jpg")) {
-                    if (logo != null) canvas.drawImage(PDImageXObject.createFromByteArray(document, logo.readAllBytes(), "perkhaven-logo-pdf-safe"), 54, 772, 68, 68);
+                try (var logo = PaymentReceiptPdfService.class.getResourceAsStream("/perkhaven-logo-system.webp")) {
+                    if (logo != null) {
+                        var buffered = ImageIO.read(logo);
+                        if (buffered != null) canvas.drawImage(LosslessFactory.createFromImage(document, buffered), 54, 768, 74, 74);
+                    }
                 }
                 text(canvas, bold, 18, 132, 808, "THE PERK HAVEN HOSTEL");
                 text(canvas, regular, 10, 132, 790, "PAYMENT RECEIPT");

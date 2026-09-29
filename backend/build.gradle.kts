@@ -31,6 +31,7 @@ dependencies {
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.apache.pdfbox:pdfbox:3.0.5")
+    implementation("com.twelvemonkeys.imageio:imageio-webp:3.15.2")
     implementation("org.apache.poi:poi-ooxml:5.4.1")
     implementation("com.microsoft.playwright:playwright:1.63.0")
     implementation("org.jsoup:jsoup:1.23.2")
