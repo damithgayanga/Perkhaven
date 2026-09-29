@@ -540,6 +540,17 @@ const fmtMonth = (m: string) =>
       ? `${day.padStart(2, "0")}-${months[Number(month) - 1]}-${year}`
       : value || "—";
   };
+const isStudentPortalHost = () =>
+  typeof window !== "undefined" && window.location.hostname.toLowerCase() === "student.perkhaven.lk";
+
+const enforceStudentPortalAccess = async (user: AuthenticatedUser | null) => {
+  if (user && isStudentPortalHost() && user.role !== "Student") {
+    await signOut();
+    throw new Error("This portal is for students only. Management users must use the management portal directly.");
+  }
+  return user;
+};
+
 const downloadBlob = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -796,6 +807,7 @@ export default function Home() {
   useEffect(() => {
     const restoreFetch = installAuthenticatedFetch();
     completeSignIn()
+      .then(enforceStudentPortalAccess)
       .then(setAuthenticatedUser)
       .catch((reason) => {
         setAuthError(reason instanceof Error ? reason.message : "Sign-in failed.");
@@ -879,7 +891,16 @@ export default function Home() {
     setPage(destination);
   };
   if (currentUser === undefined) return <ProductionLogin loading />;
-  if (!currentUser) return <ProductionLogin error={authError} onSignedIn={setAuthenticatedUser} />;
+  if (!currentUser) return <ProductionLogin error={authError} onSignedIn={async (user) => {
+    try {
+      const allowedUser = await enforceStudentPortalAccess(user);
+      setAuthError("");
+      setAuthenticatedUser(allowedUser);
+    } catch (reason) {
+      setAuthError(reason instanceof Error ? reason.message : "This portal is for students only.");
+      setAuthenticatedUser(null);
+    }
+  }} />;
   if (!["Admin", "Chairman", "Managing Director"].includes(currentUser.role))
     return (
       <LimitedPortal
@@ -1654,8 +1675,8 @@ function ProductionLogin({ loading = false, error = "", onSignedIn }: { loading?
         <div className="production-login-brand">
           <span className="brand-logo" />
           <p className="tag">THE PERK HAVEN HOSTEL</p>
-          <h1>Sign in to Perkhaven</h1>
-          <p>Sign in securely using your Perkhaven account.</p>
+          <h1>{isStudentPortalHost() ? "Student Login" : "Sign in to Perkhaven"}</h1>
+          <p>{isStudentPortalHost() ? "Sign in using your student account." : "Sign in securely using your Perkhaven account."}</p>
         </div>
         {loading && <p>Checking session…</p>}
         {(error || loginError) && <p className="form-error">⚠ {loginError || error}</p>}
