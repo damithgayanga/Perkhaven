@@ -6,6 +6,7 @@ const templates={
   facilities:"facilitiesTemplate",
   safety:"safetyTemplate",
   parents:"parentsTemplate",
+  promise:"promiseTemplate",
   location:"locationTemplate",
   visit:"visitTemplate",
   gallery:"galleryTemplate"
