@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#133b32">
   <meta name="description" content="The Perk Haven — premium female student residence near NSBM Green University in Pitipana, Homagama.">
   <title>The Perk Haven | Premium Female Student Residence near NSBM</title>
-  <link rel="stylesheet" href="/styles.css?v=20260930-premium-4">
+  <link rel="stylesheet" href="/styles.css?v=20260930-gallery-nav-1">
 </head>
 <body>
   <main class="shell">
@@ -270,17 +270,18 @@
     <section class="panel-section gallery-panel">
       <p class="panel-kicker">Gallery</p>
       <h2>A closer look at The Perk Haven.</h2>
-      <div class="gallery-stage"><img id="galleryImage" src="/assets/property-2.webp" alt="The Perk Haven property"></div>
-      <div class="gallery-thumbs">
-        <button data-img="/assets/property-1.webp">01</button>
-        <button data-img="/assets/property-2.webp" class="active">02</button>
-        <button data-img="/assets/property-3.webp">03</button>
-        <button data-img="/assets/property-4.webp">04</button>
-        <button data-img="/assets/property-5.webp">05</button>
+      <div class="gallery-stage">
+        <button class="gallery-arrow gallery-prev" type="button" aria-label="Previous photo">‹</button>
+        <img id="galleryImage" src="/assets/property-1.webp" alt="The Perk Haven property">
+        <button class="gallery-arrow gallery-next" type="button" aria-label="Next photo">›</button>
+        <div class="gallery-status" aria-live="polite">
+          <span id="galleryPosition">1 / 5</span>
+          <span class="gallery-progress"><i id="galleryProgress"></i></span>
+        </div>
       </div>
     </section>
   </template>
 
-  <script src="/app.js?v=20260930-premium-4"></script>
+  <script src="/app.js?v=20260930-gallery-nav-1"></script>
 </body>
 </html>
