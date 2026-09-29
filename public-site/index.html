@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#133b32">
   <meta name="description" content="The Perk Haven — premium female student residence near NSBM Green University in Pitipana, Homagama.">
   <title>The Perk Haven | Premium Female Student Residence near NSBM</title>
-  <link rel="stylesheet" href="/styles.css?v=20260930-premium-2">
+  <link rel="stylesheet" href="/styles.css?v=20260930-premium-3">
 </head>
 <body>
   <main class="shell">
@@ -74,7 +74,18 @@
   </main>
 
   <dialog id="panel" class="panel">
-    <button class="close" aria-label="Close">×</button>
+    <div class="panel-topbar">
+      <nav class="panel-nav" aria-label="Explore The Perk Haven">
+        <button data-panel="rooms">Rooms</button>
+        <button data-panel="facilities">Facilities</button>
+        <button data-panel="safety">Security</button>
+        <button data-panel="parents">For Parents</button>
+        <button data-panel="location">Location</button>
+        <button data-panel="gallery">Gallery</button>
+        <button data-panel="visit">Private Visit</button>
+      </nav>
+      <button class="close" aria-label="Close">×</button>
+    </div>
     <div id="panelContent"></div>
   </dialog>
 
@@ -241,6 +252,6 @@
     </section>
   </template>
 
-  <script src="/app.js?v=20260930-premium-2"></script>
+  <script src="/app.js?v=20260930-premium-3"></script>
 </body>
 </html>
