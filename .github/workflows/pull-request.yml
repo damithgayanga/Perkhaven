@@ -110,6 +110,21 @@ jobs:
       - name: Initialize remote state
         working-directory: infrastructure/environments/production
         run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
+      - name: Diagnose SES delivery
+        shell: bash
+        run: |
+          echo "=== SES account ==="
+          aws sesv2 get-account --region "$AWS_REGION"
+          echo "=== SES identity perkhaven.lk ==="
+          aws sesv2 get-email-identity --email-identity perkhaven.lk --region "$AWS_REGION"
+          echo "=== Suppression lookup damithgayanga@gmail.com ==="
+          if aws sesv2 get-suppressed-destination --email-address damithgayanga@gmail.com --region "$AWS_REGION"; then
+            echo "SUPPRESSED=true"
+          else
+            code=$?
+            echo "SUPPRESSED=false_or_not_found exit_code=$code"
+          fi
+
       - name: Create production plan
         working-directory: infrastructure/environments/production
         run: terraform plan -lock-timeout=5m -no-color
