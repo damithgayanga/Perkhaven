@@ -32,11 +32,11 @@ class CognitoStudentAccessServiceTest {
                 .thenThrow(UserNotFoundException.builder().message("not found").build());
 
         var service = new CognitoStudentAccessService(students, cognito, "ap-south-1_example");
-        assertEquals("student@example.com", service.invite("PH-2026-123"));
+        assertEquals("PH-2026-123", service.invite("PH-2026-123"));
 
         var invitation = ArgumentCaptor.forClass(AdminCreateUserRequest.class);
         verify(cognito).adminCreateUser(invitation.capture());
-        assertEquals("student@example.com", invitation.getValue().username());
+        assertEquals("PH-2026-123", invitation.getValue().username());
         assertEquals("EMAIL", invitation.getValue().desiredDeliveryMediumsAsStrings().getFirst());
         assertEquals("student@example.com", invitation.getValue().userAttributes().stream()
                 .filter(attribute -> "email".equals(attribute.name())).findFirst().orElseThrow().value());
