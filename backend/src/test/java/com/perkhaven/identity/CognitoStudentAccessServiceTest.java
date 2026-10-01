@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.perkhaven.common.domain.RecordStatus;
-import com.perkhaven.billing.MailGateway;
 import com.perkhaven.student.Student;
 import com.perkhaven.student.StudentRepository;
 import java.util.Optional;
@@ -24,7 +23,6 @@ class CognitoStudentAccessServiceTest {
     void newStudentReceivesEmailInvitationAndStudentGroup() {
         var students = mock(StudentRepository.class);
         var cognito = mock(CognitoIdentityProviderClient.class);
-        var mail = mock(MailGateway.class);
         var student = mock(Student.class);
         when(student.getRegistrationNo()).thenReturn("PH-2026-123");
         when(student.getEmail()).thenReturn("student@example.com");
@@ -33,18 +31,15 @@ class CognitoStudentAccessServiceTest {
         when(cognito.adminGetUser(any(AdminGetUserRequest.class)))
                 .thenThrow(UserNotFoundException.builder().message("not found").build());
 
-        var service = new CognitoStudentAccessService(students, cognito, mail, "ap-south-1_example", "https://student.perkhaven.lk");
+        var service = new CognitoStudentAccessService(students, cognito, "ap-south-1_example");
         assertEquals("PH-2026-123", service.invite("PH-2026-123"));
 
         var invitation = ArgumentCaptor.forClass(AdminCreateUserRequest.class);
         verify(cognito).adminCreateUser(invitation.capture());
         assertEquals("PH-2026-123", invitation.getValue().username());
-        assertEquals("SUPPRESS", invitation.getValue().messageActionAsString());
+        assertEquals("EMAIL", invitation.getValue().desiredDeliveryMediumsAsStrings().getFirst());
         assertEquals("student@example.com", invitation.getValue().userAttributes().stream()
                 .filter(attribute -> "email".equals(attribute.name())).findFirst().orElseThrow().value());
-        verify(mail).sendText(org.mockito.ArgumentMatchers.eq("student@example.com"),
-                org.mockito.ArgumentMatchers.eq("Your Perk Haven Student Portal access"),
-                org.mockito.ArgumentMatchers.contains("https://student.perkhaven.lk"));
 
         var group = ArgumentCaptor.forClass(AdminAddUserToGroupRequest.class);
         verify(cognito).adminAddUserToGroup(group.capture());
