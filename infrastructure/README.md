@@ -124,3 +124,5 @@ account-level prerequisite and is not bypassed by Terraform.
 Infrastructure is deployable independently, but a useful production release still depends on completing the
 frontend `/api/v1` and Cognito login integration and the backend SES workflows described in the application
 checkpoints. The pipeline will stop rather than silently publish an unhealthy backend.
+
+Student Portal access invitations are administered from the management portal.
