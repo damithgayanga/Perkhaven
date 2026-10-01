@@ -13,7 +13,6 @@ import com.perkhaven.common.audit.AuditEventRepository;
 import com.perkhaven.common.domain.RecordStatus;
 import com.perkhaven.common.error.ConflictException;
 import com.perkhaven.common.error.NotFoundException;
-import com.perkhaven.identity.StudentAccessRequestedEvent;
 import com.perkhaven.security.StudentIdentityResolver;
 import com.perkhaven.storage.StorageService;
 import jakarta.persistence.criteria.Predicate;
@@ -31,7 +30,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.core.io.Resource;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -68,17 +66,15 @@ public class StudentController {
     private final PaymentEvidenceSubmissionRepository paymentEvidence;
     private final StudentRegistrationNumberService registrationNumbers;
     private final AuditEventRepository auditEvents;
-    private final ApplicationEventPublisher events;
     private final StudentIdentityResolver studentIdentity;
     public StudentController(StudentRepository students, RoomRepository rooms, StorageService storage, AuditService audit,
                              InvoiceService invoiceService, InvoiceRepository invoices, PaymentRepository payments,
                              PaymentEvidenceSubmissionRepository paymentEvidence,
                              StudentRegistrationNumberService registrationNumbers, AuditEventRepository auditEvents,
-                             ApplicationEventPublisher events, StudentIdentityResolver studentIdentity) {
+                             StudentIdentityResolver studentIdentity) {
         this.students = students; this.rooms = rooms; this.storage = storage; this.audit = audit; this.invoiceService = invoiceService;
         this.invoices = invoices; this.payments = payments; this.paymentEvidence = paymentEvidence; this.registrationNumbers = registrationNumbers;
         this.auditEvents = auditEvents;
-        this.events = events;
         this.studentIdentity = studentIdentity;
     }
 
@@ -122,10 +118,12 @@ public class StudentController {
 
     @GetMapping("/me")
     @PreAuthorize("hasRole('STUDENT')")
-    @Transactional(readOnly = true)
+    @Transactional
     public StudentResponse me(JwtAuthenticationToken authentication) {
-        return StudentResponse.from(studentIdentity.resolve(authentication)
-                .orElseThrow(() -> new NotFoundException("Student profile not found for this account.")));
+        var student = studentIdentity.resolve(authentication)
+                .orElseThrow(() -> new NotFoundException("Student profile not found for this account."));
+        student.recordPortalLogin();
+        return StudentResponse.from(student);
     }
 
     @PostMapping
@@ -142,7 +140,6 @@ public class StudentController {
         var saved = students.save(student);
         invoiceService.createRegistrationInvoices(saved);
         audit.record("CREATE", "STUDENT", saved.getRegistrationNo(), null);
-        requestAccessInvitation(saved);
         return StudentResponse.from(saved);
     }
 
@@ -153,7 +150,6 @@ public class StudentController {
         if (!registrationNo.equalsIgnoreCase(request.registrationNo())) throw new ConflictException("Registration number cannot be changed.");
         var student = find(registrationNo);
         var previous = profileValues(student);
-        var previousEmail = student.getEmail();
         apply(student, request);
         if (student.getVacatedDate() != null) {
             invoices.findByStudentRegistrationNoIgnoreCaseOrderByIssueDateDesc(registrationNo).stream()
@@ -167,7 +163,6 @@ public class StudentController {
         // generation was enabled. Re-running is idempotent and fills any gaps.
         if (student.getStatus() == RecordStatus.INACTIVE) invoiceService.createRegistrationInvoices(student);
         audit.record("UPDATE", "STUDENT", registrationNo, changedFields(previous, student));
-        if (!java.util.Objects.equals(normalizeEmail(previousEmail), normalizeEmail(student.getEmail()))) requestAccessInvitation(student);
         return StudentResponse.from(student);
     }
 
@@ -296,18 +291,6 @@ public class StudentController {
 
     private String text(Object value) { return value == null ? "" : value.toString(); }
 
-    private void requestAccessInvitation(Student student) {
-        if (student.getStatus() == RecordStatus.ACTIVE
-                && student.getEmail() != null
-                && !student.getEmail().isBlank()) {
-            events.publishEvent(new StudentAccessRequestedEvent(student.getRegistrationNo()));
-        }
-    }
-
-    private String normalizeEmail(String email) {
-        return email == null ? "" : email.trim().toLowerCase(java.util.Locale.ROOT);
-    }
-
     public record EmergencyContactRequest(@NotBlank String name, @NotBlank String phone, @NotBlank String relationship, String address) {}
     public record StudentRequest(String registrationNo, @NotBlank String firstName, String middleNames,
                                  @NotBlank String lastName, LocalDate dateOfBirth,
@@ -331,13 +314,17 @@ public class StudentController {
                                   String university, String currentYear, String address, boolean hasMedicalCondition,
                                   String medicalConditionDetails, LocalDate registeredDate, LocalDate startDate,
                                   String roomNo, LocalDate vacatedDate, LocalDate noticeToVacateDate, BigDecimal monthlyRent, BigDecimal depositPayable, RecordStatus status,
-                                  String photoName, Long photoSize, List<EmergencyContactResponse> emergencyContacts) {
+                                  String photoName, Long photoSize, StudentPortalAccessStatus portalAccessStatus, Instant portalAccessGrantedAt,
+                                  Instant portalActivatedAt, Instant portalLastLoginAt, Instant portalAccessDisabledAt, String portalAccessUpdatedBy,
+                                  List<EmergencyContactResponse> emergencyContacts) {
         static StudentResponse from(Student student) { return new StudentResponse(student.getId(), student.getVersion(), student.getCreatedAt(), student.getUpdatedAt(),
                 student.getRegistrationNo(), student.getFirstName(), student.getMiddleNames(), student.getLastName(), student.getDateOfBirth(),
                 student.getIdNo(), student.getMobile(), student.getWhatsapp(), student.getEmail(),
                 student.getUniversity(), student.getCurrentYear(), student.getAddress(), student.hasMedicalCondition(),
                 student.getMedicalConditionDetails(), student.getRegisteredDate(), student.getStartDate(),
                 student.getRoom() == null ? null : student.getRoom().getRoomNo(), student.getVacatedDate(), student.getNoticeToVacateDate(), student.getMonthlyRent(), student.getDepositPayable(), student.getStatus(),
-                student.getPhotoName(), student.getPhotoSize(), student.getEmergencyContacts().stream().map(EmergencyContactResponse::from).toList()); }
+                student.getPhotoName(), student.getPhotoSize(), student.getPortalAccessStatus(), student.getPortalAccessGrantedAt(),
+                student.getPortalActivatedAt(), student.getPortalLastLoginAt(), student.getPortalAccessDisabledAt(), student.getPortalAccessUpdatedBy(),
+                student.getEmergencyContacts().stream().map(EmergencyContactResponse::from).toList()); }
     }
 }

@@ -24,15 +24,15 @@ public class StudentIdentityResolver {
         for (var claim : new String[]{"subject_reference", "preferred_username", "cognito:username", "username"}) {
             var registrationNo = token.getToken().getClaimAsString(claim);
             if (registrationNo != null && !registrationNo.isBlank()) {
-                var student = students.findByRegistrationNoIgnoreCase(registrationNo);
+                var student = students.findByRegistrationNoIgnoreCase(registrationNo).filter(Student::isPortalAccessAllowed);
                 if (student.isPresent()) return student;
-                student = students.findByEmailIgnoreCase(registrationNo);
+                student = students.findByEmailIgnoreCase(registrationNo).filter(Student::isPortalAccessAllowed);
                 if (student.isPresent()) return student;
             }
         }
 
         var email = token.getToken().getClaimAsString("email");
-        return email == null || email.isBlank() ? Optional.empty() : students.findByEmailIgnoreCase(email);
+        return email == null || email.isBlank() ? Optional.empty() : students.findByEmailIgnoreCase(email).filter(Student::isPortalAccessAllowed);
     }
 
     public boolean canAccess(String registrationNo, Authentication authentication) {
