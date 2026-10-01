@@ -42,7 +42,7 @@ data "aws_iam_policy_document" "ecs_execution_secrets" {
     actions   = ["secretsmanager:GetSecretValue"]
     resources = [
       aws_db_instance.postgres.master_user_secret[0].secret_arn,
-      data.aws_secretsmanager_secret.smtp.arn
+      data.aws_secretsmanager_secret.smtp.arn,
     ]
   }
 }
