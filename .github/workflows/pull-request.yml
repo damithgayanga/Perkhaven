@@ -74,7 +74,7 @@ jobs:
         with:
           terraform_version: "1.13.5"
       - name: Check formatting
-        run: terraform fmt -check -recursive infrastructure
+        run: terraform fmt -recursive infrastructure && git diff -- infrastructure/environments/production/ecs.tf && exit 1
       - name: Validate bootstrap
         working-directory: infrastructure/bootstrap
         run: terraform init -backend=false && terraform validate
