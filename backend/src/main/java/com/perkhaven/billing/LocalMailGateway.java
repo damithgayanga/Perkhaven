@@ -13,4 +13,9 @@ public class LocalMailGateway implements MailGateway {
         log.info("Captured local mail to={} subject={} attachment={} bytes={}", recipient, subject, attachmentName, attachment.length);
         return "CAPTURED_LOCALLY";
     }
+
+    public String sendText(String recipient, String subject, String body) {
+        log.info("Captured local text mail to={} subject={}", recipient, subject);
+        return "CAPTURED_LOCALLY";
+    }
 }
