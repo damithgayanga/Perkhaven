@@ -1,3 +1,7 @@
+data "aws_secretsmanager_secret" "smtp" {
+  name = "perkhaven-production/smtp"
+}
+
 data "aws_ecr_repository" "backend" {
   name = var.ecr_repository_name
 }
@@ -35,8 +39,11 @@ resource "aws_iam_role_policy_attachment" "ecs_execution" {
 
 data "aws_iam_policy_document" "ecs_execution_secrets" {
   statement {
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_db_instance.postgres.master_user_secret[0].secret_arn]
+    actions = ["secretsmanager:GetSecretValue"]
+    resources = [
+      aws_db_instance.postgres.master_user_secret[0].secret_arn,
+      data.aws_secretsmanager_secret.smtp.arn,
+    ]
   }
 }
 
@@ -138,16 +145,29 @@ resource "aws_ecs_task_definition" "backend" {
       { name = "PERKHAVEN_SECURITY_COGNITO_ISSUER", value = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.username_main.id}" },
       { name = "PERKHAVEN_SECURITY_COGNITO_CLIENT_ID", value = aws_cognito_user_pool_client.username_frontend.id },
       { name = "PERKHAVEN_SECURITY_COGNITO_USER_POOL_ID", value = aws_cognito_user_pool.username_main.id },
-      { name = "PERKHAVEN_MAIL_PROVIDER", value = var.enable_ses_domain ? "ses" : "local" },
-      { name = "PERKHAVEN_MAIL_FROM", value = var.enable_ses_domain ? "no-reply@${var.domain_name}" : "no-reply@perkhaven.invalid" },
-      { name = "PERKHAVEN_MAIL_REPLY_TO", value = var.enable_ses_domain ? "admin@${var.domain_name}" : "" },
+      { name = "PERKHAVEN_MAIL_PROVIDER", value = "smtp" },
+      { name = "PERKHAVEN_MAIL_FROM", value = "no-reply@${var.domain_name}" },
+      { name = "PERKHAVEN_MAIL_REPLY_TO", value = "admin@${var.domain_name}" },
+      { name = "PERKHAVEN_STUDENT_PORTAL_URL", value = "https://student.${var.domain_name}" },
+      { name = "SMTP_HOST", value = "mail.${var.domain_name}" },
+      { name = "SMTP_PORT", value = "587" },
       { name = "PERKHAVEN_HOSTEL_EMAIL", value = var.hostel_contact_email },
       { name = "PERKHAVEN_HOSTEL_TELEPHONE", value = var.hostel_contact_telephone }
     ]
-    secrets = [{
-      name      = "DB_PASSWORD"
-      valueFrom = "${aws_db_instance.postgres.master_user_secret[0].secret_arn}:password::"
-    }]
+    secrets = [
+      {
+        name      = "DB_PASSWORD"
+        valueFrom = "${aws_db_instance.postgres.master_user_secret[0].secret_arn}:password::"
+      },
+      {
+        name      = "SMTP_USERNAME"
+        valueFrom = "${data.aws_secretsmanager_secret.smtp.arn}:username::"
+      },
+      {
+        name      = "SMTP_PASSWORD"
+        valueFrom = "${data.aws_secretsmanager_secret.smtp.arn}:password::"
+      }
+    ]
     healthCheck = {
       command     = ["CMD-SHELL", "wget -q -O - http://localhost:8080/actuator/health/readiness || exit 1"]
       interval    = 30

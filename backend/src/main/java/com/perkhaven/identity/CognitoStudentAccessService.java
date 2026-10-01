@@ -3,7 +3,9 @@ package com.perkhaven.identity;
 import com.perkhaven.common.error.ConflictException;
 import com.perkhaven.common.domain.RecordStatus;
 import com.perkhaven.common.error.NotFoundException;
+import com.perkhaven.billing.MailGateway;
 import com.perkhaven.student.StudentRepository;
+import java.security.SecureRandom;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -15,23 +17,31 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.UsernameExi
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminAddUserToGroupRequest;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminCreateUserRequest;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminGetUserRequest;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminSetUserPasswordRequest;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminUpdateUserAttributesRequest;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.MessageActionType;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.UserNotFoundException;
-import software.amazon.awssdk.services.cognitoidentityprovider.model.UserStatusType;
 
 @Service
 public class CognitoStudentAccessService {
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final String PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
     private final StudentRepository students;
     private final CognitoIdentityProviderClient cognito;
+    private final MailGateway mail;
     private final String userPoolId;
+    private final String studentPortalUrl;
 
     public CognitoStudentAccessService(StudentRepository students,
                                        CognitoIdentityProviderClient cognito,
-                                       @Value("${perkhaven.security.cognito.user-pool-id:}") String userPoolId) {
+                                       MailGateway mail,
+                                       @Value("${perkhaven.security.cognito.user-pool-id:}") String userPoolId,
+                                       @Value("${perkhaven.student-portal-url:https://student.perkhaven.lk}") String studentPortalUrl) {
         this.students = students;
         this.cognito = cognito;
+        this.mail = mail;
         this.userPoolId = userPoolId;
+        this.studentPortalUrl = studentPortalUrl;
     }
 
     public String invite(String registrationNo) {
@@ -48,33 +58,53 @@ public class CognitoStudentAccessService {
                 AttributeType.builder().name("email").value(email).build(),
                 AttributeType.builder().name("email_verified").value("true").build(),
                 AttributeType.builder().name("preferred_username").value(student.getRegistrationNo()).build());
+        var temporaryPassword = temporaryPassword();
         try {
-            var existing = cognito.adminGetUser(AdminGetUserRequest.builder()
+            cognito.adminGetUser(AdminGetUserRequest.builder()
                     .userPoolId(userPoolId).username(username).build());
             cognito.adminUpdateUserAttributes(AdminUpdateUserAttributesRequest.builder()
                     .userPoolId(userPoolId).username(username).userAttributes(attributes).build());
-            if (existing.userStatus() == UserStatusType.FORCE_CHANGE_PASSWORD) {
-                cognito.adminCreateUser(createRequest(username, attributes, MessageActionType.RESEND));
-            }
+            cognito.adminSetUserPassword(AdminSetUserPasswordRequest.builder()
+                    .userPoolId(userPoolId).username(username)
+                    .password(temporaryPassword).permanent(false).build());
         } catch (UserNotFoundException exception) {
-            cognito.adminCreateUser(createRequest(username, attributes, null));
+            cognito.adminCreateUser(createRequest(username, attributes, temporaryPassword));
         } catch (UsernameExistsException ignored) {
-            // A concurrent request created the same account. Group assignment below is idempotent.
+            cognito.adminSetUserPassword(AdminSetUserPasswordRequest.builder()
+                    .userPoolId(userPoolId).username(username)
+                    .password(temporaryPassword).permanent(false).build());
         } catch (InvalidParameterException | CodeDeliveryFailureException exception) {
             throw new IllegalArgumentException("Unable to create the student Cognito account: " + exception.awsErrorDetails().errorMessage());
         }
         cognito.adminAddUserToGroup(AdminAddUserToGroupRequest.builder()
                 .userPoolId(userPoolId).username(username).groupName("STUDENT").build());
+
+        var subject = "Your Perk Haven Student Portal access";
+        var body = "Welcome to The Perk Haven.\n\n"
+                + "Your Student Portal access has been approved.\n\n"
+                + "Open: " + studentPortalUrl + "\n"
+                + "Login email: " + email + "\n"
+                + "Temporary password: " + temporaryPassword + "\n\n"
+                + "You will be asked to create your own password when you first sign in. "
+                + "This temporary password expires in 7 days.\n\n"
+                + "If you did not expect this invitation, please contact The Perk Haven Management.";
+        mail.sendText(email, subject, body);
         return username;
     }
 
     public boolean isConfigured() { return !userPoolId.isBlank(); }
 
-    private AdminCreateUserRequest createRequest(String username, List<AttributeType> attributes, MessageActionType action) {
-        var builder = AdminCreateUserRequest.builder()
+    private AdminCreateUserRequest createRequest(String username, List<AttributeType> attributes, String temporaryPassword) {
+        return AdminCreateUserRequest.builder()
                 .userPoolId(userPoolId).username(username).userAttributes(attributes)
-                .desiredDeliveryMediumsWithStrings("EMAIL");
-        if (action != null) builder.messageAction(action);
-        return builder.build();
+                .temporaryPassword(temporaryPassword)
+                .messageAction(MessageActionType.SUPPRESS)
+                .build();
+    }
+
+    private String temporaryPassword() {
+        var value = new StringBuilder("Ph1!");
+        for (var i = 0; i < 12; i++) value.append(PASSWORD_CHARS.charAt(RANDOM.nextInt(PASSWORD_CHARS.length())));
+        return value.toString();
     }
 }
