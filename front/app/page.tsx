@@ -550,9 +550,15 @@ const isStudentPortalHost = () =>
   typeof window !== "undefined" && window.location.hostname.toLowerCase() === "student.perkhaven.lk";
 
 const enforceStudentPortalAccess = async (user: AuthenticatedUser | null) => {
-  if (user && isStudentPortalHost() && user.role !== "Student") {
-    await signOut();
+  if (!user || !isStudentPortalHost()) return user;
+  if (user.role !== "Student") {
+    signOut();
     throw new Error("This portal is for students only. Management users must use the management portal directly.");
+  }
+  const response = await fetch("/api/v1/students/me");
+  if (!response.ok) {
+    signOut();
+    throw new Error("Your Student Portal access is not active. Please contact The Perk Haven Management.");
   }
   return user;
 };
@@ -5152,6 +5158,7 @@ function AdminControls({
                 const status = studentAccessStatus(student);
                 const busy = studentAccessBusy === student.registrationNo;
                 const invalidEmail = !student.email || student.email.endsWith("@invalid.perkhaven.local");
+                const inactiveResident = student.status !== "Active";
                 return (
                   <tr key={student.registrationNo}>
                     <td><b>{student.registrationNo}</b></td>
@@ -5164,12 +5171,12 @@ function AdminControls({
                     <td>{student.portalAccessUpdatedBy || "—"}</td>
                     <td>
                       {status === "NOT_GRANTED" && (
-                        <button className="secondary" disabled={busy || invalidEmail} onClick={() => void updateStudentAccess(student, "grant")}>
+                        <button className="secondary" disabled={busy || invalidEmail || inactiveResident} title={inactiveResident ? "Portal access is available to active residents only." : undefined} onClick={() => void updateStudentAccess(student, "grant")}>
                           {busy ? "Updating…" : "Grant Access"}
                         </button>
                       )}
                       {status === "DISABLED" && (
-                        <button className="secondary" disabled={busy || invalidEmail} onClick={() => void updateStudentAccess(student, "restore")}>
+                        <button className="secondary" disabled={busy || invalidEmail || inactiveResident} title={inactiveResident ? "Portal access is available to active residents only." : undefined} onClick={() => void updateStudentAccess(student, "restore")}>
                           {busy ? "Updating…" : "Restore Access"}
                         </button>
                       )}
