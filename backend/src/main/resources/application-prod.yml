@@ -41,4 +41,6 @@ perkhaven:
     provider: ${PERKHAVEN_MAIL_PROVIDER:local}
     from: ${PERKHAVEN_MAIL_FROM:no-reply@perkhaven.invalid}
     reply-to: ${PERKHAVEN_MAIL_REPLY_TO:}
+    fallback-host: ${SMTP_FALLBACK_HOST:mail.mymailportal.lk}
+    fallback-port: ${SMTP_FALLBACK_PORT:465}
   student-portal-url: ${PERKHAVEN_STUDENT_PORTAL_URL:https://student.perkhaven.lk}

@@ -151,6 +151,8 @@ resource "aws_ecs_task_definition" "backend" {
       { name = "PERKHAVEN_STUDENT_PORTAL_URL", value = "https://student.${var.domain_name}" },
       { name = "SMTP_HOST", value = "mail.${var.domain_name}" },
       { name = "SMTP_PORT", value = "587" },
+      { name = "SMTP_FALLBACK_HOST", value = "mail.mymailportal.lk" },
+      { name = "SMTP_FALLBACK_PORT", value = "465" },
       { name = "PERKHAVEN_HOSTEL_EMAIL", value = var.hostel_contact_email },
       { name = "PERKHAVEN_HOSTEL_TELEPHONE", value = var.hostel_contact_telephone }
     ]
