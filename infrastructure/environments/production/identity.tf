@@ -151,7 +151,7 @@ resource "aws_cognito_user_pool" "username_main" {
     content {
       email_sending_account  = "DEVELOPER"
       source_arn             = aws_ses_domain_identity.main[0].arn
-      from_email_address     = "The Perk Haven <noreply@${var.domain_name}>"
+      from_email_address     = "The Perk Haven <no-reply@${var.domain_name}>"
       reply_to_email_address = "admin@${var.domain_name}"
     }
   }
