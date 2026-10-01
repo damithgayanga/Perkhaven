@@ -31,8 +31,10 @@ public class AdminUserController {
     private final StaffPermissionRepository permissions;
     private final AuditService audit;
     private final StudentRepository students;
-    public AdminUserController(AppUserRepository users, StaffPermissionRepository permissions, AuditService audit, StudentRepository students) {
-        this.users = users; this.permissions = permissions; this.audit = audit; this.students = students;
+    private final CognitoStudentAccessService cognitoStudents;
+    public AdminUserController(AppUserRepository users, StaffPermissionRepository permissions, AuditService audit,
+                               StudentRepository students, CognitoStudentAccessService cognitoStudents) {
+        this.users = users; this.permissions = permissions; this.audit = audit; this.students = students; this.cognitoStudents = cognitoStudents;
     }
 
     @PostMapping("/students/{registrationNo}/access")
@@ -42,9 +44,10 @@ public class AdminUserController {
         if (student.getStatus() != RecordStatus.ACTIVE) throw new ConflictException("Portal access can only be granted to active students.");
         if (student.getEmail() == null || student.getEmail().isBlank() || student.getEmail().endsWith("@invalid.perkhaven.local"))
             throw new ConflictException("A valid student email address is required before portal access can be granted.");
+        var username = cognitoStudents.invite(registrationNo);
         student.grantPortalAccess(authentication.getName());
-        audit.record("GRANT_STUDENT_PORTAL_ACCESS", "STUDENT", registrationNo, "Portal access granted by " + authentication.getName());
-        return AccessResponse.from(student, "Portal access granted. Email invitation is not enabled yet.");
+        audit.record("GRANT_STUDENT_PORTAL_ACCESS", "STUDENT", registrationNo, "Portal access granted by " + authentication.getName() + "; invitation sent to " + username);
+        return AccessResponse.from(student, "Portal access granted and registration invitation sent to " + student.getEmail() + ".");
     }
 
     @DeleteMapping("/students/{registrationNo}/access")
@@ -66,6 +69,18 @@ public class AdminUserController {
         student.restorePortalAccess(authentication.getName());
         audit.record("RESTORE_STUDENT_PORTAL_ACCESS", "STUDENT", registrationNo, "Portal access restored by " + authentication.getName());
         return AccessResponse.from(student, "Student portal access restored.");
+    }
+
+    @PostMapping("/students/{registrationNo}/access/resend")
+    @Transactional
+    public AccessResponse resendStudentInvitation(@PathVariable String registrationNo, Authentication authentication) {
+        var student = student(registrationNo);
+        if (student.getStatus() != RecordStatus.ACTIVE) throw new ConflictException("Invitations can only be sent to active students.");
+        if (!student.isPortalAccessAllowed()) throw new ConflictException("Grant Student Portal access before sending an invitation.");
+        if (student.getPortalActivatedAt() != null) throw new ConflictException("This student has already completed portal registration.");
+        var username = cognitoStudents.invite(registrationNo);
+        audit.record("RESEND_STUDENT_PORTAL_INVITATION", "STUDENT", registrationNo, "Invitation resent by " + authentication.getName() + " to " + username);
+        return AccessResponse.from(student, "Registration invitation resent to " + student.getEmail() + ".");
     }
 
     @GetMapping("/users")
