@@ -24,7 +24,6 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.UserNotFoun
 
 @Service
 public class CognitoStudentAccessService {
-    private final StudentRepository students;
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
     private final StudentRepository students;
