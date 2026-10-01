@@ -59,6 +59,12 @@ type Student = {
   photoKey?: string;
   photoName?: string;
   status: "Active" | "Inactive";
+  portalAccessStatus?: "NOT_GRANTED" | "PENDING_REGISTRATION" | "ACTIVE" | "DISABLED";
+  portalAccessGrantedAt?: string;
+  portalActivatedAt?: string;
+  portalLastLoginAt?: string;
+  portalAccessDisabledAt?: string;
+  portalAccessUpdatedBy?: string;
 };
 type RoomTransferRequest = {
   id: number;
@@ -544,9 +550,15 @@ const isStudentPortalHost = () =>
   typeof window !== "undefined" && window.location.hostname.toLowerCase() === "student.perkhaven.lk";
 
 const enforceStudentPortalAccess = async (user: AuthenticatedUser | null) => {
-  if (user && isStudentPortalHost() && user.role !== "Student") {
-    await signOut();
+  if (!user || !isStudentPortalHost()) return user;
+  if (user.role !== "Student") {
+    signOut();
     throw new Error("This portal is for students only. Management users must use the management portal directly.");
+  }
+  const response = await fetch("/api/v1/students/me");
+  if (!response.ok) {
+    signOut();
+    throw new Error("Your Student Portal access is not active. Please contact The Perk Haven Management.");
   }
   return user;
 };
@@ -4999,20 +5011,63 @@ function AdminControls({
 }) {
   const [studentAccessBusy, setStudentAccessBusy] = useState("");
   const [studentAccessMessage, setStudentAccessMessage] = useState("");
-  const enableStudentAccess = async (student: Student) => {
+  const [studentAccessSearch, setStudentAccessSearch] = useState("");
+  const [studentAccessFilter, setStudentAccessFilter] = useState("ALL");
+  const [studentAccessOverrides, setStudentAccessOverrides] = useState<Record<string, Partial<Student>>>({});
+
+  const studentAccessStatus = (student: Student) =>
+    studentAccessOverrides[student.registrationNo]?.portalAccessStatus ||
+    student.portalAccessStatus ||
+    "NOT_GRANTED";
+
+  const statusLabel = (status: Student["portalAccessStatus"]) =>
+    status === "ACTIVE"
+      ? "Active"
+      : status === "PENDING_REGISTRATION"
+        ? "Granted / Registration Pending"
+        : status === "DISABLED"
+          ? "Disabled"
+          : "Not Granted";
+
+  const statusClass = (status: Student["portalAccessStatus"]) =>
+    status === "ACTIVE" ? "active" : status === "DISABLED" ? "inactive" : status === "PENDING_REGISTRATION" ? "notice" : "";
+
+  const applyAccessResult = (student: Student, result: Record<string, unknown>) => {
+    setStudentAccessOverrides((current) => ({
+      ...current,
+      [student.registrationNo]: {
+        portalAccessStatus: String(result.status || student.portalAccessStatus || "NOT_GRANTED") as Student["portalAccessStatus"],
+        portalAccessGrantedAt: String(result.grantedAt || student.portalAccessGrantedAt || ""),
+        portalActivatedAt: String(result.activatedAt || student.portalActivatedAt || ""),
+        portalLastLoginAt: String(result.lastLoginAt || student.portalLastLoginAt || ""),
+        portalAccessDisabledAt: String(result.disabledAt || ""),
+        portalAccessUpdatedBy: String(result.updatedBy || student.portalAccessUpdatedBy || ""),
+      },
+    }));
+    setStudentAccessMessage(String(result.message || "Student portal access updated."));
+  };
+
+  const updateStudentAccess = async (student: Student, action: "grant" | "disable" | "restore" | "resend") => {
+    if (action === "disable" && !window.confirm(`Disable Student Portal access for ${student.firstName} ${student.lastName}? This will prevent login but will not delete any student records.`)) return;
     setStudentAccessBusy(student.registrationNo);
     setStudentAccessMessage("");
     try {
-      const response = await fetch(`/api/v1/admin/students/${encodeURIComponent(student.registrationNo)}/access`, { method: "POST" });
+      const url = action === "restore"
+        ? `/api/v1/admin/students/${encodeURIComponent(student.registrationNo)}/access/restore`
+        : action === "resend"
+          ? `/api/v1/admin/students/${encodeURIComponent(student.registrationNo)}/access/resend`
+          : `/api/v1/admin/students/${encodeURIComponent(student.registrationNo)}/access`;
+      const response = await fetch(url, { method: action === "disable" ? "DELETE" : "POST" });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.detail || "Unable to enable student access.");
-      setStudentAccessMessage(`${student.registrationNo}: invitation sent to ${student.email}.`);
+      if (!response.ok) throw new Error(result.detail || "Unable to update student portal access.");
+      applyAccessResult(student, result);
     } catch (reason) {
-      setStudentAccessMessage(reason instanceof Error ? reason.message : "Unable to enable student access.");
+      setStudentAccessMessage(reason instanceof Error ? reason.message : "Unable to update student portal access.");
     } finally {
       setStudentAccessBusy("");
     }
   };
+
   const setPermission = async (staffNo: string, key: StaffPermissionKey, enabled: boolean) => {
     const response = await fetch(`/api/v1/admin/staff/${encodeURIComponent(staffNo)}/permissions/${encodeURIComponent(key)}`, {
       method: "PUT",
@@ -5041,13 +5096,117 @@ function AdminControls({
     (sum, row) => sum + Object.values(row).filter(Boolean).length,
     0,
   );
+
+  const accessRows = students
+    .map((student) => ({ ...student, ...studentAccessOverrides[student.registrationNo] }))
+    .filter((student) => {
+      const term = studentAccessSearch.trim().toLowerCase();
+      const matchesSearch = !term || [student.registrationNo, student.firstName, student.lastName, student.email]
+        .some((value) => String(value || "").toLowerCase().includes(term));
+      const matchesStatus = studentAccessFilter === "ALL" || studentAccessStatus(student) === studentAccessFilter;
+      return matchesSearch && matchesStatus;
+    });
+
+  const accessCounts = students.reduce((counts, student) => {
+    const status = studentAccessStatus(student);
+    counts[status] = (counts[status] || 0) + 1;
+    return counts;
+  }, {} as Record<string, number>);
+
   return (
     <section className="admin-controls-page">
       <div className="panel admin-permission-panel">
-        <div className="section-action"><div><p className="tag">RESIDENT ACCESS</p><h2>Student portal accounts</h2><p>Send a Cognito invitation and grant the STUDENT role. Students then see only their own profile, invoices, payments, agreement and check-out settlement.</p></div></div>
+        <div className="section-action">
+          <div>
+            <p className="tag">STUDENT PORTAL ACCESS</p>
+            <h2>Student portal access management</h2>
+            <p>Control who may use student.perkhaven.lk. Email invitations are intentionally not enabled in this stage.</p>
+          </div>
+        </div>
+
+        <div className="admin-controls-summary student-access-summary">
+          <div className="admin-control-stat"><b>{accessCounts.ACTIVE || 0}</b><span>Active</span></div>
+          <div className="admin-control-stat"><b>{accessCounts.PENDING_REGISTRATION || 0}</b><span>Registration pending</span></div>
+          <div className="admin-control-stat"><b>{accessCounts.DISABLED || 0}</b><span>Disabled</span></div>
+          <div className="admin-control-stat"><b>{accessCounts.NOT_GRANTED || 0}</b><span>Not granted</span></div>
+        </div>
+
+        <div className="student-access-toolbar">
+          <input
+            value={studentAccessSearch}
+            onChange={(event) => setStudentAccessSearch(event.target.value)}
+            placeholder="Search student ID, name or email"
+            aria-label="Search student portal access"
+          />
+          <select value={studentAccessFilter} onChange={(event) => setStudentAccessFilter(event.target.value)} aria-label="Filter student portal access status">
+            <option value="ALL">All access statuses</option>
+            <option value="NOT_GRANTED">Not Granted</option>
+            <option value="PENDING_REGISTRATION">Registration Pending</option>
+            <option value="ACTIVE">Active</option>
+            <option value="DISABLED">Disabled</option>
+          </select>
+        </div>
+
         {studentAccessMessage && <p className="portal-message">{studentAccessMessage}</p>}
-        <div className="tablewrap"><table><thead><tr><th>REGISTRATION</th><th>STUDENT</th><th>EMAIL</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody>{students.map((student) => <tr key={student.registrationNo}><td>{student.registrationNo}</td><td>{student.firstName} {student.lastName}</td><td>{student.email}</td><td><span className={`status ${student.status.toLowerCase()}`}>{student.status}</span></td><td><button className="secondary" disabled={studentAccessBusy === student.registrationNo || !student.email || student.email.endsWith("@invalid.perkhaven.local")} onClick={() => void enableStudentAccess(student)}>{studentAccessBusy === student.registrationNo ? "Sending…" : "Enable student access"}</button></td></tr>)}{!students.length && <tr><td colSpan={5} className="empty-state">No students are registered.</td></tr>}</tbody></table></div>
+        <div className="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>STUDENT ID</th><th>STUDENT</th><th>EMAIL</th><th>PORTAL STATUS</th><th>ACCESS GRANTED</th><th>REGISTERED</th><th>LAST LOGIN</th><th>UPDATED BY</th><th>ACTION</th>
+              </tr>
+            </thead>
+            <tbody>
+              {accessRows.map((student) => {
+                const status = studentAccessStatus(student);
+                const busy = studentAccessBusy === student.registrationNo;
+                const invalidEmail = !student.email || student.email.endsWith("@invalid.perkhaven.local");
+                const inactiveResident = student.status !== "Active";
+                return (
+                  <tr key={student.registrationNo}>
+                    <td><b>{student.registrationNo}</b></td>
+                    <td>{student.firstName} {student.lastName}</td>
+                    <td>{student.email || "—"}</td>
+                    <td><span className={`status ${statusClass(status)}`}>{statusLabel(status)}</span></td>
+                    <td>{student.portalAccessGrantedAt ? fmtDateTime(student.portalAccessGrantedAt) : "—"}</td>
+                    <td>{student.portalActivatedAt ? fmtDateTime(student.portalActivatedAt) : "—"}</td>
+                    <td>{student.portalLastLoginAt ? fmtDateTime(student.portalLastLoginAt) : "—"}</td>
+                    <td>{student.portalAccessUpdatedBy || "—"}</td>
+                    <td>
+                      {status === "NOT_GRANTED" && (
+                        <button className="secondary" disabled={busy || invalidEmail || inactiveResident} title={inactiveResident ? "Portal access is available to active residents only." : undefined} onClick={() => void updateStudentAccess(student, "grant")}>
+                          {busy ? "Updating…" : "Grant Access"}
+                        </button>
+                      )}
+                      {status === "DISABLED" && (
+                        <button className="secondary" disabled={busy || invalidEmail || inactiveResident} title={inactiveResident ? "Portal access is available to active residents only." : undefined} onClick={() => void updateStudentAccess(student, "restore")}>
+                          {busy ? "Updating…" : "Restore Access"}
+                        </button>
+                      )}
+                      {status === "PENDING_REGISTRATION" && (
+                        <>
+                          <button className="secondary" disabled={busy} onClick={() => void updateStudentAccess(student, "resend")}>
+                            {busy ? "Updating…" : "Resend Invitation"}
+                          </button>
+                          <button className="secondary" disabled={busy} onClick={() => void updateStudentAccess(student, "disable")}>
+                            {busy ? "Updating…" : "Disable Access"}
+                          </button>
+                        </>
+                      )}
+                      {status === "ACTIVE" && (
+                        <button className="secondary" disabled={busy} onClick={() => void updateStudentAccess(student, "disable")}>
+                          {busy ? "Updating…" : "Disable Access"}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {!accessRows.length && <tr><td colSpan={9} className="empty-state">No students match this search or filter.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </div>
+
       <div className="panel admin-controls-summary">
         <div><p className="tag">STAFF ACCESS CONTROL</p><h2>Permission matrix</h2></div>
         <div className="admin-control-stat"><b>{staff.length}</b><span>Staff accounts</span></div>

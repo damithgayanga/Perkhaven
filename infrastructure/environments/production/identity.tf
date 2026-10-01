@@ -1,5 +1,6 @@
 locals {
   application_public_url = "https://${var.enable_custom_domain ? local.management_hostname : aws_cloudfront_distribution.main.domain_name}"
+  student_portal_url     = "https://${var.enable_custom_domain ? local.student_hostname : aws_cloudfront_distribution.main.domain_name}"
 }
 
 resource "aws_cognito_user_pool" "main" {
@@ -20,8 +21,8 @@ resource "aws_cognito_user_pool" "main" {
   admin_create_user_config {
     allow_admin_create_user_only = true
     invite_message_template {
-      email_subject = "Your Perkhaven account"
-      email_message = "Welcome to Perkhaven. Your registration username is {username} and your temporary password is {####}. Open ${local.application_public_url} to sign in and set your permanent password. This temporary password expires in 7 days."
+      email_subject = "Your Perk Haven Student Portal access"
+      email_message = "Welcome to The Perk Haven. Your Student Portal access has been approved. Sign in at ${local.student_portal_url} using username {username} and temporary password {####}. You will be asked to create your own password when you first sign in. This temporary password expires in 7 days. If you did not expect this invitation, please contact The Perk Haven Management."
       sms_message   = "Perkhaven username: {username}; temporary password: {####}"
     }
   }
@@ -128,8 +129,8 @@ resource "aws_cognito_user_pool" "username_main" {
   admin_create_user_config {
     allow_admin_create_user_only = true
     invite_message_template {
-      email_subject = "Your Perkhaven account"
-      email_message = "Welcome to Perkhaven. Your registration username is {username} and your temporary password is {####}. Open ${local.application_public_url} to sign in and set your permanent password. This temporary password expires in 7 days."
+      email_subject = "Your Perk Haven Student Portal access"
+      email_message = "Welcome to The Perk Haven. Your Student Portal access has been approved. Sign in at ${local.student_portal_url} using username {username} and temporary password {####}. You will be asked to create your own password when you first sign in. This temporary password expires in 7 days. If you did not expect this invitation, please contact The Perk Haven Management."
       sms_message   = "Perkhaven username: {username}; temporary password: {####}"
     }
   }
@@ -150,7 +151,7 @@ resource "aws_cognito_user_pool" "username_main" {
     content {
       email_sending_account  = "DEVELOPER"
       source_arn             = aws_ses_domain_identity.main[0].arn
-      from_email_address     = "The Perk Haven <no-reply@${var.domain_name}>"
+      from_email_address     = "The Perk Haven <noreply@${var.domain_name}>"
       reply_to_email_address = "admin@${var.domain_name}"
     }
   }

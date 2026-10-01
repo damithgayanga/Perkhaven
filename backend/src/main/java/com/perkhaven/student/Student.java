@@ -15,6 +15,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -69,6 +70,14 @@ public class Student extends AuditedEntity {
     @Column(name = "photo_name") private String photoName;
     @Column(name = "photo_content_type", length = 120) private String photoContentType;
     @Column(name = "photo_size") private Long photoSize;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "portal_access_status", nullable = false, length = 30)
+    private StudentPortalAccessStatus portalAccessStatus = StudentPortalAccessStatus.NOT_GRANTED;
+    @Column(name = "portal_access_granted_at") private Instant portalAccessGrantedAt;
+    @Column(name = "portal_activated_at") private Instant portalActivatedAt;
+    @Column(name = "portal_last_login_at") private Instant portalLastLoginAt;
+    @Column(name = "portal_access_disabled_at") private Instant portalAccessDisabledAt;
+    @Column(name = "portal_access_updated_by", length = 255) private String portalAccessUpdatedBy;
 
     @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("order ASC")
@@ -107,6 +116,34 @@ public class Student extends AuditedEntity {
     public void updatePhoto(String key, String name, String contentType, long size) {
         this.photoKey = key; this.photoName = name; this.photoContentType = contentType; this.photoSize = size;
     }
+    public void grantPortalAccess(String actor) {
+        if (portalAccessGrantedAt == null) portalAccessGrantedAt = Instant.now();
+        portalAccessStatus = portalActivatedAt == null ? StudentPortalAccessStatus.PENDING_REGISTRATION : StudentPortalAccessStatus.ACTIVE;
+        portalAccessDisabledAt = null;
+        portalAccessUpdatedBy = actor;
+    }
+    public void disablePortalAccess(String actor) {
+        portalAccessStatus = StudentPortalAccessStatus.DISABLED;
+        portalAccessDisabledAt = Instant.now();
+        portalAccessUpdatedBy = actor;
+    }
+    public void restorePortalAccess(String actor) {
+        if (portalAccessGrantedAt == null) portalAccessGrantedAt = Instant.now();
+        portalAccessStatus = portalActivatedAt == null ? StudentPortalAccessStatus.PENDING_REGISTRATION : StudentPortalAccessStatus.ACTIVE;
+        portalAccessDisabledAt = null;
+        portalAccessUpdatedBy = actor;
+    }
+    public void recordPortalLogin() {
+        var now = Instant.now();
+        if (portalAccessStatus == StudentPortalAccessStatus.PENDING_REGISTRATION) {
+            portalAccessStatus = StudentPortalAccessStatus.ACTIVE;
+            if (portalActivatedAt == null) portalActivatedAt = now;
+        }
+        portalLastLoginAt = now;
+    }
+    public boolean isPortalAccessAllowed() {
+        return portalAccessStatus == StudentPortalAccessStatus.PENDING_REGISTRATION || portalAccessStatus == StudentPortalAccessStatus.ACTIVE;
+    }
     public String getRegistrationNo() { return registrationNo; }
     public String getFirstName() { return firstName; }
     public String getMiddleNames() { return middleNames; }
@@ -133,6 +170,12 @@ public class Student extends AuditedEntity {
     public String getPhotoName() { return photoName; }
     public String getPhotoContentType() { return photoContentType; }
     public Long getPhotoSize() { return photoSize; }
+    public StudentPortalAccessStatus getPortalAccessStatus() { return portalAccessStatus; }
+    public Instant getPortalAccessGrantedAt() { return portalAccessGrantedAt; }
+    public Instant getPortalActivatedAt() { return portalActivatedAt; }
+    public Instant getPortalLastLoginAt() { return portalLastLoginAt; }
+    public Instant getPortalAccessDisabledAt() { return portalAccessDisabledAt; }
+    public String getPortalAccessUpdatedBy() { return portalAccessUpdatedBy; }
     public List<StudentEmergencyContact> getEmergencyContacts() { return emergencyContacts; }
 
     public record StudentData(String firstName, String middleNames, String lastName, LocalDate dateOfBirth,

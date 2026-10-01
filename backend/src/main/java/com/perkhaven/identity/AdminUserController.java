@@ -3,11 +3,17 @@ package com.perkhaven.identity;
 import com.perkhaven.common.audit.AuditService;
 import com.perkhaven.common.error.ConflictException;
 import com.perkhaven.common.error.NotFoundException;
+import com.perkhaven.common.domain.RecordStatus;
+import com.perkhaven.student.Student;
+import com.perkhaven.student.StudentPortalAccessStatus;
+import com.perkhaven.student.StudentRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.time.Instant;
 import java.util.List;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,17 +30,57 @@ public class AdminUserController {
     private final AppUserRepository users;
     private final StaffPermissionRepository permissions;
     private final AuditService audit;
+    private final StudentRepository students;
     private final CognitoStudentAccessService cognitoStudents;
-    public AdminUserController(AppUserRepository users, StaffPermissionRepository permissions, AuditService audit, CognitoStudentAccessService cognitoStudents) {
-        this.users = users; this.permissions = permissions; this.audit = audit; this.cognitoStudents = cognitoStudents;
+    public AdminUserController(AppUserRepository users, StaffPermissionRepository permissions, AuditService audit,
+                               StudentRepository students, CognitoStudentAccessService cognitoStudents) {
+        this.users = users; this.permissions = permissions; this.audit = audit; this.students = students; this.cognitoStudents = cognitoStudents;
     }
 
     @PostMapping("/students/{registrationNo}/access")
     @Transactional
-    public AccessResponse enableStudentAccess(@PathVariable String registrationNo) {
+    public AccessResponse grantStudentAccess(@PathVariable String registrationNo, Authentication authentication) {
+        var student = student(registrationNo);
+        if (student.getStatus() != RecordStatus.ACTIVE) throw new ConflictException("Portal access can only be granted to active students.");
+        if (student.getEmail() == null || student.getEmail().isBlank() || student.getEmail().endsWith("@invalid.perkhaven.local"))
+            throw new ConflictException("A valid student email address is required before portal access can be granted.");
         var username = cognitoStudents.invite(registrationNo);
-        audit.record("ENABLE_STUDENT_ACCESS", "STUDENT", registrationNo, username);
-        return new AccessResponse(registrationNo, username, "Invitation sent");
+        student.grantPortalAccess(authentication.getName());
+        audit.record("GRANT_STUDENT_PORTAL_ACCESS", "STUDENT", registrationNo, "Portal access granted by " + authentication.getName() + "; invitation sent to " + username);
+        return AccessResponse.from(student, "Portal access granted and registration invitation sent to " + student.getEmail() + ".");
+    }
+
+    @DeleteMapping("/students/{registrationNo}/access")
+    @Transactional
+    public AccessResponse disableStudentAccess(@PathVariable String registrationNo, Authentication authentication) {
+        var student = student(registrationNo);
+        student.disablePortalAccess(authentication.getName());
+        audit.record("DISABLE_STUDENT_PORTAL_ACCESS", "STUDENT", registrationNo, "Portal access disabled by " + authentication.getName());
+        return AccessResponse.from(student, "Student portal access disabled.");
+    }
+
+    @PostMapping("/students/{registrationNo}/access/restore")
+    @Transactional
+    public AccessResponse restoreStudentAccess(@PathVariable String registrationNo, Authentication authentication) {
+        var student = student(registrationNo);
+        if (student.getStatus() != RecordStatus.ACTIVE) throw new ConflictException("Portal access can only be restored for active students.");
+        if (student.getEmail() == null || student.getEmail().isBlank() || student.getEmail().endsWith("@invalid.perkhaven.local"))
+            throw new ConflictException("A valid student email address is required before portal access can be restored.");
+        student.restorePortalAccess(authentication.getName());
+        audit.record("RESTORE_STUDENT_PORTAL_ACCESS", "STUDENT", registrationNo, "Portal access restored by " + authentication.getName());
+        return AccessResponse.from(student, "Student portal access restored.");
+    }
+
+    @PostMapping("/students/{registrationNo}/access/resend")
+    @Transactional
+    public AccessResponse resendStudentInvitation(@PathVariable String registrationNo, Authentication authentication) {
+        var student = student(registrationNo);
+        if (student.getStatus() != RecordStatus.ACTIVE) throw new ConflictException("Invitations can only be sent to active students.");
+        if (!student.isPortalAccessAllowed()) throw new ConflictException("Grant Student Portal access before sending an invitation.");
+        if (student.getPortalActivatedAt() != null) throw new ConflictException("This student has already completed portal registration.");
+        var username = cognitoStudents.invite(registrationNo);
+        audit.record("RESEND_STUDENT_PORTAL_INVITATION", "STUDENT", registrationNo, "Invitation resent by " + authentication.getName() + " to " + username);
+        return AccessResponse.from(student, "Registration invitation resent to " + student.getEmail() + ".");
     }
 
     @GetMapping("/users")
@@ -93,5 +139,18 @@ public class AdminUserController {
     public record PermissionResponse(Long id, String staffNo, String permissionKey, boolean enabled) {
         static PermissionResponse from(StaffPermission permission) { return new PermissionResponse(permission.getId(), permission.getStaffNo(), permission.getPermissionKey(), permission.isEnabled()); }
     }
-    public record AccessResponse(String registrationNo, String username, String message) {}
+    private Student student(String registrationNo) {
+        return students.findByRegistrationNoIgnoreCase(registrationNo)
+                .orElseThrow(() -> new NotFoundException("Student not found."));
+    }
+
+    public record AccessResponse(String registrationNo, String email, StudentPortalAccessStatus status,
+                                 Instant grantedAt, Instant activatedAt, Instant lastLoginAt, Instant disabledAt,
+                                 String updatedBy, String message) {
+        static AccessResponse from(Student student, String message) {
+            return new AccessResponse(student.getRegistrationNo(), student.getEmail(), student.getPortalAccessStatus(),
+                    student.getPortalAccessGrantedAt(), student.getPortalActivatedAt(), student.getPortalLastLoginAt(),
+                    student.getPortalAccessDisabledAt(), student.getPortalAccessUpdatedBy(), message);
+        }
+    }
 }

@@ -239,6 +239,8 @@ class CoreApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content(studentRequest))
                 .andExpect(status().isCreated());
 
+        jdbc.update("UPDATE students SET portal_access_status = 'ACTIVE', portal_access_granted_at = CURRENT_TIMESTAMP, portal_activated_at = CURRENT_TIMESTAMP, portal_access_updated_by = 'integration-test' WHERE registration_no = ?", registrationNo);
+
         var invoiceResponse = mvc.perform(get("/api/v1/invoices").param("registrationNo", registrationNo)
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
@@ -365,9 +367,12 @@ class CoreApiIntegrationTest {
                 .andExpect(jsonPath("$.dateOfBirth").value("2003-04-15"))
                 .andExpect(jsonPath("$.hasMedicalCondition").value(true))
                 .andExpect(jsonPath("$.medicalConditionDetails").value("Carries an asthma inhaler"));
+        mvc.perform(get("/api/v1/students/PH-TEST-900").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.portalAccessStatus").value("NOT_GRANTED"));
         if (applicationEvents.stream(com.perkhaven.identity.StudentAccessRequestedEvent.class)
-                .noneMatch(event -> "PH-TEST-900".equals(event.registrationNo()))) {
-            throw new AssertionError("Expected student access invitation event after registration");
+                .anyMatch(event -> "PH-TEST-900".equals(event.registrationNo()))) {
+            throw new AssertionError("Student registration must not automatically request portal access");
         }
 
         var response = mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-TEST-900")
@@ -627,7 +632,7 @@ class CoreApiIntegrationTest {
     }
 
     @Test
-    void addingEmailToIncompleteResidentRequestsCognitoInvitationAfterSave() throws Exception {
+    void addingEmailToResidentDoesNotAutomaticallyGrantPortalAccess() throws Exception {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
         var incomplete = """
                 {"registrationNo":"PH-INVITE-905","firstName":"Invite","lastName":"Resident",
@@ -648,9 +653,12 @@ class CoreApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content(completed))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("invite.905@example.com"));
+        mvc.perform(get("/api/v1/students/PH-INVITE-905").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.portalAccessStatus").value("NOT_GRANTED"));
         if (applicationEvents.stream(com.perkhaven.identity.StudentAccessRequestedEvent.class)
                 .anyMatch(event -> "PH-INVITE-905".equals(event.registrationNo()))) {
-            throw new AssertionError("Inactive residents must not receive access invitations");
+            throw new AssertionError("Updating an email must not automatically request portal access");
         }
     }
 

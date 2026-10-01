@@ -19,7 +19,7 @@ resource "aws_acm_certificate" "cloudfront" {
     local.management_hostname,
     local.student_hostname,
   ]
-  validation_method         = "DNS"
+  validation_method = "DNS"
 
   lifecycle {
     create_before_destroy = true
