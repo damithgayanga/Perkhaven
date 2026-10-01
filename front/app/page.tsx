@@ -5047,14 +5047,16 @@ function AdminControls({
     setStudentAccessMessage(String(result.message || "Student portal access updated."));
   };
 
-  const updateStudentAccess = async (student: Student, action: "grant" | "disable" | "restore") => {
+  const updateStudentAccess = async (student: Student, action: "grant" | "disable" | "restore" | "resend") => {
     if (action === "disable" && !window.confirm(`Disable Student Portal access for ${student.firstName} ${student.lastName}? This will prevent login but will not delete any student records.`)) return;
     setStudentAccessBusy(student.registrationNo);
     setStudentAccessMessage("");
     try {
       const url = action === "restore"
         ? `/api/v1/admin/students/${encodeURIComponent(student.registrationNo)}/access/restore`
-        : `/api/v1/admin/students/${encodeURIComponent(student.registrationNo)}/access`;
+        : action === "resend"
+          ? `/api/v1/admin/students/${encodeURIComponent(student.registrationNo)}/access/resend`
+          : `/api/v1/admin/students/${encodeURIComponent(student.registrationNo)}/access`;
       const response = await fetch(url, { method: action === "disable" ? "DELETE" : "POST" });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail || "Unable to update student portal access.");
@@ -5180,7 +5182,17 @@ function AdminControls({
                           {busy ? "Updating…" : "Restore Access"}
                         </button>
                       )}
-                      {(status === "ACTIVE" || status === "PENDING_REGISTRATION") && (
+                      {status === "PENDING_REGISTRATION" && (
+                        <>
+                          <button className="secondary" disabled={busy} onClick={() => void updateStudentAccess(student, "resend")}>
+                            {busy ? "Updating…" : "Resend Invitation"}
+                          </button>
+                          <button className="secondary" disabled={busy} onClick={() => void updateStudentAccess(student, "disable")}>
+                            {busy ? "Updating…" : "Disable Access"}
+                          </button>
+                        </>
+                      )}
+                      {status === "ACTIVE" && (
                         <button className="secondary" disabled={busy} onClick={() => void updateStudentAccess(student, "disable")}>
                           {busy ? "Updating…" : "Disable Access"}
                         </button>
