@@ -3,6 +3,7 @@ package com.perkhaven.identity;
 import com.perkhaven.common.audit.AuditService;
 import com.perkhaven.common.error.ConflictException;
 import com.perkhaven.common.error.NotFoundException;
+import com.perkhaven.common.domain.RecordStatus;
 import com.perkhaven.student.Student;
 import com.perkhaven.student.StudentPortalAccessStatus;
 import com.perkhaven.student.StudentRepository;
@@ -38,6 +39,7 @@ public class AdminUserController {
     @Transactional
     public AccessResponse grantStudentAccess(@PathVariable String registrationNo, Authentication authentication) {
         var student = student(registrationNo);
+        if (student.getStatus() != RecordStatus.ACTIVE) throw new ConflictException("Portal access can only be granted to active students.");
         if (student.getEmail() == null || student.getEmail().isBlank() || student.getEmail().endsWith("@invalid.perkhaven.local"))
             throw new ConflictException("A valid student email address is required before portal access can be granted.");
         student.grantPortalAccess(authentication.getName());
@@ -58,6 +60,7 @@ public class AdminUserController {
     @Transactional
     public AccessResponse restoreStudentAccess(@PathVariable String registrationNo, Authentication authentication) {
         var student = student(registrationNo);
+        if (student.getStatus() != RecordStatus.ACTIVE) throw new ConflictException("Portal access can only be restored for active students.");
         if (student.getEmail() == null || student.getEmail().isBlank() || student.getEmail().endsWith("@invalid.perkhaven.local"))
             throw new ConflictException("A valid student email address is required before portal access can be restored.");
         student.restorePortalAccess(authentication.getName());
