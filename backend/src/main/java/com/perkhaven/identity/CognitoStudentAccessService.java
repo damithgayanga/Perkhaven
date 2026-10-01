@@ -42,9 +42,10 @@ public class CognitoStudentAccessService {
             throw new ConflictException("Student access can only be enabled for active students.");
         if (student.getEmail() == null || student.getEmail().isBlank() || student.getEmail().endsWith("@invalid.perkhaven.local"))
             throw new ConflictException("A valid student email address is required before access can be enabled.");
-        var username = student.getEmail().trim().toLowerCase(java.util.Locale.ROOT);
+        var username = student.getRegistrationNo().trim();
+        var email = student.getEmail().trim().toLowerCase(java.util.Locale.ROOT);
         var attributes = List.of(
-                AttributeType.builder().name("email").value(username).build(),
+                AttributeType.builder().name("email").value(email).build(),
                 AttributeType.builder().name("email_verified").value("true").build(),
                 AttributeType.builder().name("preferred_username").value(student.getRegistrationNo()).build());
         try {
