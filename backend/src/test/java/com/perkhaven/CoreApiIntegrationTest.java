@@ -239,6 +239,8 @@ class CoreApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content(studentRequest))
                 .andExpect(status().isCreated());
 
+        jdbc.update("UPDATE students SET portal_access_status = 'ACTIVE', portal_access_granted_at = CURRENT_TIMESTAMP, portal_activated_at = CURRENT_TIMESTAMP, portal_access_updated_by = 'integration-test' WHERE registration_no = ?", registrationNo);
+
         var invoiceResponse = mvc.perform(get("/api/v1/invoices").param("registrationNo", registrationNo)
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
