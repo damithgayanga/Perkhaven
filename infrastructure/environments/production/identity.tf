@@ -146,14 +146,8 @@ resource "aws_cognito_user_pool" "username_main" {
     attributes_require_verification_before_update = ["email"]
   }
 
-  dynamic "email_configuration" {
-    for_each = var.enable_ses_domain ? [1] : []
-    content {
-      email_sending_account  = "DEVELOPER"
-      source_arn             = aws_ses_domain_identity.main[0].arn
-      from_email_address     = "The Perk Haven <no-reply@${var.domain_name}>"
-      reply_to_email_address = "admin@${var.domain_name}"
-    }
+  email_configuration {
+    email_sending_account = "COGNITO_DEFAULT"
   }
 
   deletion_protection = "ACTIVE"
