@@ -251,6 +251,30 @@ jobs:
           role-to-assume: ${{ env.AWS_TERRAFORM_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Request SES production access when eligible
+        shell: bash
+        run: |
+          account_json=$(aws sesv2 get-account --region "$AWS_REGION")
+          production_enabled=$(jq -r '.ProductionAccessEnabled // false' <<< "$account_json")
+          review_status=$(jq -r '.Details.ReviewDetails.Status // "NONE"' <<< "$account_json")
+          echo "SES production access enabled: $production_enabled"
+          echo "SES review status: $review_status"
+
+          if [[ "$production_enabled" == "true" ]]; then
+            echo "SES production access is already enabled."
+            exit 0
+          fi
+
+          if [[ "$review_status" == "PENDING" ]]; then
+            echo "SES production access request is already pending review."
+            exit 0
+          fi
+
+          aws sesv2 put-account-details             --region "$AWS_REGION"             --production-access-enabled             --mail-type TRANSACTIONAL             --website-url "https://perkhaven.lk"             --additional-contact-email-addresses "admin@perkhaven.lk"             --contact-language EN             --use-case-description "The Perk Haven is a hostel management system for registered residents and staff. Email is strictly transactional and initiated by authenticated administrators or resident workflow events. Messages include Student Portal invitations and password setup, invoices, payment receipts, and resident status notifications. We do not send purchased-list, cold outreach, or marketing email. The perkhaven.lk domain is verified with SES DKIM and a custom MAIL FROM domain. Bounce and complaint suppression is enabled, and invalid or inactive resident addresses are blocked by the application before sending."
+
+          echo "SES production access request submitted."
+          aws sesv2 get-account             --region "$AWS_REGION"             --query '{ProductionAccessEnabled:ProductionAccessEnabled,ReviewStatus:Details.ReviewDetails.Status,CaseId:Details.ReviewDetails.CaseId}'             --output json
+
       - name: Resolve registered Route 53 hosted zone
         id: dns
         shell: bash
