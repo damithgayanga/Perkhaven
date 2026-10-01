@@ -13,13 +13,13 @@ resource "aws_acm_certificate" "cloudfront" {
   count    = var.enable_custom_domain ? 1 : 0
   provider = aws.us_east_1
 
-  domain_name = var.domain_name
+  domain_name               = var.domain_name
   subject_alternative_names = [
     "www.${var.domain_name}",
     local.management_hostname,
     local.student_hostname,
   ]
-  validation_method         = "DNS"
+  validation_method = "DNS"
 
   lifecycle {
     create_before_destroy = true
