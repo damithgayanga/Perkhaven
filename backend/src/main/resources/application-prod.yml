@@ -3,6 +3,21 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+        connectiontimeout: 10000
+        timeout: 10000
+        writetimeout: 10000
   h2:
     console:
       enabled: false
@@ -21,3 +36,9 @@ perkhaven:
   storage:
     provider: ${STORAGE_PROVIDER:s3}
     bucket: ${PERKHAVEN_STORAGE_BUCKET}
+
+  mail:
+    provider: ${PERKHAVEN_MAIL_PROVIDER:local}
+    from: ${PERKHAVEN_MAIL_FROM:no-reply@perkhaven.invalid}
+    reply-to: ${PERKHAVEN_MAIL_REPLY_TO:}
+  student-portal-url: ${PERKHAVEN_STUDENT_PORTAL_URL:https://student.perkhaven.lk}
