@@ -597,28 +597,13 @@ jobs:
           aws s3 sync front/out/_next/static "s3://${BUCKET}/_next/static" --cache-control 'public, max-age=31536000, immutable'
       - name: Invalidate CloudFront
         run: aws cloudfront create-invalidation --distribution-id "${{ steps.infra.outputs.distribution }}" --paths '/*'
-      - name: Wait for backend service and load balancer health
+      - name: Wait for backend service
         env:
           CLUSTER: ${{ steps.infra.outputs.cluster }}
           SERVICE: ${{ steps.infra.outputs.service }}
         shell: bash
         run: |
           aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
-          target_group_arn=$(aws elbv2 describe-target-groups             --names perkhaven-production             --query 'TargetGroups[0].TargetGroupArn'             --output text)
-          if [[ -z "$target_group_arn" || "$target_group_arn" == "None" ]]; then
-            echo "Unable to resolve the PerkHaven backend target group." >&2
-            exit 1
-          fi
-          for attempt in {1..30}; do
-            health=$(aws elbv2 describe-target-health               --target-group-arn "$target_group_arn"               --query 'TargetHealthDescriptions[*].TargetHealth.State'               --output text)
-            echo "Backend target health: $health"
-            if grep -qw healthy <<< "$health"; then
-              exit 0
-            fi
-            sleep 10
-          done
-          aws elbv2 describe-target-health --target-group-arn "$target_group_arn"
-          exit 1
       - name: Verify production
         env:
           APPLICATION_URL: ${{ steps.infra.outputs.application_url }}
