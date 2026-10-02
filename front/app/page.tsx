@@ -112,6 +112,19 @@ type StudentProfileRequest = {
   emailStatus: string;
   createdAt: string;
 };
+type CheckoutNoticeRequest = {
+  id: number;
+  registrationNo: string;
+  requestType: "Initial" | "Extension";
+  noticeDate: string;
+  requestedCheckoutDate: string;
+  approvedCheckoutDate?: string;
+  status: "Pending" | "Approved" | "Rejected";
+  reviewNote: string;
+  reviewedBy: string;
+  reviewedAt: string;
+  createdAt: string;
+};
 type StudentAuditEntry = {
   id: number;
   createdAt: string;
@@ -458,6 +471,7 @@ const studentFromApi = (value: Record<string, unknown>): Student => ({
   hasMedicalCondition: Boolean(value.hasMedicalCondition),
   medicalConditionDetails: String(value.medicalConditionDetails || ""),
   photoKey: value.photoName ? String(value.photoName) : undefined,
+  intendedVacateDate: value.vacatedDate ? String(value.vacatedDate) : undefined,
   status: uiStatus(String(value.status || "INACTIVE")),
   ...contactFields((value.emergencyContacts || []) as ApiContact[]),
 });
@@ -786,6 +800,7 @@ export default function Home() {
     [profileRequests, setProfileRequests] = useState<StudentProfileRequest[]>(
       [],
     ),
+    [checkoutNoticeRequests, setCheckoutNoticeRequests] = useState<CheckoutNoticeRequest[]>([]),
     [roomTransferRequests, setRoomTransferRequests] = useState<
       RoomTransferRequest[]
     >([]),
@@ -843,6 +858,8 @@ export default function Home() {
         if (paymentResponse.ok) setPayments(await paymentResponse.json());
         const profileRequestResponse = await fetch("/api/student-profile-requests");
         if (profileRequestResponse.ok) setProfileRequests((await profileRequestResponse.json()).requests || []);
+        const checkoutNoticeResponse = await fetch("/api/v1/checkout-notice-requests");
+        if (checkoutNoticeResponse.ok) setCheckoutNoticeRequests((await checkoutNoticeResponse.json()).requests || []);
       }).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load resident profile"));
       return;
     }
@@ -862,6 +879,7 @@ export default function Home() {
       fetch("/api/v1/payments").then(async (response) => { if (!response.ok) throw new Error("Unable to load payments"); setPayments(await response.json()); }),
       fetch("/api/v1/payment-evidence-submissions").then(async (response) => { if (!response.ok) throw new Error("Unable to load payment evidence"); setPaymentEvidence((await response.json()).evidence || []); }),
       fetch("/api/student-profile-requests").then(async (response) => { if (!response.ok) throw new Error("Unable to load profile edit requests"); setProfileRequests((await response.json()).requests || []); }),
+      fetch("/api/v1/checkout-notice-requests").then(async (response) => { if (!response.ok) throw new Error("Unable to load Check-Out notices"); setCheckoutNoticeRequests((await response.json()).requests || []); }),
     ]).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load registers"));
   }, [currentUser]);
   useEffect(() => {
@@ -893,7 +911,8 @@ export default function Home() {
     }
   }, [toast]);
   const active = students.filter((s) => s.status === "Active"),
-    currentResidents = active.filter((student) => !student.vacatedDate),
+    today = new Date().toISOString().slice(0, 10),
+    currentResidents = active.filter((student) => !student.vacatedDate || student.vacatedDate >= today),
     allPayments = consolidatePayments(payments),
     due = allPayments.reduce(
       (n, p) => n + Math.max(0, netPayable(p) - p.paidAmount),
@@ -948,6 +967,7 @@ export default function Home() {
         categories={expenseCategories}
         rooms={rooms}
         profileRequests={profileRequests}
+        checkoutNoticeRequests={checkoutNoticeRequests}
         roomTransferRequests={roomTransferRequests}
         requestAdded={(request) =>
           setProfileRequests((current) => [request, ...current])
@@ -1033,11 +1053,8 @@ export default function Home() {
                         expense.approvalStatus === "Pending" ||
                         expense.approvalStatus === "More Details Requested",
                     ).length +
-                    students.filter(
-                      (student) =>
-                        student.noticeToVacateDate &&
-                        (student.noticeApprovalStatus || "Pending") ===
-                          "Pending",
+                    checkoutNoticeRequests.filter(
+                      (request) => request.status === "Pending",
                     ).length +
                     roomTransferRequests.filter(
                       (request) => request.status === "Pending",
@@ -1503,6 +1520,7 @@ export default function Home() {
             payments={payments}
             expenses={expenses}
             profileRequests={profileRequests}
+            checkoutNoticeRequests={checkoutNoticeRequests}
             roomTransferRequests={roomTransferRequests}
             students={students}
             reviewer={currentUser.name}
@@ -1544,6 +1562,17 @@ export default function Home() {
                 ),
               )
             }
+            checkoutNoticeReviewed={(request, student) => {
+              setCheckoutNoticeRequests((current) =>
+                current.map((item) => (item.id === request.id ? request : item)),
+              );
+              if (student)
+                setStudents((current) =>
+                  current.map((item) =>
+                    item.registrationNo === student.registrationNo ? student : item,
+                  ),
+                );
+            }}
             roomTransferReviewed={(request, student) => {
               setRoomTransferRequests((current) =>
                 current.map((item) =>
@@ -1748,6 +1777,7 @@ function LimitedPortal({
   categories: ExpenseCategory[];
   rooms: Room[];
   profileRequests: StudentProfileRequest[];
+  checkoutNoticeRequests: CheckoutNoticeRequest[];
   roomTransferRequests: RoomTransferRequest[];
   requestAdded: (request: StudentProfileRequest) => void;
   roomTransferRequestAdded: (request: RoomTransferRequest) => void;
@@ -3154,11 +3184,10 @@ function StudentSelfService({
         <StudentVacatingNotice
           student={student}
           close={() => setGivingNotice(false)}
-          saved={(updated) => {
-            studentUpdated(updated);
+          saved={(request) => {
             setGivingNotice(false);
             setMessage(
-              `Notice received. Your intended check-out date is ${fmtDate(updated.intendedVacateDate || "")}.`,
+              `${request.requestType === "Extension" ? "Extension request" : "Check-Out notice"} submitted for management approval. Requested date: ${fmtDate(request.requestedCheckoutDate)}.`,
             );
           }}
         />
@@ -3599,48 +3628,47 @@ function StudentVacatingNotice({
 }: {
   student: Student;
   close: () => void;
-  saved: (student: Student) => void;
+  saved: (request: CheckoutNoticeRequest) => void;
 }) {
   const noticeDate = new Date().toISOString().slice(0, 10);
-  const isAmendment = Boolean(student.noticeToVacateDate);
-  const originalNoticeDate = student.noticeToVacateDate || noticeDate;
+  const isExtension = Boolean(student.noticeToVacateDate && student.vacatedDate);
   const earliestAllowedDate = (() => {
-    const date = new Date(`${originalNoticeDate}T00:00:00Z`),
-      day = date.getUTCDate();
+    if (isExtension) {
+      const date = new Date(`${student.vacatedDate}T00:00:00Z`);
+      date.setUTCDate(date.getUTCDate() + 1);
+      return date.toISOString().slice(0, 10);
+    }
+    const date = new Date(`${noticeDate}T00:00:00Z`);
+    const day = date.getUTCDate();
     date.setUTCDate(1);
     date.setUTCMonth(date.getUTCMonth() + 1);
     const lastDay = new Date(
       Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
     ).getUTCDate();
     date.setUTCDate(Math.min(day, lastDay));
+    date.setUTCDate(date.getUTCDate() - 1);
     return date.toISOString().slice(0, 10);
   })();
-  const [intendedDate, setIntendedDate] = useState(
-      isAmendment
-        ? student.intendedVacateDate || earliestAllowedDate
-        : earliestAllowedDate,
-    ),
+  const [intendedDate, setIntendedDate] = useState(earliestAllowedDate),
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false);
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
     setError("");
-    const response = await fetch("/api/students", {
-      method: "PATCH",
+    const response = await fetch("/api/v1/checkout-notice-requests", {
+      method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        kind: "noticeToVacate",
-        registrationNo: student.registrationNo,
-        intendedVacateDate: intendedDate,
-      }),
+      body: JSON.stringify({ requestedCheckoutDate: intendedDate }),
     });
     const result = await response.json();
     setSaving(false);
     if (!response.ok)
-      return setError(result.error || "Unable to submit notice.");
-    saved(result.student);
+      return setError(result.detail || result.error || "Unable to submit notice.");
+    saved(result.request);
   };
+
   return (
     <div className="backdrop">
       <form
@@ -3649,44 +3677,37 @@ function StudentVacatingNotice({
       >
         <ModalHead
           tag="RESIDENT PORTAL"
-          title={isAmendment ? "Amend Check-Out Notice" : "Notice to Check-Out"}
+          title={isExtension ? "Request Check-Out Date Extension" : "Notice to Check-Out"}
           text={`${student.registrationNo} · ${student.firstName} ${student.lastName}`}
           close={close}
         />
         <div className="vacating-notice-body">
           <div className="notice-rule">
-            <b>Minimum one month notice is required</b>
+            <b>{isExtension ? "Management approval is required" : "Minimum one month notice is required"}</b>
             <p>
-              {isAmendment
-                ? "You may move the intended check-out date earlier or later. It must remain at least one full calendar month after the original notice date."
-                : "Your intended check-out date must be at least one full month after the date this notice is submitted."}
+              {isExtension
+                ? "You may request a later Check-Out date. Your current approved date remains unchanged until management approves the extension."
+                : "Your intended Check-Out date must be at least one month less one day from the date this notice is submitted."}
             </p>
           </div>
           <div className="notice-date-summary">
             <span>
-              <small>
-                {isAmendment ? "ORIGINAL NOTICE TO CHECK-OUT DATE" : "NOTICE TO CHECK-OUT DATE"}
-              </small>
-              <b>{fmtDate(originalNoticeDate)}</b>
+              <small>{isExtension ? "ORIGINAL NOTICE TO CHECK-OUT DATE" : "NOTICE TO CHECK-OUT DATE"}</small>
+              <b>{fmtDate(student.noticeToVacateDate || noticeDate)}</b>
             </span>
             <span>
               <small>EARLIEST ALLOWED DATE</small>
               <b>{fmtDate(earliestAllowedDate)}</b>
             </span>
           </div>
-          {isAmendment && (
+          {isExtension && (
             <div className="existing-notice">
-              <b>Current intended check-out date</b>
-              <p>{fmtDate(student.intendedVacateDate || "")}</p>
-              {student.noticeAmendedDate && (
-                <p>Last amended: {fmtDate(student.noticeAmendedDate)}</p>
-              )}
+              <b>Current approved Check-Out date</b>
+              <p>{fmtDate(student.vacatedDate || "")}</p>
             </div>
           )}
           <label>
-            {isAmendment
-              ? "Amend intended check-out date to"
-              : "Intended Check-Out date"}
+            {isExtension ? "Requested extended Check-Out date" : "Intended Check-Out date"}
             <input
               type="date"
               min={earliestAllowedDate}
@@ -3698,18 +3719,9 @@ function StudentVacatingNotice({
           {error && <p className="form-error">⚠ {error}</p>}
         </div>
         <footer className="student-modal-actions">
-          <button type="button" onClick={close}>
-            Cancel
-          </button>
-          <button
-            className="primary"
-            disabled={saving || intendedDate < earliestAllowedDate}
-          >
-            {saving
-              ? "Submitting…"
-              : isAmendment
-                ? "Submit amendment"
-                : "Submit notice"}
+          <button type="button" onClick={close}>Cancel</button>
+          <button className="primary" disabled={saving || intendedDate < earliestAllowedDate}>
+            {saving ? "Submitting…" : isExtension ? "Submit extension request" : "Submit notice"}
           </button>
         </footer>
       </form>
@@ -7561,6 +7573,7 @@ type ActionListProps = {
   payments: Payment[];
   expenses: Expense[];
   profileRequests: StudentProfileRequest[];
+  checkoutNoticeRequests: CheckoutNoticeRequest[];
   roomTransferRequests: RoomTransferRequest[];
   students: Student[];
   reviewer: string;
@@ -7568,6 +7581,7 @@ type ActionListProps = {
   evidenceReviewed: (entry: StudentPaymentEvidence, payment?: Payment) => void;
   expenseUpdated: (expense: Expense) => void;
   profileReviewed: (request: StudentProfileRequest, student?: Student) => void;
+  checkoutNoticeReviewed: (request: CheckoutNoticeRequest, student?: Student) => void;
   roomTransferReviewed: (
     request: RoomTransferRequest,
     student?: Student,
@@ -7587,6 +7601,7 @@ function ActionList(props: ActionListProps) {
     paymentEvidence,
     expenses,
     profileRequests,
+    checkoutNoticeRequests,
     roomTransferRequests,
     students,
     reviewer,
@@ -7594,6 +7609,7 @@ function ActionList(props: ActionListProps) {
     evidenceReviewed,
     expenseUpdated,
     profileReviewed,
+    checkoutNoticeReviewed,
     studentUpdated,
     roomTransferReviewed,
     go,
@@ -7638,11 +7654,11 @@ function ActionList(props: ActionListProps) {
         ? "Closed"
         : "Pending";
   const noticeStatus = (
-    student: Student,
+    entry: CheckoutNoticeRequest,
   ): "Pending" | "Completed" | "Closed" =>
-    student.noticeApprovalStatus === "Approved"
+    entry.status === "Approved"
       ? "Completed"
-      : student.noticeApprovalStatus === "Rejected"
+      : entry.status === "Rejected"
         ? "Closed"
         : "Pending";
   const roomTransferStatus = (
@@ -7667,9 +7683,8 @@ function ActionList(props: ActionListProps) {
   const visibleProfiles = profileRequests.filter((entry) =>
     actionMatches(filter, profileStatus(entry)),
   );
-  const visibleNotices = students.filter(
-    (entry) =>
-      entry.noticeToVacateDate && actionMatches(filter, noticeStatus(entry)),
+  const visibleNotices = checkoutNoticeRequests.filter((entry) =>
+    actionMatches(filter, noticeStatus(entry)),
   );
   const visibleRoomTransfers = roomTransferRequests.filter((entry) =>
     actionMatches(filter, roomTransferStatus(entry)),
@@ -7687,8 +7702,8 @@ function ActionList(props: ActionListProps) {
     "Profile Edit Approval": profileRequests.filter(
       (entry) => profileStatus(entry) === "Pending",
     ).length,
-    "Check-Out Notice Approval": students.filter(
-      (entry) => entry.noticeToVacateDate && noticeStatus(entry) === "Pending",
+    "Check-Out Notice Approval": checkoutNoticeRequests.filter(
+      (entry) => noticeStatus(entry) === "Pending",
     ).length,
     "Hostel Room Change Approval": roomTransferRequests.filter(
       (entry) => roomTransferStatus(entry) === "Pending",
@@ -7756,9 +7771,10 @@ function ActionList(props: ActionListProps) {
       )}
       {tab === "Check-Out Notice Approval" && (
         <ActionVacatingNotices
-          students={visibleNotices}
+          requests={visibleNotices}
+          students={students}
           reviewer={reviewer}
-          updated={studentUpdated}
+          reviewed={checkoutNoticeReviewed}
           statusFor={noticeStatus}
         />
       )}
@@ -8344,42 +8360,49 @@ function ActionExpenses({
 }
 
 function ActionVacatingNotices({
+  requests,
   students,
-  reviewer,
-  updated,
+  reviewer: _reviewer,
+  reviewed,
   statusFor,
 }: {
+  requests: CheckoutNoticeRequest[];
   students: Student[];
   reviewer: string;
-  updated: (student: Student) => void;
-  statusFor: (student: Student) => "Pending" | "Completed" | "Closed";
+  reviewed: (request: CheckoutNoticeRequest, student?: Student) => void;
+  statusFor: (request: CheckoutNoticeRequest) => "Pending" | "Completed" | "Closed";
 }) {
-  const [notes, setNotes] = useState<Record<string, string>>({}),
-    [busy, setBusy] = useState(""),
+  const [notes, setNotes] = useState<Record<number, string>>({}),
+    [approvedDates, setApprovedDates] = useState<Record<number, string>>({}),
+    [busy, setBusy] = useState(0),
     [error, setError] = useState("");
+
   const decide = async (
-    student: Student,
+    request: CheckoutNoticeRequest,
     decision: "Approved" | "Rejected",
   ) => {
-    setBusy(student.registrationNo);
+    setBusy(request.id);
     setError("");
-    const response = await fetch("/api/students", {
+    const response = await fetch("/api/v1/checkout-notice-requests", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        kind: "noticeReview",
-        registrationNo: student.registrationNo,
+        id: request.id,
         decision,
-        reviewNote: notes[student.registrationNo] || "",
-        reviewedBy: reviewer,
+        approvedCheckoutDate:
+          decision === "Approved"
+            ? approvedDates[request.id] || request.requestedCheckoutDate
+            : null,
+        reviewNote: notes[request.id] || "",
       }),
     });
     const result = await response.json();
-    setBusy("");
+    setBusy(0);
     if (!response.ok)
-      return setError(result.error || "Unable to review notice.");
-    updated(result.student);
+      return setError(result.detail || result.error || "Unable to review notice.");
+    reviewed(result.request, result.student ? studentFromApi(result.student) : undefined);
   };
+
   return (
     <section className="panel payment-section">
       <div className="section-heading">
@@ -8395,7 +8418,9 @@ function ActionVacatingNotices({
             <tr>
               <th>REGISTRATION</th>
               <th>RESIDENT</th>
-              <th>INTENDED CHECK-OUT DATE</th>
+              <th>REQUEST TYPE</th>
+              <th>REQUESTED DATE</th>
+              <th>APPROVED DATE</th>
               <th>ACTION STATUS</th>
               <th>LOGGED DATE</th>
               <th>ACTION DATE</th>
@@ -8403,75 +8428,74 @@ function ActionVacatingNotices({
             </tr>
           </thead>
           <tbody>
-            {students.map((student) => {
-              const status = statusFor(student);
+            {requests.map((request) => {
+              const status = statusFor(request);
+              const student = students.find(
+                (item) => item.registrationNo === request.registrationNo,
+              );
               return (
-                <tr key={student.registrationNo}>
+                <tr key={request.id}>
+                  <td><b className="transaction-id">{request.registrationNo}</b></td>
                   <td>
-                    <b className="transaction-id">{student.registrationNo}</b>
+                    {student ? `${student.firstName} ${student.lastName}` : request.registrationNo}
+                    <small>{student?.roomNo ? `Hostel Room ${student.roomNo}` : ""}</small>
                   </td>
+                  <td>{request.requestType === "Extension" ? "Extension" : "Initial notice"}</td>
+                  <td><b>{fmtDate(request.requestedCheckoutDate)}</b></td>
                   <td>
-                    {student.firstName} {student.lastName}
-                    <small>Hostel Room {student.roomNo}</small>
+                    {status === "Pending" ? (
+                      <input
+                        type="date"
+                        value={approvedDates[request.id] || request.requestedCheckoutDate}
+                        onChange={(event) =>
+                          setApprovedDates((current) => ({
+                            ...current,
+                            [request.id]: event.target.value,
+                          }))
+                        }
+                        aria-label="Approved Check-Out date"
+                      />
+                    ) : fmtDate(request.approvedCheckoutDate || "")}
                   </td>
-                  <td>
-                    <b>{fmtDate(student.intendedVacateDate || "")}</b>
-                  </td>
-                  <td>
-                    <span className={`action-status ${status.toLowerCase()}`}>
-                      {status}
-                    </span>
-                  </td>
-                  <td>{fmtDate(student.noticeToVacateDate || "")}</td>
-                  <td>
-                    {student.noticeReviewedAt
-                      ? fmtDate(student.noticeReviewedAt.slice(0, 10))
-                      : "—"}
-                  </td>
+                  <td><span className={`action-status ${status.toLowerCase()}`}>{status}</span></td>
+                  <td>{fmtDate(request.noticeDate)}</td>
+                  <td>{request.reviewedAt ? fmtDate(request.reviewedAt.slice(0, 10)) : "—"}</td>
                   <td>
                     {status === "Pending" ? (
                       <div className="evidence-review-actions">
                         <input
-                          value={notes[student.registrationNo] || ""}
+                          value={notes[request.id] || ""}
                           onChange={(event) =>
                             setNotes((current) => ({
                               ...current,
-                              [student.registrationNo]: event.target.value,
+                              [request.id]: event.target.value,
                             }))
                           }
                           placeholder="Management note"
                         />
                         <button
                           className="reject-button"
-                          disabled={busy === student.registrationNo}
-                          onClick={() => decide(student, "Rejected")}
-                        >
-                          Reject
-                        </button>
+                          disabled={busy === request.id}
+                          onClick={() => decide(request, "Rejected")}
+                        >Reject</button>
                         <button
                           className="primary compact"
-                          disabled={busy === student.registrationNo}
-                          onClick={() => decide(student, "Approved")}
-                        >
-                          Approve
-                        </button>
+                          disabled={busy === request.id}
+                          onClick={() => decide(request, "Approved")}
+                        >Approve</button>
                       </div>
                     ) : (
                       <small>
-                        {student.noticeReviewedBy}
-                        {student.noticeReviewNote
-                          ? ` · ${student.noticeReviewNote}`
-                          : ""}
+                        {request.reviewedBy}
+                        {request.reviewNote ? ` · ${request.reviewNote}` : ""}
                       </small>
                     )}
                   </td>
                 </tr>
               );
             })}
-            {!students.length && (
-              <tr>
-                <td colSpan={7}>No actions match this filter.</td>
-              </tr>
+            {!requests.length && (
+              <tr><td colSpan={9}>No actions match this filter.</td></tr>
             )}
           </tbody>
         </table>

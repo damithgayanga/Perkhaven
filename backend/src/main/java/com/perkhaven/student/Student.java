@@ -133,6 +133,11 @@ public class Student extends AuditedEntity {
         portalAccessDisabledAt = null;
         portalAccessUpdatedBy = actor;
     }
+    public void approveCheckoutNotice(LocalDate noticeDate, LocalDate checkoutDate) {
+        if (this.noticeToVacateDate == null) this.noticeToVacateDate = noticeDate;
+        this.vacatedDate = checkoutDate;
+    }
+
     public void recordPortalLogin() {
         var now = Instant.now();
         if (portalAccessStatus == StudentPortalAccessStatus.PENDING_REGISTRATION) {
