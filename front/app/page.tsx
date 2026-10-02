@@ -99,6 +99,15 @@ type RoomTransferRequest = {
   reviewedAt: string;
   createdAt: string;
 };
+type RoomTransferAvailability = {
+  roomNo: string;
+  type: string;
+  price: number;
+  beds: number;
+  availabilityStatus: "Vacant" | "Vacant Soon" | "Occupied";
+  availableDate: string;
+  daysUntilVacant: number;
+};
 type StudentProfileRequest = {
   id: number;
   registrationNo: string;
@@ -860,6 +869,8 @@ export default function Home() {
         if (profileRequestResponse.ok) setProfileRequests((await profileRequestResponse.json()).requests || []);
         const checkoutNoticeResponse = await fetch("/api/v1/checkout-notice-requests");
         if (checkoutNoticeResponse.ok) setCheckoutNoticeRequests((await checkoutNoticeResponse.json()).requests || []);
+        const roomTransferResponse = await fetch("/api/v1/room-transfer-requests");
+        if (roomTransferResponse.ok) setRoomTransferRequests((await roomTransferResponse.json()).requests || []);
       }).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load resident profile"));
       return;
     }
@@ -880,6 +891,7 @@ export default function Home() {
       fetch("/api/v1/payment-evidence-submissions").then(async (response) => { if (!response.ok) throw new Error("Unable to load payment evidence"); setPaymentEvidence((await response.json()).evidence || []); }),
       fetch("/api/student-profile-requests").then(async (response) => { if (!response.ok) throw new Error("Unable to load profile edit requests"); setProfileRequests((await response.json()).requests || []); }),
       fetch("/api/v1/checkout-notice-requests").then(async (response) => { if (!response.ok) throw new Error("Unable to load Check-Out notices"); setCheckoutNoticeRequests((await response.json()).requests || []); }),
+      fetch("/api/v1/room-transfer-requests").then(async (response) => { if (!response.ok) throw new Error("Unable to load hostel room-change requests"); setRoomTransferRequests((await response.json()).requests || []); }),
     ]).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load registers"));
   }, [currentUser]);
   useEffect(() => {
@@ -3293,8 +3305,8 @@ function StudentSelfService({
 
 function StudentRoomTransferRequest({
   student,
-  rooms,
-  residents,
+  rooms: _rooms,
+  residents: _residents,
   pending,
   close,
   saved,
@@ -3306,71 +3318,66 @@ function StudentRoomTransferRequest({
   close: () => void;
   saved: (request: RoomTransferRequest) => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const [roomNo, setRoomNo] = useState(""),
-    [intendedStartDate, setIntendedStartDate] = useState(today),
-    [availabilityPreference, setAvailabilityPreference] = useState<
-      "Vacant Now" | "Earliest Available"
-    >("Vacant Now"),
+  const [availableRooms, setAvailableRooms] = useState<RoomTransferAvailability[]>([]),
+    [roomNo, setRoomNo] = useState(""),
+    [intendedStartDate, setIntendedStartDate] = useState(""),
     [reason, setReason] = useState(""),
     [saving, setSaving] = useState(false),
+    [loadingRooms, setLoadingRooms] = useState(true),
     [error, setError] = useState("");
-  const roomAvailability = (room: Room) => {
-    const occupants = residents.filter(
-      (entry) =>
-        entry.registrationNo !== student.registrationNo &&
-        entry.status === "Active" &&
-        entry.roomNo === room.roomNo &&
-        (!entry.vacatedDate || entry.vacatedDate >= today),
-    );
-    const vacant = occupants.length < room.beds;
-    const datedVacancies = occupants
-      .map((entry) => entry.vacatedDate || "")
-      .filter(Boolean)
-      .sort();
-    const lastVacate = datedVacancies.at(-1) || "";
-    const earliest = lastVacate
-      ? (() => {
-          const date = new Date(`${lastVacate}T00:00:00Z`);
-          date.setUTCDate(date.getUTCDate() + 1);
-          return date.toISOString().slice(0, 10);
-        })()
-      : "";
-    return { vacant, earliest, occupants: occupants.length };
-  };
-  const available = rooms.filter((room) => room.roomNo !== student.roomNo);
-  const selected = rooms.find((room) => room.roomNo === roomNo);
-  const selectedAvailability = selected ? roomAvailability(selected) : null;
+
+  useEffect(() => {
+    if (pending) {
+      setLoadingRooms(false);
+      return;
+    }
+    void fetch("/api/v1/room-transfer-requests/availability")
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || result.error || "Unable to load available hostel rooms.");
+        setAvailableRooms(result.rooms || []);
+      })
+      .catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to load available hostel rooms."))
+      .finally(() => setLoadingRooms(false));
+  }, [pending]);
+
+  const selected = availableRooms.find((room) => room.roomNo === roomNo);
+  useEffect(() => {
+    if (selected?.availableDate) setIntendedStartDate(selected.availableDate);
+  }, [selected?.availableDate]);
+
   const revisedDeposit = selected ? selected.price * 3 : 0;
   const depositBalance = Math.max(0, revisedDeposit - student.depositPayable);
+
+  const availabilityLabel = (room: RoomTransferAvailability) =>
+    room.daysUntilVacant <= 0
+      ? "Vacant"
+      : `Vacant in ${room.daysUntilVacant} day${room.daysUntilVacant === 1 ? "" : "s"}`;
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (pending) return;
     setSaving(true);
     setError("");
-    const response = await fetch("/api/room-transfer-requests", {
+    const response = await fetch("/api/v1/room-transfer-requests", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        registrationNo: student.registrationNo,
         requestedRoomNo: roomNo,
         intendedStartDate,
-        availabilityPreference,
         reason,
       }),
     });
     const result = await response.json();
     setSaving(false);
     if (!response.ok)
-      return setError(result.error || "Unable to submit hostel room-change request.");
+      return setError(result.detail || result.error || "Unable to submit hostel room-change request.");
     saved(result.request);
   };
+
   return (
     <div className="backdrop">
-      <form
-        className="modal paymentmodal room-transfer-modal"
-        onSubmit={submit}
-      >
+      <form className="modal paymentmodal room-transfer-modal" onSubmit={submit}>
         <ModalHead
           tag="RESIDENT PORTAL"
           title="Request Hostel Room Change"
@@ -3381,128 +3388,80 @@ function StudentRoomTransferRequest({
           {pending ? (
             <div className="notice-rule">
               <b>Request awaiting approval</b>
-              <p>
-
-                You already have a hostel room-change request pending with management.
-              </p>
+              <p>You already have a hostel room-change request pending with management.</p>
             </div>
           ) : (
             <>
               <div className="notice-rule">
                 <b>Management approval is required</b>
                 <p>
-
-                  Your hostel room and security deposit will not change until management
-                  approves the request and confirms the effective transfer date.
+                  Only rooms that are vacant now or expected to become vacant within the next 30 days are shown.
+                  Your current hostel room remains unchanged until management approves the request.
                 </p>
               </div>
               <label>
-
                 Requested hostel room
                 <select
                   value={roomNo}
                   onChange={(event) => setRoomNo(event.target.value)}
+                  disabled={loadingRooms}
                   required
                 >
-                  <option value="">Select a hostel room</option>
-                  {available.map((room) => {
-                    const availability = roomAvailability(room);
-                    return (
-                      <option key={room.roomNo} value={room.roomNo}>
-                        {room.roomNo} · {room.type} · {cash.format(room.price)}{" "}
-                        per month ·{" "}
-                        {availability.vacant
-                          ? "Vacant"
-                          : availability.earliest
-                            ? `Available ${fmtDate(availability.earliest)}`
-                            : "Occupied — date not yet known"}
-                      </option>
-                    );
-                  })}
+                  <option value="">{loadingRooms ? "Loading available rooms…" : "Select a hostel room"}</option>
+                  {availableRooms.map((room) => (
+                    <option key={room.roomNo} value={room.roomNo}>
+                      {room.roomNo} · {room.type} · {cash.format(room.price)} per month · {availabilityLabel(room)}
+                    </option>
+                  ))}
                 </select>
               </label>
+              {!loadingRooms && !availableRooms.length && (
+                <div className="notice-rule">
+                  <b>No rooms currently available</b>
+                  <p>No alternative hostel rooms are vacant now or becoming vacant within the next 30 days.</p>
+                </div>
+              )}
               {selected && (
                 <>
                   <div className="notice-date-summary room-change-summary">
                     <span>
                       <small>HOSTEL ROOM STATUS</small>
-                      <b>
-                        {selectedAvailability?.vacant
-                          ? "Vacant"
-                          : selectedAvailability?.earliest
-                            ? `Available ${fmtDate(selectedAvailability.earliest)}`
-                            : "Occupied"}
-                      </b>
+                      <b>{availabilityLabel(selected)}</b>
                     </span>
                     <span>
-                      <small>INTENDED ACCOMMODATION START DATE</small>
-                      <b>{fmtDate(intendedStartDate)}</b>
+                      <small>EARLIEST AVAILABLE DATE</small>
+                      <b>{fmtDate(selected.availableDate)}</b>
                     </span>
                     <span>
                       <small>CURRENT SECURITY DEPOSIT</small>
                       <b>{cash.format(student.depositPayable)}</b>
                     </span>
                     <span>
-                      <small>BALANCE PAYMENT</small>
+                      <small>ESTIMATED BALANCE PAYMENT</small>
                       <b>{cash.format(depositBalance)}</b>
                     </span>
                     <span>
-                      <small>ESTIMATED MONTHLY ACCOMMODATION FEE</small>
+                      <small>MONTHLY ACCOMMODATION FEE</small>
                       <b>{cash.format(selected.price)}</b>
                     </span>
                     <span>
                       <small>STANDARD SECURITY DEPOSIT</small>
-                      <b>{cash.format(selected.price * 3)}</b>
+                      <b>{cash.format(revisedDeposit)}</b>
                     </span>
                   </div>
                   <label>
-
-                    Intended accommodation start date
+                    Intended room-change date
                     <input
                       type="date"
-                      min={today}
+                      min={selected.availableDate}
                       value={intendedStartDate}
-                      onChange={(event) =>
-                        setIntendedStartDate(event.target.value)
-                      }
+                      onChange={(event) => setIntendedStartDate(event.target.value)}
                       required
                     />
                   </label>
-                  {!selectedAvailability?.vacant && (
-                    <div className="notice-rule">
-                      <b>This hostel room is currently occupied</b>
-                      <p>
-                        {selectedAvailability?.earliest
-                          ? `It is expected to be available from ${fmtDate(selectedAvailability.earliest)}.`
-                          : "An availability date has not yet been recorded."}{" "}
-
-                        You may request the earliest available date and the
-                        system will notify you when a confirmed check-out date is
-                        recorded.
-                      </p>
-                      <label className="choice-line">
-                        <input
-                          type="checkbox"
-                          checked={
-                            availabilityPreference === "Earliest Available"
-                          }
-                          onChange={(event) =>
-                            setAvailabilityPreference(
-                              event.target.checked
-                                ? "Earliest Available"
-                                : "Vacant Now",
-                            )
-                          }
-                        />{" "}
-
-                        Request this hostel room from its earliest available date
-                      </label>
-                    </div>
-                  )}
-                </>
+              </>
               )}
               <label>
-
                 Reason for requesting a hostel room change
                 <textarea
                   rows={4}
@@ -3516,20 +3475,9 @@ function StudentRoomTransferRequest({
           {error && <p className="form-error">⚠ {error}</p>}
         </div>
         <footer className="student-modal-actions">
-          <button type="button" onClick={close}>
-            Cancel
-          </button>
+          <button type="button" onClick={close}>Cancel</button>
           {!pending && (
-            <button
-              className="primary"
-              disabled={
-                saving ||
-                !roomNo ||
-                !intendedStartDate ||
-                (!selectedAvailability?.vacant &&
-                  availabilityPreference !== "Earliest Available")
-              }
-            >
+            <button className="primary" disabled={saving || !roomNo || !intendedStartDate}>
               {saving ? "Submitting…" : "Submit request"}
             </button>
           )}
@@ -3557,7 +3505,7 @@ function StudentRoomAvailabilityResponse({
     if (busy) return;
     setBusy(true);
     setError("");
-    const response = await fetch("/api/room-transfer-requests", {
+    const response = await fetch("/api/v1/room-transfer-requests", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -8092,7 +8040,7 @@ function RoomTransferApproval({
     if (busy) return;
     setBusy(true);
     setError("");
-    const response = await fetch("/api/room-transfer-requests", {
+    const response = await fetch("/api/v1/room-transfer-requests", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -8107,7 +8055,7 @@ function RoomTransferApproval({
     });
     const result = await response.json();
     if (!response.ok) {
-      setError(result.error || "Unable to review hostel room change.");
+      setError(result.detail || result.error || "Unable to review hostel room change.");
       setBusy(false);
       return;
     }
