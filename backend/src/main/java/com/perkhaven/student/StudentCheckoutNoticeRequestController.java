@@ -3,6 +3,7 @@ package com.perkhaven.student;
 import com.perkhaven.common.error.NotFoundException;
 import com.perkhaven.security.StudentIdentityResolver;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +68,7 @@ public class StudentCheckoutNoticeRequestController {
             throw new IllegalArgumentException("A Check-Out request is already awaiting management approval.");
         }
 
-        var today = LocalDate.now();
+        var today = LocalDate.now(ZoneId.of("Asia/Colombo"));
         var initialNotice = student.getNoticeToVacateDate() == null;
         var requestType = initialNotice ? "Initial" : "Extension";
 
