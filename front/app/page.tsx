@@ -841,6 +841,8 @@ export default function Home() {
         if (evidenceResponse.ok) setPaymentEvidence((await evidenceResponse.json()).evidence || []);
         const paymentResponse = await fetch("/api/v1/payments");
         if (paymentResponse.ok) setPayments(await paymentResponse.json());
+        const profileRequestResponse = await fetch("/api/student-profile-requests");
+        if (profileRequestResponse.ok) setProfileRequests((await profileRequestResponse.json()).requests || []);
       }).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load resident profile"));
       return;
     }
@@ -859,6 +861,7 @@ export default function Home() {
       page<StudentInvoice>("/api/v1/invoices").then((result) => setStudentInvoices(result.items)),
       fetch("/api/v1/payments").then(async (response) => { if (!response.ok) throw new Error("Unable to load payments"); setPayments(await response.json()); }),
       fetch("/api/v1/payment-evidence-submissions").then(async (response) => { if (!response.ok) throw new Error("Unable to load payment evidence"); setPaymentEvidence((await response.json()).evidence || []); }),
+      fetch("/api/student-profile-requests").then(async (response) => { if (!response.ok) throw new Error("Unable to load profile edit requests"); setProfileRequests((await response.json()).requests || []); }),
     ]).catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load registers"));
   }, [currentUser]);
   useEffect(() => {
