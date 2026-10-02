@@ -22,8 +22,7 @@ CREATE TABLE student_room_transfer_requests (
 );
 
 CREATE UNIQUE INDEX uq_student_room_transfer_request_no
-    ON student_room_transfer_requests(request_no)
-    WHERE request_no IS NOT NULL;
+    ON student_room_transfer_requests(request_no);
 
 CREATE INDEX idx_student_room_transfer_registration
     ON student_room_transfer_requests(registration_no, created_at DESC);
