@@ -967,6 +967,7 @@ export default function Home() {
         categories={expenseCategories}
         rooms={rooms}
         profileRequests={profileRequests}
+        checkoutNoticeRequests={checkoutNoticeRequests}
         roomTransferRequests={roomTransferRequests}
         requestAdded={(request) =>
           setProfileRequests((current) => [request, ...current])
@@ -7572,6 +7573,7 @@ type ActionListProps = {
   payments: Payment[];
   expenses: Expense[];
   profileRequests: StudentProfileRequest[];
+  checkoutNoticeRequests: CheckoutNoticeRequest[];
   roomTransferRequests: RoomTransferRequest[];
   students: Student[];
   reviewer: string;
