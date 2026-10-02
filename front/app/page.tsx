@@ -3323,14 +3323,11 @@ function StudentRoomTransferRequest({
     [intendedStartDate, setIntendedStartDate] = useState(""),
     [reason, setReason] = useState(""),
     [saving, setSaving] = useState(false),
-    [loadingRooms, setLoadingRooms] = useState(true),
+    [loadingRooms, setLoadingRooms] = useState(!pending),
     [error, setError] = useState("");
 
   useEffect(() => {
-    if (pending) {
-      setLoadingRooms(false);
-      return;
-    }
+    if (pending) return;
     void fetch("/api/v1/room-transfer-requests/availability")
       .then(async (response) => {
         const result = await response.json();
@@ -3342,9 +3339,6 @@ function StudentRoomTransferRequest({
   }, [pending]);
 
   const selected = availableRooms.find((room) => room.roomNo === roomNo);
-  useEffect(() => {
-    if (selected?.availableDate) setIntendedStartDate(selected.availableDate);
-  }, [selected?.availableDate]);
 
   const revisedDeposit = selected ? selected.price * 3 : 0;
   const depositBalance = Math.max(0, revisedDeposit - student.depositPayable);
@@ -3403,7 +3397,12 @@ function StudentRoomTransferRequest({
                 Requested hostel room
                 <select
                   value={roomNo}
-                  onChange={(event) => setRoomNo(event.target.value)}
+                  onChange={(event) => {
+                    const nextRoomNo = event.target.value;
+                    setRoomNo(nextRoomNo);
+                    const nextRoom = availableRooms.find((room) => room.roomNo === nextRoomNo);
+                    setIntendedStartDate(nextRoom?.availableDate || "");
+                  }}
                   disabled={loadingRooms}
                   required
                 >
