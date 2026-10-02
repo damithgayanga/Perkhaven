@@ -138,6 +138,12 @@ public class Student extends AuditedEntity {
         this.vacatedDate = checkoutDate;
     }
 
+    public void applyRoomTransfer(Room room, BigDecimal monthlyRent, BigDecimal depositPayable) {
+        this.room = room;
+        this.monthlyRent = monthlyRent;
+        this.depositPayable = depositPayable;
+    }
+
     public void recordPortalLogin() {
         var now = Instant.now();
         if (portalAccessStatus == StudentPortalAccessStatus.PENDING_REGISTRATION) {
