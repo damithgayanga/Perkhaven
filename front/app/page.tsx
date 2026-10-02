@@ -3638,7 +3638,13 @@ function StudentVacatingNotice({
       return date.toISOString().slice(0, 10);
     }
     const date = new Date(`${noticeDate}T00:00:00Z`);
+    const day = date.getUTCDate();
+    date.setUTCDate(1);
     date.setUTCMonth(date.getUTCMonth() + 1);
+    const lastDay = new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+    ).getUTCDate();
+    date.setUTCDate(Math.min(day, lastDay));
     date.setUTCDate(date.getUTCDate() - 1);
     return date.toISOString().slice(0, 10);
   })();
