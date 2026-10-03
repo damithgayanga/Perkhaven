@@ -19351,13 +19351,37 @@ function Profile({
     }).catch(() => { if (active) { setProfileAgreements([]); setProfileSettlements([]); setProfileAudit([]); } });
     return () => { active = false; };
   }, [student.registrationNo]);
-  const latestTransfer = [...roomTransferRequests]
-    .filter((request) => request.status === "Completed")
+  const completedTransfers = [...roomTransferRequests]
+    .filter(
+      (request) =>
+        request.status === "Approved" || request.status === "Completed",
+    )
     .sort((a, b) =>
       (b.transferDate || b.reviewedAt).localeCompare(
         a.transferDate || a.reviewedAt,
       ),
-    )[0];
+    );
+  const latestTransfer = completedTransfers[0];
+  const roomTransferHistoryRows: string[][] = completedTransfers.flatMap(
+    (transfer, index) => [
+      [
+        completedTransfers.length === 1
+          ? "Previous hostel room"
+          : `Previous hostel room ${index + 1}`,
+        `${transfer.currentRoomNo} → ${transfer.requestedRoomNo}`,
+      ],
+      [
+        completedTransfers.length === 1
+          ? "Transfer date"
+          : `Transfer date ${index + 1}`,
+        transfer.transferDate
+          ? fmtDate(transfer.transferDate)
+          : transfer.reviewedAt
+            ? fmtDate(transfer.reviewedAt.slice(0, 10))
+            : "Not recorded",
+      ],
+    ],
+  );
   const uploadPhoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const photo = event.target.files?.[0];
     if (!photo) return;
@@ -19523,16 +19547,12 @@ function Profile({
                       "Contract agreement",
                       student.contractAgreementStatus || "Not signed",
                     ],
-                [
-                  "Previous hostel room",
-                  latestTransfer?.currentRoomNo || "No previous hostel room",
-                ],
-                [
-                  "Transfer date",
-                  latestTransfer?.transferDate
-                    ? fmtDate(latestTransfer.transferDate)
-                    : "Not applicable",
-                ],
+                ...(roomTransferHistoryRows.length
+                  ? roomTransferHistoryRows
+                  : [
+                      ["Previous hostel room", "No previous hostel room"],
+                      ["Transfer date", "Not applicable"],
+                    ]),
                 ["Hostel Room", student.roomNo],
                 ["Monthly Accommodation Fee", cash.format(student.monthlyRent)],
                 [
