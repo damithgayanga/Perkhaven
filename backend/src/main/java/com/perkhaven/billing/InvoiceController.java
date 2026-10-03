@@ -108,13 +108,18 @@ public class InvoiceController {
             var student = value.getStudent();
             var fullName = List.of(student.getFirstName(), student.getMiddleNames() == null ? "" : student.getMiddleNames(), student.getLastName()).stream().filter(v -> !v.isBlank()).reduce((a,b) -> a + " " + b).orElse("");
             return new Response(value.getId(), value.getInvoiceNo(), student.getRegistrationNo(), fullName,
-                    student.getRoom() == null ? "" : student.getRoom().getRoomNo(), value.getInvoiceType() == InvoiceType.DEPOSIT ? "Deposit" : "Rent",
+                    student.getRoom() == null ? "" : student.getRoom().getRoomNo(),
+                    switch (value.getInvoiceType()) {
+                        case DEPOSIT -> "Deposit";
+                        case DEPOSIT_ADJUSTMENT -> "Security Deposit Adjustment";
+                        case RENT -> "Rent";
+                    },
                     value.getBillingMonth() == null ? "" : value.getBillingMonth().format(DateTimeFormatter.ofPattern("uuuu-MM")), value.getBaseAmount(), value.getAmount(), value.getPaidAmount(),
                     value.getIssueDate().toString(), value.getDueDate().toString(), status(value.getStatus()), value.getRevisionNumber() + 1,
                     value.getRevisionNumber(), value.getRemarks() == null ? "" : value.getRemarks(), value.getEmailStatus(), value.getReissuedAt(), value.getCreatedAt(),
                     value.getAdjustments().stream().map(AdjustmentResponse::from).toList(), transactionIds);
         }
-        private static String status(InvoiceStatus value) { return switch (value) { case ISSUED -> "Issued"; case PARTIALLY_PAID -> "Partially Paid"; case PAID -> "Paid"; case CANCELLED -> "Cancelled"; }; }
+        private static String status(InvoiceStatus value) { return switch (value) { case ISSUED -> "Issued"; case PARTIALLY_PAID -> "Partially Paid"; case PAID -> "Paid"; case CREDITED -> "Credited"; case CANCELLED -> "Cancelled"; }; }
     }
     private Response response(Invoice value) { return Response.from(value, payments.findTransactionIdsByInvoiceId(value.getId())); }
 }
