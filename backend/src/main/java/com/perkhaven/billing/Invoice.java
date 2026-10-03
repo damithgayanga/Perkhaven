@@ -88,6 +88,7 @@ public class Invoice extends AuditedEntity {
         this.remarks = remarks; revisionNumber++; reissuedAt = Instant.now(); emailStatus = "QUEUED";
     }
 
+    public void describe(String value) { remarks = value; }
     public void markEmailStatus(String value) { emailStatus = value; }
     public void recordPayment(BigDecimal value) {
         if (status == InvoiceStatus.CREDITED) throw new IllegalArgumentException("A credit invoice cannot receive a payment.");
