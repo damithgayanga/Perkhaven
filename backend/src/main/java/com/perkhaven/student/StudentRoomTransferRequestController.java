@@ -2,6 +2,7 @@ package com.perkhaven.student;
 
 import com.perkhaven.accommodation.Room;
 import com.perkhaven.accommodation.RoomRepository;
+import com.perkhaven.billing.InvoiceService;
 import com.perkhaven.common.audit.AuditService;
 import com.perkhaven.common.domain.RecordStatus;
 import com.perkhaven.common.error.NotFoundException;
@@ -32,17 +33,20 @@ public class StudentRoomTransferRequestController {
     private final RoomRepository rooms;
     private final StudentIdentityResolver studentIdentity;
     private final AuditService audit;
+    private final InvoiceService invoiceService;
 
     public StudentRoomTransferRequestController(StudentRoomTransferRequestRepository requests,
                                                 StudentRepository students,
                                                 RoomRepository rooms,
                                                 StudentIdentityResolver studentIdentity,
-                                                AuditService audit) {
+                                                AuditService audit,
+                                                InvoiceService invoiceService) {
         this.requests = requests;
         this.students = students;
         this.rooms = rooms;
         this.studentIdentity = studentIdentity;
         this.audit = audit;
+        this.invoiceService = invoiceService;
     }
 
     @GetMapping
@@ -140,9 +144,14 @@ public class StudentRoomTransferRequestController {
                 throw new IllegalArgumentException("The requested hostel room is not available on the approved transfer date.");
             }
             var previousRoom = student.getRoom() == null ? "" : student.getRoom().getRoomNo();
+            var previousDeposit = student.getDepositPayable();
             student.applyRoomTransfer(targetRoom, targetRoom.getPrice(), revisedDeposit);
+            var depositAdjustmentInvoice = invoiceService.createDepositAdjustment(
+                    student, transfer.getRequestNo(), previousDeposit, revisedDeposit, transferDate);
             audit.record("ROOM_TRANSFER_APPROVED", "STUDENT", student.getRegistrationNo(),
-                    previousRoom + " -> " + targetRoom.getRoomNo() + " effective " + transferDate);
+                    previousRoom + " -> " + targetRoom.getRoomNo() + " effective " + transferDate
+                            + (depositAdjustmentInvoice == null ? ""
+                            : "; deposit adjustment invoice " + depositAdjustmentInvoice.getInvoiceNo()));
         }
 
         transfer.review(request.decision(), transferDate, revisedDeposit, request.reviewNote(), authentication.getName());

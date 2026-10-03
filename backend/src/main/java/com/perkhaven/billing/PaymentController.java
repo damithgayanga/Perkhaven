@@ -160,7 +160,11 @@ public class PaymentController {
             return new Response(value.getId(), value.getTransactionId(), invoice.getInvoiceNo(), invoice.getId(),
                     student.getRegistrationNo(), name, student.getRoom() == null ? "" : student.getRoom().getRoomNo(),
                     invoice.getBillingMonth() == null ? "" : invoice.getBillingMonth().toString().substring(0, 7),
-                    invoice.getInvoiceType() == InvoiceType.DEPOSIT ? "Deposit" : "Rent", invoice.getAmount(), BigDecimal.ZERO,
+                    switch (invoice.getInvoiceType()) {
+                        case DEPOSIT -> "Deposit";
+                        case DEPOSIT_ADJUSTMENT -> "Security Deposit Adjustment";
+                        case RENT -> "Rent";
+                    }, invoice.getAmount(), BigDecimal.ZERO,
                     value.getPaidAmount(), value.getPaidDate(), value.getSettlementMethod(), value.getEvidenceName(), value.getRemarks(), value.isCashVerified(), value.getCashVerifiedAt(), verified || value.isCashVerified());
         }
     }

@@ -147,14 +147,14 @@ type StudentInvoice = {
   registrationNo: string;
   studentName: string;
   roomNo: string;
-  invoiceType: "Deposit" | "Rent" | "Shop Electricity" | "Shop Water";
+  invoiceType: "Deposit" | "Security Deposit Adjustment" | "Rent" | "Shop Electricity" | "Shop Water";
   month: string;
   baseAmount?: number;
   amount: number;
   issueDate: string;
   dueDate: string;
   paidAmount?: number;
-  status: "Issued" | "Partially Paid" | "Paid" | "Cancelled";
+  status: "Issued" | "Partially Paid" | "Paid" | "Credited" | "Cancelled";
   version: number;
   revisionNumber?: number;
   remarks: string;
@@ -3713,6 +3713,10 @@ async function buildInvoicePdf(invoice: StudentInvoice, student?: Student) {
   pdf.text(
     invoice.invoiceType === "Deposit"
       ? "HOSTEL SECURITY DEPOSIT INVOICE"
+      : invoice.invoiceType === "Security Deposit Adjustment"
+        ? invoice.amount < 0
+          ? "SECURITY DEPOSIT CREDIT INVOICE"
+          : "SECURITY DEPOSIT ADJUSTMENT INVOICE"
       : utilityInvoice
         ? `${invoice.invoiceType.toUpperCase()} INVOICE`
         : "MONTHLY HOSTEL INVOICE",
@@ -3741,7 +3745,11 @@ async function buildInvoicePdf(invoice: StudentInvoice, student?: Student) {
   pdf.text(
     invoice.invoiceType === "Deposit"
       ? "Payment category: Security Deposit"
-      : `Corresponding month: ${fmtMonth(invoice.month)}`,
+      : invoice.invoiceType === "Security Deposit Adjustment"
+        ? invoice.amount < 0
+          ? "Payment category: Security Deposit Credit"
+          : "Payment category: Security Deposit Balance"
+        : `Corresponding month: ${fmtMonth(invoice.month)}`,
     20,
     94,
   );
@@ -4019,6 +4027,10 @@ function StudentInvoiceList({
 const studentInvoiceLabel = (invoice: StudentInvoice) =>
   invoice.invoiceType === "Deposit"
     ? "Deposit"
+    : invoice.invoiceType === "Security Deposit Adjustment"
+      ? invoice.amount < 0
+        ? "Security Deposit Credit"
+        : "Security Deposit Balance"
     : invoice.invoiceType === "Shop Electricity" || invoice.invoiceType === "Shop Water"
       ? `${invoice.invoiceType} · ${fmtMonth(invoice.month)}`
       : fmtMonth(invoice.month);
@@ -4072,6 +4084,7 @@ function StudentEvidencePanel({
         .filter(
           (invoice) =>
             invoice.invoiceType !== "Deposit" &&
+            invoice.status !== "Credited" &&
             invoice.status !== "Paid" &&
             invoice.status !== "Cancelled" &&
             !evidence.some(
@@ -4360,6 +4373,7 @@ function StudentEvidencePanelPaymentModeLegacy({
         .filter(
           (invoice) =>
             invoice.invoiceType !== "Deposit" &&
+            invoice.status !== "Credited" &&
             invoice.status !== "Paid" &&
             invoice.status !== "Cancelled" &&
             !evidence.some(
@@ -8059,6 +8073,7 @@ function RoomTransferApproval({
       return;
     }
     save(result.request, result.student);
+    window.dispatchEvent(new Event("invoices-changed"));
   };
   const difference = Number(deposit || 0) - request.originalDepositAmount;
   return (
@@ -8976,6 +8991,8 @@ function InvoiceLedger({
     [error, setError] = useState("");
   const invoiceTypeLabel = (invoice: StudentInvoice) => {
     if (invoice.invoiceType === "Deposit") return "Deposit";
+    if (invoice.invoiceType === "Security Deposit Adjustment")
+      return invoice.amount < 0 ? "Security Deposit Credit" : "Security Deposit Balance";
     if (invoice.invoiceType === "Rent") return invoice.registrationNo.toUpperCase().startsWith("SH-") ? "Rent" : "Accommodation Fee";
     return invoice.invoiceType;
   };
@@ -8993,7 +9010,7 @@ function InvoiceLedger({
     (exportFilters.status === "All" || invoice.status === exportFilters.status));
   const exportInvoicesSpreadsheet = async () => {
     const XLSX = await import("xlsx");
-    const data = exportRows.map((invoice) => ({ "INVOICE NO.": invoice.invoiceNo, "ISSUE DATE": fmtCompactDate(invoice.issueDate), "DUE DATE": fmtCompactDate(invoice.dueDate), TYPE: invoiceTypeLabel(invoice), MONTH: invoice.invoiceType === "Deposit" ? "" : fmtMonth(invoice.month), REGISTRATION: invoice.registrationNo, NAME: invoice.studentName, ROOM: invoice.roomNo, AMOUNT: invoice.amount, STATUS: invoice.status, REVISION: `Rev.${invoiceRevision(invoice)}` }));
+    const data = exportRows.map((invoice) => ({ "INVOICE NO.": invoice.invoiceNo, "ISSUE DATE": fmtCompactDate(invoice.issueDate), "DUE DATE": fmtCompactDate(invoice.dueDate), TYPE: invoiceTypeLabel(invoice), MONTH: invoice.invoiceType === "Deposit" || invoice.invoiceType === "Security Deposit Adjustment" ? "" : fmtMonth(invoice.month), REGISTRATION: invoice.registrationNo, NAME: invoice.studentName, ROOM: invoice.roomNo, AMOUNT: invoice.amount, STATUS: invoice.status, REVISION: `Rev.${invoiceRevision(invoice)}` }));
     const sheet = XLSX.utils.json_to_sheet(data); sheet["!autofilter"] = { ref: `A1:K${Math.max(1, data.length + 1)}` }; sheet["!cols"] = [{wch:20},{wch:14},{wch:14},{wch:18},{wch:16},{wch:20},{wch:28},{wch:10},{wch:16},{wch:14},{wch:12}];
     const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, sheet, "Invoice Ledger"); XLSX.writeFile(book, `Perk-Haven-Invoice-Ledger-${new Date().toISOString().slice(0,10)}.xlsx`);
   };
@@ -9072,7 +9089,7 @@ function InvoiceLedger({
                   <td>{fmtDate(invoice.issueDate)}</td>
                   <td>{fmtDate(invoice.dueDate)}</td>
                   <td>{invoiceTypeLabel(invoice)}</td>
-                  <td>{invoice.invoiceType === "Deposit" ? "—" : fmtMonth(invoice.month)}</td>
+                  <td>{invoice.invoiceType === "Deposit" || invoice.invoiceType === "Security Deposit Adjustment" ? "—" : fmtMonth(invoice.month)}</td>
                   <td>
                     <b>{invoice.registrationNo}</b>
                   </td>
@@ -18757,7 +18774,7 @@ function AddPayment({
                         const due = page.items.filter((invoice) => invoice.status === "Issued" || invoice.status === "Partially Paid")
                           .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.issueDate.localeCompare(b.issueDate) || a.id - b.id);
                         setDueInvoices(due);
-                        if (due[0]) { setType(due[0].invoiceType === "Deposit" ? "Deposit" : "Rent"); setMonth(due[0].month || ""); setAmount(String(Math.max(0, due[0].amount - (due[0].paidAmount || 0)))); }
+                        if (due[0]) { setType(due[0].invoiceType === "Deposit" || due[0].invoiceType === "Security Deposit Adjustment" ? "Deposit" : "Rent"); setMonth(due[0].month || ""); setAmount(String(Math.max(0, due[0].amount - (due[0].paidAmount || 0)))); }
                       })
                       .catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to load due invoices"));
                   }
@@ -18796,7 +18813,11 @@ function AddPayment({
           {!externalIncome && s && (
             <div className="wide invoice-adjustment-editor">
               <div className="invoice-adjustment-heading"><b>Outstanding invoices - oldest first</b><small>Payments are allocated only to the first invoice until it is fully settled.</small></div>
-              {dueInvoices.map((invoice, index) => <div className="invoice-adjustment-row" key={invoice.id}><span><b>{index + 1}. {invoice.invoiceNo}</b><small>{invoice.invoiceType === "Deposit" ? "Security Deposit" : fmtMonth(invoice.month)} · due {fmtDate(invoice.dueDate)}</small></span><b>{cash.format(Math.max(0, invoice.amount - (invoice.paidAmount || 0)))}</b></div>)}
+              {dueInvoices.map((invoice, index) => <div className="invoice-adjustment-row" key={invoice.id}><span><b>{index + 1}. {invoice.invoiceNo}</b><small>{invoice.invoiceType === "Deposit"
+                        ? "Security Deposit"
+                        : invoice.invoiceType === "Security Deposit Adjustment"
+                          ? "Security Deposit Adjustment"
+                          : fmtMonth(invoice.month)} · due {fmtDate(invoice.dueDate)}</small></span><b>{cash.format(Math.max(0, invoice.amount - (invoice.paidAmount || 0)))}</b></div>)}
               {!dueInvoices.length && <small>No outstanding invoices are available. Generate the required invoice first.</small>}
             </div>
           )}
@@ -20232,7 +20253,7 @@ function StudentPaymentProfile({
         payment ? transactionIdFor(payment) : "—",
         invoice.invoiceNo,
         invoice.invoiceType,
-        invoice.invoiceType === "Deposit" ? "—" : fmtMonth(invoice.month),
+        invoice.invoiceType === "Deposit" || invoice.invoiceType === "Security Deposit Adjustment" ? "—" : fmtMonth(invoice.month),
         fmtDate(invoice.dueDate),
         payment ? fmtDate(payment.paidDate) : "—",
         payable == null ? "Included Above" : amountOnly.format(payable),
