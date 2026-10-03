@@ -50,6 +50,23 @@ public class SmtpMailGateway implements MailGateway {
     }
 
     @Override
+    public String sendWithCc(String recipient, String ccRecipient, String subject, String body,
+                             String attachmentName, byte[] attachment) {
+        try {
+            send(mailSender, recipient, ccRecipient, subject, body, attachmentName, attachment);
+            return "SMTP_SENT";
+        } catch (MailException | MessagingException | UnsupportedEncodingException primaryException) {
+            try {
+                send(fallbackSender(), recipient, ccRecipient, subject, body, attachmentName, attachment);
+                return "SMTP_SENT_FALLBACK";
+            } catch (MailException | MessagingException | UnsupportedEncodingException fallbackException) {
+                fallbackException.addSuppressed(primaryException);
+                throw new IllegalStateException("Unable to send email through MyMailPortal SMTP using either TLS/587 or SSL/465.", fallbackException);
+            }
+        }
+    }
+
+    @Override
     public String sendText(String recipient, String subject, String body) {
         try {
             sendText(mailSender, recipient, subject, body);
@@ -68,9 +85,16 @@ public class SmtpMailGateway implements MailGateway {
     private void send(JavaMailSender sender, String recipient, String subject, String body,
                       String attachmentName, byte[] attachment)
             throws MessagingException, UnsupportedEncodingException {
+        send(sender, recipient, null, subject, body, attachmentName, attachment);
+    }
+
+    private void send(JavaMailSender sender, String recipient, String ccRecipient, String subject, String body,
+                      String attachmentName, byte[] attachment)
+            throws MessagingException, UnsupportedEncodingException {
         var message = sender.createMimeMessage();
         var helper = new MimeMessageHelper(message, true, "UTF-8");
         populate(helper, recipient, subject, body);
+        if (ccRecipient != null && !ccRecipient.isBlank()) helper.setCc(ccRecipient);
         helper.addAttachment(attachmentName, new ByteArrayResource(attachment));
         sender.send(message);
     }
