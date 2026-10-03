@@ -19,5 +19,14 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     Optional<Invoice> findByStudentIdAndInvoiceTypeAndBillingMonth(Long studentId, InvoiceType type, LocalDate billingMonth);
     List<Invoice> findByStudentRegistrationNoIgnoreCaseOrderByIssueDateDesc(String registrationNo);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<Invoice> findByStudentRegistrationNoIgnoreCaseAndStatusInOrderByDueDateAscIssueDateAscIdAsc(String registrationNo, List<InvoiceStatus> statuses);
+    @Query("""
+            select invoice from Invoice invoice
+            where lower(invoice.student.registrationNo) = lower(:registrationNo)
+              and invoice.status in :statuses
+              and invoice.amount > invoice.paidAmount
+            order by invoice.dueDate asc, invoice.issueDate asc, invoice.id asc
+            """)
+    List<Invoice> findByStudentRegistrationNoIgnoreCaseAndStatusInOrderByDueDateAscIssueDateAscIdAsc(
+            @Param("registrationNo") String registrationNo,
+            @Param("statuses") List<InvoiceStatus> statuses);
 }
