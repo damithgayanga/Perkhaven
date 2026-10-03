@@ -6,6 +6,8 @@ import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.awt.Color;
+import com.perkhaven.student.StudentRoomTransferRequest;
+import com.perkhaven.student.StudentRoomTransferRequestRepository;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -27,10 +29,12 @@ public class InvoicePdfService {
     private static final PDFont BOLD = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
     private final String telephone;
     private final String email;
+    private final StudentRoomTransferRequestRepository roomTransfers;
 
     public InvoicePdfService(@Value("${perkhaven.hostel.telephone}") String telephone,
-                             @Value("${perkhaven.hostel.email}") String email) {
-        this.telephone = telephone; this.email = email;
+                             @Value("${perkhaven.hostel.email}") String email,
+                             StudentRoomTransferRequestRepository roomTransfers) {
+        this.telephone = telephone; this.email = email; this.roomTransfers = roomTransfers;
     }
 
     public byte[] create(Invoice invoice) {
@@ -44,7 +48,7 @@ public class InvoicePdfService {
                     case DEPOSIT -> "HOSTEL SECURITY DEPOSIT INVOICE";
                     case DEPOSIT_ADJUSTMENT -> invoice.getAmount().signum() < 0
                             ? "SECURITY DEPOSIT CREDIT INVOICE"
-                            : "SECURITY DEPOSIT ADJUSTMENT INVOICE";
+                            : "SECURITY DEPOSIT BALANCE INVOICE";
                     case RENT -> "MONTHLY HOSTEL INVOICE";
                     case OTHER_CHARGE -> "HOSTEL CHARGE INVOICE";
                 };
@@ -63,30 +67,49 @@ public class InvoicePdfService {
                 text(canvas, REGULAR, 10, 345, 568, "Room: " + (student.getRoom() == null ? "-" : student.getRoom().getRoomNo()), 20, 39, 61);
                 if (invoice.getBillingMonth() != null) text(canvas, REGULAR, 10, 67, 542, "Month: " + MONTH.format(invoice.getBillingMonth()), 20, 39, 61);
 
+                var transfer = invoice.getInvoiceType() == InvoiceType.DEPOSIT_ADJUSTMENT ? transfer(invoice) : null;
                 var y = 486f;
-                var lineLabel = switch (invoice.getInvoiceType()) {
-                    case DEPOSIT -> "SECURITY DEPOSIT";
-                    case DEPOSIT_ADJUSTMENT -> invoice.getAmount().signum() < 0 ? "SECURITY DEPOSIT CREDIT" : "SECURITY DEPOSIT BALANCE";
-                    case RENT -> "ROOM PRICE";
-                    case OTHER_CHARGE -> "HOSTEL CHARGE";
-                };
-                text(canvas, BOLD, 9, 67, y, lineLabel, 20, 39, 61);
-                right(canvas, REGULAR, 10, 528, y, money(invoice.getBaseAmount()), 20, 39, 61);
-                y -= 23;
-                for (var adjustment : invoice.getAdjustments()) {
-                    if (adjustment.getAmount().signum() == 0) continue;
-                    text(canvas, REGULAR, 9, 67, y, label(adjustment.getAdjustmentType()), 54, 72, 91);
-                    var prefix = adjustment.getAmount().signum() > 0 ? "+ " : "- ";
-                    right(canvas, REGULAR, 10, 528, y, prefix + money(adjustment.getAmount().abs()), 54, 72, 91);
-                    y -= 21;
+                if (transfer != null) {
+                    text(canvas, REGULAR, 10, 345, 594, "Transfer: " + transfer.getRequestNo(), 20, 39, 61);
+                    text(canvas, BOLD, 9, 67, y, "PREVIOUS ROOM", 20, 39, 61);
+                    right(canvas, REGULAR, 10, 528, y, transfer.getCurrentRoomNo(), 20, 39, 61);
+                    y -= 23;
+                    text(canvas, REGULAR, 9, 67, y, "DEPOSIT FOR PREVIOUS ROOM", 54, 72, 91);
+                    right(canvas, REGULAR, 10, 528, y, money(transfer.getOriginalDepositAmount()), 54, 72, 91);
+                    y -= 23;
+                    text(canvas, BOLD, 9, 67, y, "NEW ROOM", 20, 39, 61);
+                    right(canvas, REGULAR, 10, 528, y, transfer.getRequestedRoomNo(), 20, 39, 61);
+                    y -= 23;
+                    text(canvas, REGULAR, 9, 67, y, "DEPOSIT FOR NEW ROOM", 54, 72, 91);
+                    right(canvas, REGULAR, 10, 528, y, money(transfer.getRevisedDepositAmount()), 54, 72, 91);
+                    y -= 23;
+                } else {
+                    var lineLabel = switch (invoice.getInvoiceType()) {
+                        case DEPOSIT -> "SECURITY DEPOSIT";
+                        case DEPOSIT_ADJUSTMENT -> invoice.getAmount().signum() < 0 ? "SECURITY DEPOSIT CREDIT" : "SECURITY DEPOSIT BALANCE";
+                        case RENT -> "ROOM PRICE";
+                        case OTHER_CHARGE -> "HOSTEL CHARGE";
+                    };
+                    text(canvas, BOLD, 9, 67, y, lineLabel, 20, 39, 61);
+                    right(canvas, REGULAR, 10, 528, y, money(invoice.getBaseAmount()), 20, 39, 61);
+                    y -= 23;
+                    for (var adjustment : invoice.getAdjustments()) {
+                        if (adjustment.getAmount().signum() == 0) continue;
+                        text(canvas, REGULAR, 9, 67, y, label(adjustment.getAdjustmentType()), 54, 72, 91);
+                        var prefix = adjustment.getAmount().signum() > 0 ? "+ " : "- ";
+                        right(canvas, REGULAR, 10, 528, y, prefix + money(adjustment.getAmount().abs()), 54, 72, 91);
+                        y -= 21;
+                    }
                 }
                 line(canvas, 67, y + 8, 528, y + 8, 190, 202, 214);
                 y -= 12;
                 fill(canvas, 50, y - 31, 495, 62, 222, 241, 236);
                 text(canvas, BOLD, 10, 67, y,
-                        invoice.getInvoiceType() == InvoiceType.DEPOSIT_ADJUSTMENT && invoice.getAmount().signum() < 0
-                                ? "CREDIT AMOUNT" : "NET PAYMENT", 6, 101, 80);
-                right(canvas, BOLD, 18, 528, y - 3, money(invoice.getAmount()), 6, 101, 80);
+                        invoice.getInvoiceType() == InvoiceType.DEPOSIT_ADJUSTMENT
+                                ? (invoice.getAmount().signum() < 0 ? "CREDIT AMOUNT" : "BALANCE PAYMENT")
+                                : "NET PAYMENT", 6, 101, 80);
+                right(canvas, BOLD, 18, 528, y - 3,
+                        money(invoice.getInvoiceType() == InvoiceType.DEPOSIT_ADJUSTMENT ? invoice.getAmount().abs() : invoice.getAmount()), 6, 101, 80);
 
                 if (invoice.getInvoiceType() == InvoiceType.DEPOSIT_ADJUSTMENT && invoice.getAmount().signum() < 0) {
                     text(canvas, REGULAR, 9.5f, 50, y - 72, "This credit has been recorded against your hostel security deposit.", 54, 72, 91);
@@ -111,6 +134,13 @@ public class InvoicePdfService {
             var image = LosslessFactory.createFromImage(document, buffered);
             canvas.drawImage(image, 50, 736, 104, 104);
         }
+    }
+    private StudentRoomTransferRequest transfer(Invoice invoice) {
+        var key = invoice.getBillingKey();
+        if (key == null || key.isBlank()) return null;
+        var split = key.lastIndexOf(':');
+        if (split < 0 || split == key.length() - 1) return null;
+        return roomTransfers.findByRequestNo(key.substring(split + 1)).orElse(null);
     }
     private String fullName(com.perkhaven.student.Student student) { return java.util.stream.Stream.of(student.getFirstName(), student.getMiddleNames(), student.getLastName()).filter(v -> v != null && !v.isBlank()).reduce((a,b) -> a + " " + b).orElse(""); }
     private String label(AdjustmentType type) { return switch (type) { case LATE_START -> "Late Start Adjustment"; case EARLY_VACATE -> "Early Vacate Adjustment"; case VACATION_DISCOUNT -> "Vacation Discount"; case OTHER -> "Other Adjustment"; }; }

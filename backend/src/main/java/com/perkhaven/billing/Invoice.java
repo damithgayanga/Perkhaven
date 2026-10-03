@@ -117,6 +117,7 @@ public class Invoice extends AuditedEntity {
     }
     private static BigDecimal money(BigDecimal value) { return value.setScale(2, java.math.RoundingMode.HALF_UP); }
     public String getInvoiceNo() { return invoiceNo; }
+    public String getBillingKey() { return billingKey; }
     public Student getStudent() { return student; }
     public InvoiceType getInvoiceType() { return invoiceType; }
     public LocalDate getBillingMonth() { return billingMonth; }

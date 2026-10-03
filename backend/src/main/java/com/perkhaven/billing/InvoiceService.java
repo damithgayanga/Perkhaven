@@ -5,6 +5,7 @@ import com.perkhaven.common.sequence.NumberSequenceRepository;
 import com.perkhaven.common.error.NotFoundException;
 import com.perkhaven.student.Student;
 import com.perkhaven.student.StudentRepository;
+import com.perkhaven.student.StudentRoomTransferRequestRepository;
 import com.perkhaven.security.StudentIdentityResolver;
 import com.perkhaven.storage.StorageService;
 import java.math.BigDecimal;
@@ -26,6 +27,7 @@ public class InvoiceService {
     private static final DateTimeFormatter DISPLAY_MONTH = DateTimeFormatter.ofPattern("MM-uuuu");
     private final InvoiceRepository invoices;
     private final StudentRepository students;
+    private final StudentRoomTransferRequestRepository roomTransfers;
     private final NotificationOutboxRepository notifications;
     private final InvoicePdfService pdf;
     private final NumberSequenceRepository sequences;
@@ -34,12 +36,12 @@ public class InvoiceService {
     private final boolean automaticInvoiceIssuanceEnabled;
     private final String hostelTelephone;
     private final String hostelEmail;
-    public InvoiceService(InvoiceRepository invoices, StudentRepository students, NotificationOutboxRepository notifications, InvoicePdfService pdf, NumberSequenceRepository sequences, StorageService storage,
+    public InvoiceService(InvoiceRepository invoices, StudentRepository students, StudentRoomTransferRequestRepository roomTransfers, NotificationOutboxRepository notifications, InvoicePdfService pdf, NumberSequenceRepository sequences, StorageService storage,
                           @Value("${perkhaven.hostel.telephone}") String hostelTelephone,
                           @Value("${perkhaven.hostel.email}") String hostelEmail,
                           @Value("${perkhaven.invoices.automatic-enabled:false}") boolean automaticInvoiceIssuanceEnabled,
                           StudentIdentityResolver studentIdentity) {
-        this.invoices = invoices; this.students = students; this.notifications = notifications; this.pdf = pdf; this.sequences = sequences; this.storage = storage;
+        this.invoices = invoices; this.students = students; this.roomTransfers = roomTransfers; this.notifications = notifications; this.pdf = pdf; this.sequences = sequences; this.storage = storage;
         this.hostelTelephone = hostelTelephone; this.hostelEmail = hostelEmail;
         this.automaticInvoiceIssuanceEnabled = automaticInvoiceIssuanceEnabled;
         this.studentIdentity = studentIdentity;
@@ -162,6 +164,48 @@ public class InvoiceService {
         if (!values.isEmpty() || (remarks != null && !remarks.isBlank())) {
             invoice.configureInitial(remarks, values);
         }
+        enqueue(invoice);
+        return invoice;
+    }
+
+    @Transactional
+    public Invoice createManualRoomTransferDepositInvoice(long transferRequestId, LocalDate issueDate,
+                                                          LocalDate dueDate, String remarks) {
+        var transfer = roomTransfers.findById(transferRequestId)
+                .orElseThrow(() -> new NotFoundException("Approved hostel room-transfer request not found."));
+        if (!"Approved".equals(transfer.getStatus()) || transfer.getTransferDate() == null)
+            throw new IllegalArgumentException("Only an approved room transfer can be used for a deposit adjustment invoice.");
+        if (transfer.getRequestNo() == null || transfer.getRequestNo().isBlank())
+            throw new IllegalArgumentException("The room-transfer request reference is missing.");
+
+        var student = students.findByRegistrationNoIgnoreCase(transfer.getRegistrationNo())
+                .orElseThrow(() -> new NotFoundException("Student not found."));
+        var difference = transfer.getRevisedDepositAmount()
+                .subtract(transfer.getOriginalDepositAmount())
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+        if (difference.signum() == 0)
+            throw new IllegalArgumentException("The previous and new security deposits are the same. No invoice or credit invoice is required.");
+
+        var issued = issueDate == null ? LocalDate.now(BUSINESS_ZONE) : issueDate;
+        var due = dueDate == null ? issued : dueDate;
+        if (due.isBefore(issued)) throw new IllegalArgumentException("Due date cannot be before the issue date.");
+
+        var key = student.getId() + ":DEPOSIT_ADJUSTMENT:" + transfer.getRequestNo();
+        if (invoices.findByBillingKey(key).isPresent())
+            throw new IllegalArgumentException("A security deposit adjustment invoice already exists for this room transfer.");
+
+        var invoice = invoices.save(new Invoice(
+                numberForYear(student, issued.getYear()),
+                student,
+                InvoiceType.DEPOSIT_ADJUSTMENT,
+                null,
+                difference,
+                issued,
+                due,
+                key));
+        invoice.describe(remarks == null || remarks.isBlank()
+                ? "Security deposit adjustment for approved hostel room transfer " + transfer.getRequestNo() + "."
+                : remarks.trim());
         enqueue(invoice);
         return invoice;
     }

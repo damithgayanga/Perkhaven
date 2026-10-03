@@ -83,6 +83,17 @@ public class InvoiceController {
         return response(invoice);
     }
 
+    @PostMapping("/manual/room-transfer-deposit")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public Response manualRoomTransferDeposit(@Valid @RequestBody ManualRoomTransferDepositRequest request) {
+        var invoice = service.createManualRoomTransferDepositInvoice(
+                request.transferRequestId(), request.issueDate(), request.dueDate(), request.remarks());
+        audit.record("CREATE_MANUAL", "INVOICE", invoice.getInvoiceNo(),
+                "ROOM_TRANSFER_DEPOSIT · " + request.transferRequestId());
+        return response(invoice);
+    }
+
     @PostMapping("/manual/batch")
     @PreAuthorize("hasRole('ADMIN')")
     public ManualBatchResponse manualBatch(@Valid @RequestBody ManualBatchInvoiceRequest request) {
@@ -152,6 +163,8 @@ public class InvoiceController {
     public record ManualInvoiceRequest(@NotNull String registrationNo, @NotNull InvoiceType invoiceType, String month,
                                        BigDecimal baseAmount, LocalDate issueDate, LocalDate dueDate,
                                        String remarks, List<@Valid AdjustmentRequest> adjustments) {}
+    public record ManualRoomTransferDepositRequest(@NotNull Long transferRequestId, LocalDate issueDate,
+                                                   LocalDate dueDate, String remarks) {}
     public record ManualBatchInvoiceRequest(@NotNull List<String> registrationNos, @NotNull InvoiceType invoiceType,
                                             String month, LocalDate issueDate, LocalDate dueDate, String remarks) {}
     public record ManualBatchSkipped(String registrationNo, String reason) {}

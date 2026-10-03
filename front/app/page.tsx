@@ -9213,11 +9213,13 @@ function ManualInvoiceModal({
   close: () => void;
   save: (invoice: StudentInvoice) => void;
 }) {
-  type ManualType = "DEPOSIT" | "RENT" | "OTHER_CHARGE";
+  type ManualType = "DEPOSIT" | "DEPOSIT_ADJUSTMENT" | "RENT" | "OTHER_CHARGE";
   type SelectionMode = "ONE" | "SELECTED" | "ALL";
   const today = new Date().toISOString().slice(0, 10);
   const [registrationNo, setRegistrationNo] = useState("");
   const [selectedRegistrations, setSelectedRegistrations] = useState<string[]>([]);
+  const [roomTransfers, setRoomTransfers] = useState<RoomTransferRequest[]>([]);
+  const [selectedTransferId, setSelectedTransferId] = useState("");
   const [selectionMode, setSelectionMode] = useState<SelectionMode>("ONE");
   const [invoiceType, setInvoiceType] = useState<ManualType>("RENT");
   const [month, setMonth] = useState(today.slice(0, 7));
@@ -9235,6 +9237,14 @@ function ManualInvoiceModal({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  useEffect(() => {
+    fetch("/api/v1/room-transfer-requests")
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load room transfers")))
+      .then((result) => setRoomTransfers((result.requests || []).filter((item: RoomTransferRequest) =>
+        item.status === "Approved" && Math.abs(Number(item.depositDifference || 0)) > 0)))
+      .catch(() => setRoomTransfers([]));
+  }, []);
+  const selectedTransfer = roomTransfers.find((item) => String(item.id) === selectedTransferId);
   const student = students.find((item) => item.registrationNo === registrationNo);
   const rentStudents =
     selectionMode === "ALL"
@@ -9247,6 +9257,8 @@ function ManualInvoiceModal({
   const baseAmount =
     invoiceType === "DEPOSIT"
       ? Number(student?.depositPayable || 0)
+      : invoiceType === "DEPOSIT_ADJUSTMENT"
+        ? Math.abs(Number(selectedTransfer?.depositDifference || 0))
       : invoiceType === "RENT" && selectionMode === "ONE"
         ? Number(student?.monthlyRent || 0)
         : invoiceType === "OTHER_CHARGE"
@@ -9265,6 +9277,7 @@ function ManualInvoiceModal({
       setSelectionMode("ONE");
       setSelectedRegistrations([]);
     }
+    if (value !== "DEPOSIT_ADJUSTMENT") setSelectedTransferId("");
     if (value === "RENT") {
       const [year, mon] = month.split("-").map(Number);
       const end = new Date(Date.UTC(year, mon, 0)).toISOString().slice(0, 10);
@@ -9292,6 +9305,32 @@ function ManualInvoiceModal({
     event.preventDefault();
     setSaving(true);
     setError("");
+
+    if (invoiceType === "DEPOSIT_ADJUSTMENT") {
+      if (!selectedTransfer) {
+        setSaving(false);
+        setError("Select an approved room transfer.");
+        return;
+      }
+      const response = await fetch("/api/v1/invoices/manual/room-transfer-deposit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          transferRequestId: selectedTransfer.id,
+          issueDate,
+          dueDate,
+          remarks,
+        }),
+      });
+      const result = await response.json();
+      setSaving(false);
+      if (!response.ok) {
+        setError(result.detail || "Unable to generate the room-transfer deposit invoice.");
+        return;
+      }
+      save(result);
+      return;
+    }
 
     if (invoiceType === "RENT" && selectionMode !== "ONE") {
       const registrationNos =
@@ -9378,6 +9417,7 @@ function ManualInvoiceModal({
             Payment type
             <select value={invoiceType} onChange={(event) => updateType(event.target.value as ManualType)}>
               <option value="DEPOSIT">Security Deposit</option>
+              <option value="DEPOSIT_ADJUSTMENT">Security Deposit - Room Transfer</option>
               <option value="RENT">Monthly Accommodation Fee</option>
               <option value="OTHER_CHARGE">Other Charge</option>
             </select>
@@ -9394,7 +9434,7 @@ function ManualInvoiceModal({
             </label>
           )}
 
-          {(invoiceType !== "RENT" || selectionMode === "ONE") && (
+          {invoiceType !== "DEPOSIT_ADJUSTMENT" && (invoiceType !== "RENT" || selectionMode === "ONE") && (
             <label className="wide">
               Student
               <select value={registrationNo} onChange={(event) => setRegistrationNo(event.target.value)} required>
@@ -9406,6 +9446,46 @@ function ManualInvoiceModal({
                 ))}
               </select>
             </label>
+          )}
+
+          {invoiceType === "DEPOSIT_ADJUSTMENT" && (
+            <>
+              <label className="wide">
+                Approved room transfer
+                <select
+                  value={selectedTransferId}
+                  onChange={(event) => {
+                    const id = event.target.value;
+                    setSelectedTransferId(id);
+                    const transfer = roomTransfers.find((item) => String(item.id) === id);
+                    setRegistrationNo(transfer?.registrationNo || "");
+                    setError("");
+                  }}
+                  required
+                >
+                  <option value="">Select approved room transfer</option>
+                  {roomTransfers.map((transfer) => (
+                    <option value={transfer.id} key={transfer.id}>
+                      {transfer.requestNo} · {transfer.registrationNo} · Room {transfer.currentRoomNo} to {transfer.requestedRoomNo}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedTransfer && (
+                <div className="wide invoice-adjustment-editor">
+                  <div className="invoice-adjustment-summary">
+                    <span><small>PREVIOUS ROOM</small><b>{selectedTransfer.currentRoomNo}</b></span>
+                    <span><small>DEPOSIT - PREVIOUS ROOM</small><b>{cash.format(Number(selectedTransfer.originalDepositAmount || 0))}</b></span>
+                    <span><small>NEW ROOM</small><b>{selectedTransfer.requestedRoomNo}</b></span>
+                    <span><small>DEPOSIT - NEW ROOM</small><b>{cash.format(Number(selectedTransfer.revisedDepositAmount || 0))}</b></span>
+                  </div>
+                  <div className="invoice-adjustment-heading">
+                    <b>{Number(selectedTransfer.depositDifference) < 0 ? "Credit Amount" : "Balance Payment"}</b>
+                    <small>{cash.format(Math.abs(Number(selectedTransfer.depositDifference || 0)))}</small>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {invoiceType === "RENT" && selectionMode === "SELECTED" && (
@@ -9440,7 +9520,7 @@ function ManualInvoiceModal({
             </div>
           )}
 
-          {selectionMode === "ONE" && (
+          {selectionMode === "ONE" && invoiceType !== "DEPOSIT_ADJUSTMENT" && (
             <label>
               Hostel Room
               <input value={student?.roomNo || ""} disabled />
@@ -9461,7 +9541,7 @@ function ManualInvoiceModal({
             </label>
           )}
 
-          {selectionMode === "ONE" && (
+          {selectionMode === "ONE" && invoiceType !== "DEPOSIT_ADJUSTMENT" && (
             <label>
               Standard / base amount (LKR)
               <input value={baseAmount ? amountOnly.format(baseAmount) : ""} disabled />
@@ -9477,7 +9557,7 @@ function ManualInvoiceModal({
             <input type="date" min={issueDate} value={dueDate} onChange={(event) => setDueDate(event.target.value)} required />
           </label>
 
-          {selectionMode === "ONE" && (
+          {selectionMode === "ONE" && invoiceType !== "DEPOSIT_ADJUSTMENT" && (
             <div className="wide invoice-adjustment-editor">
               <div className="invoice-adjustment-summary">
                 <span><small>BASE AMOUNT</small><b>{cash.format(baseAmount)}</b></span>
@@ -9527,7 +9607,8 @@ function ManualInvoiceModal({
             className="primary"
             disabled={
               saving ||
-              (selectionMode === "ONE" && (!student || finalAmount <= 0)) ||
+              (invoiceType === "DEPOSIT_ADJUSTMENT" && !selectedTransfer) ||
+              (invoiceType !== "DEPOSIT_ADJUSTMENT" && selectionMode === "ONE" && (!student || finalAmount <= 0)) ||
               (invoiceType === "RENT" && selectionMode === "SELECTED" && selectedRegistrations.length === 0)
             }
           >
@@ -9535,7 +9616,9 @@ function ManualInvoiceModal({
               ? "Generating…"
               : invoiceType === "RENT" && selectionMode !== "ONE"
                 ? `Generate ${rentStudents.length} invoice(s)`
-                : "Generate & issue invoice"}
+                : invoiceType === "DEPOSIT_ADJUSTMENT" && selectedTransfer && Number(selectedTransfer.depositDifference) < 0
+                  ? "Generate & issue credit invoice"
+                  : "Generate & issue invoice"}
           </button>
         </div>
       </form>

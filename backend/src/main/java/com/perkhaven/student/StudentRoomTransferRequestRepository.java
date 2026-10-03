@@ -9,4 +9,5 @@ public interface StudentRoomTransferRequestRepository extends JpaRepository<Stud
     List<StudentRoomTransferRequest> findByRegistrationNoIgnoreCaseOrderByCreatedAtDesc(String registrationNo);
     Optional<StudentRoomTransferRequest> findFirstByRegistrationNoIgnoreCaseAndStatusOrderByCreatedAtDesc(
             String registrationNo, String status);
+    Optional<StudentRoomTransferRequest> findByRequestNo(String requestNo);
 }
