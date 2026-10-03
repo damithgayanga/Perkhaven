@@ -2805,11 +2805,10 @@ function StudentSelfService({
   if (studentAgreement?.agreementDataJson) { try { preparedAgreement = JSON.parse(studentAgreement.agreementDataJson) as AgreementData; } catch { preparedAgreement = null; } }
   return (
     <main className="limited-portal student-self-service">
-      <header className="limited-topbar">
-        <div>
-          <span className="brand-logo" />
-          <span>
-            <b>THE PERK HAVEN</b>
+      <header className="limited-topbar student-portal-topbar">
+        <div className="student-portal-brand">
+          <span className="brand-logo student-portal-brand-logo" aria-label="The Perk Haven" />
+          <span className="student-portal-brand-label">
             <small>RESIDENT PORTAL</small>
           </span>
         </div>
