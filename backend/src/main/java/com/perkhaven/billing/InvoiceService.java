@@ -155,7 +155,7 @@ public class InvoiceService {
         invoice = invoices.save(invoice);
         var values = adjustments == null ? List.<Invoice.AdjustmentData>of() : adjustments;
         if (!values.isEmpty() || (remarks != null && !remarks.isBlank())) {
-            invoice.revise(invoice.getBaseAmount(), remarks, values);
+            invoice.configureInitial(remarks, values);
         }
         enqueue(invoice);
         return invoice;
