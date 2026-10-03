@@ -4048,6 +4048,9 @@ function StudentInvoiceList({
   onView: (invoice: StudentInvoice) => void;
   onPay: (invoice: StudentInvoice) => void;
 }) {
+  const visibleInvoices = invoices.filter(
+    (invoice) => !(invoice.invoiceType === "Deposit" && Number(invoice.amount || 0) <= 0),
+  );
   return (
     <div>
       <div className="section-action">
@@ -4075,7 +4078,7 @@ function StudentInvoiceList({
             </tr>
           </thead>
           <tbody>
-            {invoices.map((invoice) => (
+            {visibleInvoices.map((invoice) => (
               <tr key={invoice.id}>
                 <td>
                   <button
@@ -4121,7 +4124,7 @@ function StudentInvoiceList({
                 </td>
               </tr>
             ))}
-            {!invoices.length && (
+            {!visibleInvoices.length && (
               <tr>
                 <td colSpan={8}>No invoices have been issued yet.</td>
               </tr>
@@ -4173,7 +4176,7 @@ function StudentEvidencePanel({
 }) {
   void StudentEvidencePanelPaymentModeLegacy;
   const depositInvoice = invoices.find(
-    (invoice) => invoice.invoiceType === "Deposit",
+    (invoice) => invoice.invoiceType === "Deposit" && Number(invoice.amount || 0) > 0,
   );
   const depositUnsettled = Boolean(
     depositInvoice &&
@@ -4462,7 +4465,7 @@ function StudentEvidencePanelPaymentModeLegacy({
 }) {
   void StudentEvidencePanelLegacy;
   const depositInvoice = invoices.find(
-    (invoice) => invoice.invoiceType === "Deposit",
+    (invoice) => invoice.invoiceType === "Deposit" && Number(invoice.amount || 0) > 0,
   );
   const depositUnsettled = Boolean(
     depositInvoice &&
