@@ -45,6 +45,8 @@ springdoc:
     path: /swagger-ui.html
 
 perkhaven:
+  invoices:
+    automatic-enabled: ${PERKHAVEN_INVOICES_AUTOMATIC_ENABLED:false}
   hostel:
     telephone: ${PERKHAVEN_HOSTEL_TELEPHONE:+94 11 234 5678}
     email: ${PERKHAVEN_HOSTEL_EMAIL:hello@perkhaven.example}

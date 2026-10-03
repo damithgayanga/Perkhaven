@@ -3950,8 +3950,7 @@ function StudentInvoiceList({
           <h2>Your invoices</h2>
           <p>
 
-            The Security Deposit invoice is issued first. Accommodation Fee invoices are issued seven
-            days before month-end and are due on the last day of the month.
+            Invoices are issued by management. Always use the latest revision shown here when making payment.
           </p>
         </div>
       </div>
@@ -9091,6 +9090,7 @@ function InvoiceLedger({
               const student = students.find(
                 (item) => item.registrationNo === invoice.registrationNo,
               );
+              const invoiceLocked = (invoice.paidAmount || 0) > 0;
               return (
                 <tr key={invoice.id}>
                   <td>
@@ -9127,18 +9127,28 @@ function InvoiceLedger({
                       <button
                         type="button"
                         className="review-button"
+                        disabled={invoiceLocked}
+                        title={invoiceLocked ? "This invoice is locked because a payment has been posted." : "Edit this invoice and issue a revision"}
+                        onClick={() => setEditing(invoice)}
+                      >
+                        Edit / Revise
+                      </button>
+                      <button
+                        type="button"
+                        className="review-button"
                         onClick={() => setPreviewing(invoice)}
                       >
                         View PDF
                       </button>
                       <button type="button" className="review-button" onClick={() => setPreviewing(invoice)}>Download PDF</button>
                       <button
-                        className="review-button"
-                        onClick={() => setEditing(invoice)}
+                        className="review-button danger"
+                        disabled={invoiceLocked}
+                        title={invoiceLocked ? "This invoice is locked because a payment has been posted." : "Delete this unpaid invoice"}
+                        onClick={() => void removeInvoice(invoice)}
                       >
-                        Adjust & reissue
+                        Delete
                       </button>
-                      <button className="review-button danger" disabled={(invoice.paidAmount || 0) > 0} onClick={() => void removeInvoice(invoice)}>Delete</button>
                     </div>
                   </td>
                 </tr>
@@ -9593,8 +9603,8 @@ function InvoiceEditModal({
       <form className="modal paymentmodal" onSubmit={submit}>
         <ModalHead
           tag="INVOICE ADMINISTRATION"
-          title={`Adjust and reissue ${invoice.invoiceNo}`}
-          text={`Apply any increase or reduction to this invoice here. Saving creates Rev.${String(invoice.version).padStart(2, "0")} and the revised total becomes the Amount Payable source.`}
+          title={`Edit and issue revision · ${invoice.invoiceNo}`}
+          text={`Apply any increase or reduction to this invoice. Saving issues a new revision and the revised total becomes the Amount Payable source.`}
           close={close}
         />
         <section className="formgrid two">

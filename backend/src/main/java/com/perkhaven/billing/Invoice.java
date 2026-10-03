@@ -80,6 +80,7 @@ public class Invoice extends AuditedEntity {
     }
 
     public void revise(BigDecimal directAmount, String remarks, List<AdjustmentData> values) {
+        if (paidAmount.signum() > 0) throw new IllegalArgumentException("Invoices with payments cannot be edited or revised.");
         if (values == null) {
             adjustments.clear();
             amount = money(directAmount);

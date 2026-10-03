@@ -31,7 +31,8 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:perkhaven-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
-        "perkhaven.storage.local-root=${java.io.tmpdir}/perkhaven-test-uploads"
+        "perkhaven.storage.local-root=${java.io.tmpdir}/perkhaven-test-uploads",
+        "perkhaven.invoices.automatic-enabled=true"
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
@@ -408,6 +409,12 @@ class CoreApiIntegrationTest {
         mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-TEST-900").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].status").value("Partially Paid"))
                 .andExpect(jsonPath("$.items[0].transactionIds.length()").value(1));
+        mvc.perform(put("/api/v1/invoices/{id}", invoiceId).header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":64000.00,\"remarks\":\"Should remain locked after payment\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(delete("/api/v1/invoices/{id}", invoiceId).header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
 
         var finalEvidence = new MockMultipartFile("evidence", "transfer-2.pdf", "application/pdf", new byte[]{'%', 'P', 'D', 'F'});
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payments")

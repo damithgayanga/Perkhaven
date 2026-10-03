@@ -31,14 +31,17 @@ public class InvoiceService {
     private final NumberSequenceRepository sequences;
     private final StorageService storage;
     private final StudentIdentityResolver studentIdentity;
+    private final boolean automaticInvoiceIssuanceEnabled;
     private final String hostelTelephone;
     private final String hostelEmail;
     public InvoiceService(InvoiceRepository invoices, StudentRepository students, NotificationOutboxRepository notifications, InvoicePdfService pdf, NumberSequenceRepository sequences, StorageService storage,
                           @Value("${perkhaven.hostel.telephone}") String hostelTelephone,
                           @Value("${perkhaven.hostel.email}") String hostelEmail,
+                          @Value("${perkhaven.invoices.automatic-enabled:false}") boolean automaticInvoiceIssuanceEnabled,
                           StudentIdentityResolver studentIdentity) {
         this.invoices = invoices; this.students = students; this.notifications = notifications; this.pdf = pdf; this.sequences = sequences; this.storage = storage;
         this.hostelTelephone = hostelTelephone; this.hostelEmail = hostelEmail;
+        this.automaticInvoiceIssuanceEnabled = automaticInvoiceIssuanceEnabled;
         this.studentIdentity = studentIdentity;
     }
 
@@ -80,6 +83,7 @@ public class InvoiceService {
 
     @Transactional
     public List<Invoice> createRegistrationInvoices(Student student) {
+        if (!automaticInvoiceIssuanceEnabled) return List.of();
         var created = new java.util.ArrayList<Invoice>();
         if (student.getDepositPayable().signum() > 0) created.add(createDeposit(student));
         var today = LocalDate.now(BUSINESS_ZONE);
@@ -164,6 +168,7 @@ public class InvoiceService {
     @Scheduled(cron = "0 5 3 * * *", zone = "Asia/Colombo")
     @Transactional
     public void scheduledRentGeneration() {
+        if (!automaticInvoiceIssuanceEnabled) return;
         var today = LocalDate.now(BUSINESS_ZONE);
         if (isAutomaticInvoiceWindow(today)) generateDueRentInvoices();
     }
