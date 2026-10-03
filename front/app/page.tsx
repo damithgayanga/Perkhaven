@@ -15497,6 +15497,10 @@ function ExpensesView({
     PettyCashDeposit[]
   >([]);
   const [bankSources, setBankSources] = useState<BankSource[]>([]);
+  const [bankTransactions, setBankTransactions] = useState<BankTransaction[]>([]);
+  const [bankLinks, setBankLinks] = useState<BankLink[]>([]);
+  const [reconcilingExpenseId, setReconcilingExpenseId] = useState<number | null>(null);
+  const [expenseReconciliationError, setExpenseReconciliationError] = useState("");
   const [reviewingPettyDeposit, setReviewingPettyDeposit] =
     useState<PettyCashDeposit | null>(null);
   const [pettySort, setPettySort] = useState<{
@@ -15544,6 +15548,20 @@ function ExpensesView({
       setSummaryEnd(value);
     }
   };
+  const loadExpenseBankReconciliation = async () => {
+    try {
+      const response = await fetch("/api/v1/bank-reconciliation");
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Unable to load bank transactions.");
+      setBankSources(result.sources || []);
+      setBankTransactions(result.bankTransactions || []);
+      setBankLinks(result.links || []);
+    } catch {
+      setBankSources([]);
+      setBankTransactions([]);
+      setBankLinks([]);
+    }
+  };
   useEffect(() => {
     fetch("/api/v1/petty-cash")
       .then((response) => response.json())
@@ -15551,16 +15569,110 @@ function ExpensesView({
         (result) => result.deposits && setPettyCashDeposits(result.deposits),
       )
       .catch(() => {});
-    fetch("/api/v1/bank-reconciliation")
-      .then((response) => response.json())
-      .then((result) => result.sources && setBankSources(result.sources))
-      .catch(() => {});
+    void loadExpenseBankReconciliation();
   }, []);
   const bankSource = (sourceType: BankSource["sourceType"], recordId: number) =>
     bankSources.find(
       (source) =>
         source.sourceType === sourceType && source.recordId === recordId,
     );
+  const bankAvailableForExpense = (bank: BankTransaction, expense: Expense) => {
+    const allocatedToOthers = bankLinks
+      .filter(
+        (link) =>
+          link.bankTransactionId === bank.bankTransactionId &&
+          !(link.sourceType === "Expense" && link.sourceRecordId === expense.id),
+      )
+      .reduce((sum, link) => sum + Number(link.reconciledAmount || 0), 0);
+    return Math.max(0, Number(bank.amount || 0) - allocatedToOthers);
+  };
+  const bankCandidatesForExpense = (expense: Expense) =>
+    bankTransactions
+      .filter(
+        (bank) =>
+          bank.drCr.toLowerCase().includes("dr") &&
+          bankAvailableForExpense(bank, expense) + 0.01 >= expense.amount,
+      )
+      .sort((left, right) => {
+        const amountDifference =
+          Math.abs(bankAvailableForExpense(left, expense) - expense.amount) -
+          Math.abs(bankAvailableForExpense(right, expense) - expense.amount);
+        if (Math.abs(amountDifference) > 0.01) return amountDifference;
+        const leftDate = Math.abs(
+          new Date(left.transactionDate).getTime() -
+            new Date(expense.transactionDate).getTime(),
+        );
+        const rightDate = Math.abs(
+          new Date(right.transactionDate).getTime() -
+            new Date(expense.transactionDate).getTime(),
+        );
+        return leftDate - rightDate;
+      });
+  const saveBankSelections = async (
+    bankTransactionId: string,
+    links: Array<{ sourceType: BankLink["sourceType"]; recordId: number; reconciledAmount: number }>,
+  ) => {
+    const response = await fetch("/api/v1/bank-reconciliation", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ bankTransactionId, selections: links }),
+    });
+    const result = await response.json();
+    if (!response.ok)
+      throw new Error(result.error || result.detail || "Unable to reconcile this expense.");
+  };
+  const reconcileExpenseToBank = async (expense: Expense, nextBankTransactionId: string) => {
+    if (reconcilingExpenseId !== null) return;
+    setReconcilingExpenseId(expense.id);
+    setExpenseReconciliationError("");
+    try {
+      const current = bankSource("Expense", expense.id)?.bankTransactionId || "";
+      if (current === nextBankTransactionId) return;
+
+      if (current) {
+        const remainingOldLinks = bankLinks
+          .filter(
+            (link) =>
+              link.bankTransactionId === current &&
+              !(link.sourceType === "Expense" && link.sourceRecordId === expense.id),
+          )
+          .map((link) => ({
+            sourceType: link.sourceType,
+            recordId: link.sourceRecordId,
+            reconciledAmount: link.reconciledAmount,
+          }));
+        await saveBankSelections(current, remainingOldLinks);
+      }
+
+      if (nextBankTransactionId) {
+        const existingNewLinks = bankLinks
+          .filter(
+            (link) =>
+              link.bankTransactionId === nextBankTransactionId &&
+              !(link.sourceType === "Expense" && link.sourceRecordId === expense.id),
+          )
+          .map((link) => ({
+            sourceType: link.sourceType,
+            recordId: link.sourceRecordId,
+            reconciledAmount: link.reconciledAmount,
+          }));
+        await saveBankSelections(nextBankTransactionId, [
+          ...existingNewLinks,
+          { sourceType: "Expense", recordId: expense.id, reconciledAmount: expense.amount },
+        ]);
+      }
+
+      await loadExpenseBankReconciliation();
+      window.dispatchEvent(new Event("bank-reconciliation-updated"));
+    } catch (caught) {
+      setExpenseReconciliationError(
+        caught instanceof Error ? caught.message : "Unable to reconcile this expense.",
+      );
+      await loadExpenseBankReconciliation();
+    } finally {
+      setReconcilingExpenseId(null);
+    }
+  };
   const expenseLedgerStatus = (expense: Expense) => {
     if (expense.approvalStatus !== "Approved")
       return "Unapproved Transaction";
@@ -15879,6 +15991,9 @@ function ExpensesView({
         )}
       </div>
       {categoryError && <p className="form-error">⚠ {categoryError}</p>}
+      {expenseReconciliationError && (
+        <p className="form-error">⚠ {expenseReconciliationError}</p>
+      )}
 
       {tab === "categories" && (
         <section>
@@ -16097,12 +16212,30 @@ function ExpensesView({
                       <td>
                         {expense.settlingMethod === "Petty Cash" ? (
                           "N/A"
-                        ) : bank?.bankTransactionId ? (
-                          <b className="transaction-id">
-                            {bank.bankTransactionId}
-                          </b>
+                        ) : expense.approvalStatus !== "Approved" ? (
+                          <small>Approve first</small>
                         ) : (
-                          "—"
+                          <select
+                            className="expense-bank-transaction-select"
+                            value={bank?.bankTransactionId || ""}
+                            disabled={reconcilingExpenseId === expense.id}
+                            onChange={(event) =>
+                              void reconcileExpenseToBank(expense, event.target.value)
+                            }
+                            aria-label={`Bank transaction for ${expense.transactionId}`}
+                          >
+                            <option value="">
+                              {bank?.bankTransactionId ? "Remove reconciliation" : "Select bank transaction"}
+                            </option>
+                            {bankCandidatesForExpense(expense).map((candidate) => (
+                              <option
+                                key={candidate.bankTransactionId}
+                                value={candidate.bankTransactionId}
+                              >
+                                {fmtCompactDate(candidate.transactionDate)} · {candidate.remarks || "No description"} · {candidate.currency} {amountOnly.format(candidate.amount)} · {candidate.bankTransactionId}
+                              </option>
+                            ))}
+                          </select>
                         )}
                       </td>
                       <td>
