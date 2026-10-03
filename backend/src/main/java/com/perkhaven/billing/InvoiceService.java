@@ -115,6 +115,52 @@ public class InvoiceService {
         return generated;
     }
 
+    @Transactional
+    public Invoice createManualInvoice(String registrationNo, InvoiceType invoiceType, YearMonth month,
+                                       BigDecimal requestedBaseAmount, LocalDate issueDate, LocalDate dueDate,
+                                       String remarks, List<Invoice.AdjustmentData> adjustments) {
+        var student = students.findByRegistrationNoIgnoreCase(registrationNo)
+                .orElseThrow(() -> new NotFoundException("Student not found."));
+        var issued = issueDate == null ? LocalDate.now(BUSINESS_ZONE) : issueDate;
+        var due = dueDate == null ? issued : dueDate;
+        if (due.isBefore(issued)) throw new IllegalArgumentException("Due date cannot be before the issue date.");
+
+        Invoice invoice;
+        switch (invoiceType) {
+            case DEPOSIT -> {
+                if (invoices.findByStudentIdAndInvoiceType(student.getId(), InvoiceType.DEPOSIT).isPresent())
+                    throw new IllegalArgumentException("A security deposit invoice already exists for this student. Adjust or reissue the existing invoice instead.");
+                invoice = new Invoice(numberForYear(student, issued.getYear()), student, InvoiceType.DEPOSIT, null,
+                        student.getDepositPayable(), issued, due);
+            }
+            case RENT -> {
+                if (month == null) throw new IllegalArgumentException("Billing month is required for a monthly accommodation fee invoice.");
+                var billingMonth = month.atDay(1);
+                if (invoices.findByStudentIdAndInvoiceTypeAndBillingMonth(student.getId(), InvoiceType.RENT, billingMonth).isPresent())
+                    throw new IllegalArgumentException("An accommodation fee invoice already exists for this student and month.");
+                invoice = new Invoice(numberForYear(student, issued.getYear()), student, InvoiceType.RENT, billingMonth,
+                        student.getMonthlyRent(), issued, due);
+            }
+            case OTHER_CHARGE -> {
+                if (requestedBaseAmount == null || requestedBaseAmount.signum() <= 0)
+                    throw new IllegalArgumentException("Amount is required for an Other Charge invoice.");
+                var sequenceKey = "MANUAL:" + student.getId() + ":" + java.util.UUID.randomUUID();
+                invoice = new Invoice(numberForYear(student, issued.getYear()), student, InvoiceType.OTHER_CHARGE, null,
+                        requestedBaseAmount, issued, due, sequenceKey);
+            }
+            case DEPOSIT_ADJUSTMENT -> throw new IllegalArgumentException("Security deposit adjustments are generated automatically from room transfers.");
+            default -> throw new IllegalArgumentException("Unsupported invoice type.");
+        }
+
+        invoice = invoices.save(invoice);
+        var values = adjustments == null ? List.<Invoice.AdjustmentData>of() : adjustments;
+        if (!values.isEmpty() || (remarks != null && !remarks.isBlank())) {
+            invoice.revise(invoice.getBaseAmount(), remarks, values);
+        }
+        enqueue(invoice);
+        return invoice;
+    }
+
     @Scheduled(cron = "0 5 3 * * *", zone = "Asia/Colombo")
     @Transactional
     public void scheduledRentGeneration() {
@@ -194,7 +240,8 @@ public class InvoiceService {
             case DEPOSIT_ADJUSTMENT -> invoice.getAmount().signum() < 0
                     ? "security deposit credit adjustment"
                     : "security deposit balance adjustment";
-            case RENT -> "rent for " + invoice.getBillingMonth().format(DISPLAY_MONTH);
+            case RENT -> "monthly accommodation fee for " + invoice.getBillingMonth().format(DISPLAY_MONTH);
+            case OTHER_CHARGE -> "other hostel charge";
         };
         var subject = "Perkhaven invoice " + invoice.getInvoiceNo() + " Rev." + String.format("%02d", invoice.getRevisionNumber());
         var body = invoice.getInvoiceType() == InvoiceType.DEPOSIT_ADJUSTMENT && invoice.getAmount().signum() < 0
