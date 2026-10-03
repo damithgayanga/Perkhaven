@@ -12,6 +12,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.Map;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +39,7 @@ public class AgreementController {
     private final AuditService audit;
     private final AuthorizationService authorization;
     private final AgreementPdfService pdf;
+    private final ApplicationEventPublisher events;
 
     public AgreementController(
             AgreementRepository agreements,
@@ -46,7 +48,8 @@ public class AgreementController {
             ObjectMapper json,
             AuditService audit,
             AuthorizationService authorization,
-            AgreementPdfService pdf) {
+            AgreementPdfService pdf,
+            ApplicationEventPublisher events) {
         this.agreements = agreements;
         this.students = students;
         this.sequences = sequences;
@@ -54,6 +57,7 @@ public class AgreementController {
         this.audit = audit;
         this.authorization = authorization;
         this.pdf = pdf;
+        this.events = events;
     }
 
     @GetMapping
@@ -158,6 +162,7 @@ public class AgreementController {
         agreement.sign(request.signedName().trim(), json.valueToTree(SIGNING_CONFIRMATIONS).toString());
         audit.record("SIGN", "AGREEMENT", agreement.getAgreementNo(),
                 agreement.getSignedName() + " · four confirmations accepted");
+        events.publishEvent(new AgreementSignedEvent(agreement.getId()));
         return Map.of("agreement", Response.from(agreement));
     }
 
