@@ -40,7 +40,14 @@ public class InvoicePdfService {
                 canvas.setNonStrokingColor(new Color(15, 48, 78)); canvas.addRect(0, 820, 595, 22); canvas.fill();
                 drawLogo(document, canvas);
                 text(canvas, BOLD, 22, 166, 775, "THE PERK HAVEN HOSTEL", 15, 48, 78);
-                text(canvas, REGULAR, 11, 166, 753, invoice.getInvoiceType() == InvoiceType.DEPOSIT ? "HOSTEL DEPOSIT INVOICE" : "MONTHLY HOSTEL INVOICE", 15, 48, 78);
+                var documentTitle = switch (invoice.getInvoiceType()) {
+                    case DEPOSIT -> "HOSTEL SECURITY DEPOSIT INVOICE";
+                    case DEPOSIT_ADJUSTMENT -> invoice.getAmount().signum() < 0
+                            ? "SECURITY DEPOSIT CREDIT INVOICE"
+                            : "SECURITY DEPOSIT ADJUSTMENT INVOICE";
+                    case RENT -> "MONTHLY HOSTEL INVOICE";
+                };
+                text(canvas, REGULAR, 11, 166, 753, documentTitle, 15, 48, 78);
                 text(canvas, REGULAR, 8.5f, 50, 731, "Telephone: " + telephone, 54, 72, 91);
                 text(canvas, REGULAR, 8.5f, 50, 718, "Email: " + email, 54, 72, 91);
                 line(canvas, 50, 697, 545, 697, 34, 101, 160);
@@ -56,7 +63,12 @@ public class InvoicePdfService {
                 if (invoice.getBillingMonth() != null) text(canvas, REGULAR, 10, 67, 542, "Month: " + MONTH.format(invoice.getBillingMonth()), 20, 39, 61);
 
                 var y = 486f;
-                text(canvas, BOLD, 9, 67, y, invoice.getInvoiceType() == InvoiceType.DEPOSIT ? "DEPOSIT" : "ROOM PRICE", 20, 39, 61);
+                var lineLabel = switch (invoice.getInvoiceType()) {
+                    case DEPOSIT -> "SECURITY DEPOSIT";
+                    case DEPOSIT_ADJUSTMENT -> invoice.getAmount().signum() < 0 ? "SECURITY DEPOSIT CREDIT" : "SECURITY DEPOSIT BALANCE";
+                    case RENT -> "ROOM PRICE";
+                };
+                text(canvas, BOLD, 9, 67, y, lineLabel, 20, 39, 61);
                 right(canvas, REGULAR, 10, 528, y, money(invoice.getBaseAmount()), 20, 39, 61);
                 y -= 23;
                 for (var adjustment : invoice.getAdjustments()) {
@@ -69,10 +81,16 @@ public class InvoicePdfService {
                 line(canvas, 67, y + 8, 528, y + 8, 190, 202, 214);
                 y -= 12;
                 fill(canvas, 50, y - 31, 495, 62, 222, 241, 236);
-                text(canvas, BOLD, 10, 67, y, "NET PAYMENT", 6, 101, 80);
+                text(canvas, BOLD, 10, 67, y,
+                        invoice.getInvoiceType() == InvoiceType.DEPOSIT_ADJUSTMENT && invoice.getAmount().signum() < 0
+                                ? "CREDIT AMOUNT" : "NET PAYMENT", 6, 101, 80);
                 right(canvas, BOLD, 18, 528, y - 3, money(invoice.getAmount()), 6, 101, 80);
 
-                text(canvas, REGULAR, 9.5f, 50, y - 72, "Please settle this invoice on or before " + DATE.format(invoice.getDueDate()) + ".", 54, 72, 91);
+                if (invoice.getInvoiceType() == InvoiceType.DEPOSIT_ADJUSTMENT && invoice.getAmount().signum() < 0) {
+                    text(canvas, REGULAR, 9.5f, 50, y - 72, "This credit has been recorded against your hostel security deposit.", 54, 72, 91);
+                } else {
+                    text(canvas, REGULAR, 9.5f, 50, y - 72, "Please settle this invoice on or before " + DATE.format(invoice.getDueDate()) + ".", 54, 72, 91);
+                }
                 if (invoice.getRemarks() != null && !invoice.getRemarks().isBlank()) text(canvas, REGULAR, 9, 50, y - 92, "Remarks: " + invoice.getRemarks(), 54, 72, 91);
                 line(canvas, 50, 74, 545, 74, 190, 202, 214);
                 text(canvas, REGULAR, 8.5f, 50, 52, "This is a system-generated invoice from The Perk Haven Hostel and requires no signature.", 54, 72, 91);
