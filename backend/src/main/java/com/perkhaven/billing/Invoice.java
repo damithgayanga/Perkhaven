@@ -75,7 +75,22 @@ public class Invoice extends AuditedEntity {
         if (this.amount.signum() < 0) this.status = InvoiceStatus.CREDITED;
     }
 
+    public void configureInitial(String remarks, List<AdjustmentData> values) {
+        applyAdjustments(remarks, values);
+    }
+
     public void revise(BigDecimal directAmount, String remarks, List<AdjustmentData> values) {
+        if (values == null) {
+            adjustments.clear();
+            amount = money(directAmount);
+            this.remarks = remarks;
+        } else {
+            applyAdjustments(remarks, values);
+        }
+        revisionNumber++; reissuedAt = Instant.now(); emailStatus = "QUEUED";
+    }
+
+    private void applyAdjustments(String remarks, List<AdjustmentData> values) {
         adjustments.clear();
         var total = baseAmount;
         for (var value : values == null ? List.<AdjustmentData>of() : values) {
@@ -84,8 +99,8 @@ public class Invoice extends AuditedEntity {
             adjustments.add(new BillingAdjustment(this, value.type(), signed, value.note()));
             total = total.add(signed);
         }
-        amount = values == null ? money(directAmount) : money(total.max(BigDecimal.ZERO));
-        this.remarks = remarks; revisionNumber++; reissuedAt = Instant.now(); emailStatus = "QUEUED";
+        amount = money(total.max(BigDecimal.ZERO));
+        this.remarks = remarks;
     }
 
     public void describe(String value) { remarks = value; }

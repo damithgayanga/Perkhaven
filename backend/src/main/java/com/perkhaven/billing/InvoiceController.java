@@ -7,6 +7,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -61,6 +62,27 @@ public class InvoiceController {
         return new GenerationResponse(values);
     }
 
+    @PostMapping("/manual")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public Response manual(@Valid @RequestBody ManualInvoiceRequest request) {
+        var adjustments = request.adjustments() == null ? List.<Invoice.AdjustmentData>of() : request.adjustments().stream()
+                .map(value -> new Invoice.AdjustmentData(value.type(), value.effect() == Effect.INCREASE, value.amount(), value.note()))
+                .toList();
+        var invoice = service.createManualInvoice(
+                request.registrationNo(),
+                request.invoiceType(),
+                request.month() == null || request.month().isBlank() ? null : YearMonth.parse(request.month()),
+                request.baseAmount(),
+                request.issueDate(),
+                request.dueDate(),
+                request.remarks(),
+                adjustments);
+        audit.record("CREATE_MANUAL", "INVOICE", invoice.getInvoiceNo(),
+                request.registrationNo() + " · " + request.invoiceType().name());
+        return response(invoice);
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
@@ -95,6 +117,9 @@ public class InvoiceController {
     public enum Effect { REDUCE, INCREASE }
     public record AdjustmentRequest(@NotNull AdjustmentType type, @NotNull Effect effect, @NotNull @DecimalMin("0.00") BigDecimal amount, String note) {}
     public record RevisionRequest(@NotNull @DecimalMin("0.00") BigDecimal amount, String remarks, List<@Valid AdjustmentRequest> adjustments) {}
+    public record ManualInvoiceRequest(@NotNull String registrationNo, @NotNull InvoiceType invoiceType, String month,
+                                       BigDecimal baseAmount, LocalDate issueDate, LocalDate dueDate,
+                                       String remarks, List<@Valid AdjustmentRequest> adjustments) {}
     public record GenerationResponse(List<Response> invoices) {}
     public record AdjustmentResponse(String type, String effect, BigDecimal amount, String note) {
         static AdjustmentResponse from(BillingAdjustment value) { return new AdjustmentResponse(value.getAdjustmentType().name(), value.getAmount().signum() >= 0 ? "Increase" : "Reduce", value.getAmount().abs(), value.getNote()); }
@@ -113,6 +138,7 @@ public class InvoiceController {
                         case DEPOSIT -> "Deposit";
                         case DEPOSIT_ADJUSTMENT -> "Security Deposit Adjustment";
                         case RENT -> "Rent";
+                        case OTHER_CHARGE -> "Other Charge";
                     },
                     value.getBillingMonth() == null ? "" : value.getBillingMonth().format(DateTimeFormatter.ofPattern("uuuu-MM")), value.getBaseAmount(), value.getAmount(), value.getPaidAmount(),
                     value.getIssueDate().toString(), value.getDueDate().toString(), status(value.getStatus()), value.getRevisionNumber() + 1,
