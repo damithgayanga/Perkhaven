@@ -412,9 +412,9 @@ class CoreApiIntegrationTest {
         mvc.perform(put("/api/v1/invoices/{id}", invoiceId).header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"amount\":64000.00,\"remarks\":\"Should remain locked after payment\"}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnprocessableEntity());
         mvc.perform(delete("/api/v1/invoices/{id}", invoiceId).header("Authorization", "Bearer " + token))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnprocessableEntity());
 
         var finalEvidence = new MockMultipartFile("evidence", "transfer-2.pdf", "application/pdf", new byte[]{'%', 'P', 'D', 'F'});
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payments")
