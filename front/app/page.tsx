@@ -9204,8 +9204,11 @@ function ManualInvoiceModal({
   save: (invoice: StudentInvoice) => void;
 }) {
   type ManualType = "DEPOSIT" | "RENT" | "OTHER_CHARGE";
+  type SelectionMode = "ONE" | "SELECTED" | "ALL";
   const today = new Date().toISOString().slice(0, 10);
   const [registrationNo, setRegistrationNo] = useState("");
+  const [selectedRegistrations, setSelectedRegistrations] = useState<string[]>([]);
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>("ONE");
   const [invoiceType, setInvoiceType] = useState<ManualType>("RENT");
   const [month, setMonth] = useState(today.slice(0, 7));
   const [otherAmount, setOtherAmount] = useState(0);
@@ -9223,12 +9226,22 @@ function ManualInvoiceModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const student = students.find((item) => item.registrationNo === registrationNo);
+  const rentStudents =
+    selectionMode === "ALL"
+      ? students
+      : selectionMode === "SELECTED"
+        ? students.filter((item) => selectedRegistrations.includes(item.registrationNo))
+        : student
+          ? [student]
+          : [];
   const baseAmount =
     invoiceType === "DEPOSIT"
       ? Number(student?.depositPayable || 0)
-      : invoiceType === "RENT"
+      : invoiceType === "RENT" && selectionMode === "ONE"
         ? Number(student?.monthlyRent || 0)
-        : otherAmount;
+        : invoiceType === "OTHER_CHARGE"
+          ? otherAmount
+          : 0;
   const adjustmentTotal = adjustments.reduce(
     (total, row) => total + (row.effect === "Increase" ? row.amount : -row.amount),
     0,
@@ -9237,6 +9250,11 @@ function ManualInvoiceModal({
 
   const updateType = (value: ManualType) => {
     setInvoiceType(value);
+    setError("");
+    if (value !== "RENT") {
+      setSelectionMode("ONE");
+      setSelectedRegistrations([]);
+    }
     if (value === "RENT") {
       const [year, mon] = month.split("-").map(Number);
       const end = new Date(Date.UTC(year, mon, 0)).toISOString().slice(0, 10);
@@ -9252,11 +9270,60 @@ function ManualInvoiceModal({
       setDueDate(new Date(Date.UTC(year, mon, 0)).toISOString().slice(0, 10));
     }
   };
+  const toggleStudent = (registration: string) => {
+    setSelectedRegistrations((current) =>
+      current.includes(registration)
+        ? current.filter((value) => value !== registration)
+        : [...current, registration],
+    );
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
     setError("");
+
+    if (invoiceType === "RENT" && selectionMode !== "ONE") {
+      const registrationNos =
+        selectionMode === "ALL"
+          ? students.map((item) => item.registrationNo)
+          : selectedRegistrations;
+      if (!registrationNos.length) {
+        setSaving(false);
+        setError("Select at least one student.");
+        return;
+      }
+      const response = await fetch("/api/v1/invoices/manual/batch", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          registrationNos,
+          invoiceType: "RENT",
+          month,
+          issueDate,
+          dueDate,
+          remarks,
+        }),
+      });
+      const result = await response.json();
+      setSaving(false);
+      if (!response.ok) {
+        setError(result.detail || "Unable to generate invoices.");
+        return;
+      }
+      const created = (result.invoices || []) as StudentInvoice[];
+      if (created[0]) save(created[0]);
+      window.dispatchEvent(new Event("invoices-changed"));
+      if (result.skipped?.length) {
+        setError(
+          `${created.length} invoice(s) generated. ${result.skipped.length} student(s) skipped because an invoice already exists or could not be created.`,
+        );
+        return;
+      }
+      close();
+      return;
+    }
+
     const response = await fetch("/api/v1/invoices/manual", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -9293,25 +9360,10 @@ function ManualInvoiceModal({
         <ModalHead
           tag="INVOICE ADMINISTRATION"
           title="Generate manual invoice"
-          text="Select the resident and payment type. Resident details, hostel room and standard charges are taken automatically from the system."
+          text="Select the payment type and resident(s). Student details, hostel room and standard charges are taken automatically from the system."
           close={close}
         />
         <section className="formgrid two">
-          <label className="wide">
-            Student
-            <select value={registrationNo} onChange={(event) => setRegistrationNo(event.target.value)} required>
-              <option value="">Select student</option>
-              {students.map((item) => (
-                <option value={item.registrationNo} key={item.id}>
-                  {item.firstName} {item.lastName} · {item.registrationNo}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Hostel Room
-            <input value={student?.roomNo || ""} disabled />
-          </label>
           <label>
             Payment type
             <select value={invoiceType} onChange={(event) => updateType(event.target.value as ManualType)}>
@@ -9320,22 +9372,92 @@ function ManualInvoiceModal({
               <option value="OTHER_CHARGE">Other Charge</option>
             </select>
           </label>
+
+          {invoiceType === "RENT" && (
+            <label>
+              Student selection
+              <select value={selectionMode} onChange={(event) => setSelectionMode(event.target.value as SelectionMode)}>
+                <option value="ONE">One student</option>
+                <option value="SELECTED">Select students</option>
+                <option value="ALL">All students</option>
+              </select>
+            </label>
+          )}
+
+          {(invoiceType !== "RENT" || selectionMode === "ONE") && (
+            <label className="wide">
+              Student
+              <select value={registrationNo} onChange={(event) => setRegistrationNo(event.target.value)} required>
+                <option value="">Select student</option>
+                {students.map((item) => (
+                  <option value={item.registrationNo} key={item.id}>
+                    {item.firstName} {item.lastName} · {item.registrationNo}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {invoiceType === "RENT" && selectionMode === "SELECTED" && (
+            <div className="wide invoice-adjustment-editor">
+              <div className="invoice-adjustment-heading">
+                <b>Select students</b>
+                <small>{selectedRegistrations.length} student(s) selected.</small>
+              </div>
+              {students.map((item) => (
+                <label key={item.id} className="manual-student-select-row">
+                  <input
+                    type="checkbox"
+                    checked={selectedRegistrations.includes(item.registrationNo)}
+                    onChange={() => toggleStudent(item.registrationNo)}
+                  />
+                  <span>
+                    <b>{item.firstName} {item.lastName}</b>
+                    <small>{item.registrationNo} · Room {item.roomNo || "—"} · {cash.format(Number(item.monthlyRent || 0))}/month</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {invoiceType === "RENT" && selectionMode === "ALL" && (
+            <div className="wide invoice-adjustment-editor">
+              <div className="invoice-adjustment-summary">
+                <span><small>STUDENTS SELECTED</small><b>{students.length}</b></span>
+                <span><small>INVOICE TYPE</small><b>Monthly Accommodation Fee</b></span>
+              </div>
+              <small>All students currently loaded in the student register will be included. Students who already have an invoice for the selected month will be skipped automatically.</small>
+            </div>
+          )}
+
+          {selectionMode === "ONE" && (
+            <label>
+              Hostel Room
+              <input value={student?.roomNo || ""} disabled />
+            </label>
+          )}
+
           {invoiceType === "RENT" && (
             <label>
               Billing month
               <input type="month" value={month} onChange={(event) => updateMonth(event.target.value)} required />
             </label>
           )}
+
           {invoiceType === "OTHER_CHARGE" && (
             <label>
               Base amount (LKR)
               <input type="number" min="0.01" step="0.01" value={otherAmount || ""} onChange={(event) => setOtherAmount(Number(event.target.value))} required />
             </label>
           )}
-          <label>
-            Standard / base amount (LKR)
-            <input value={baseAmount ? amountOnly.format(baseAmount) : ""} disabled />
-          </label>
+
+          {selectionMode === "ONE" && (
+            <label>
+              Standard / base amount (LKR)
+              <input value={baseAmount ? amountOnly.format(baseAmount) : ""} disabled />
+            </label>
+          )}
+
           <label>
             Issue date
             <input type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required />
@@ -9344,41 +9466,45 @@ function ManualInvoiceModal({
             Due date
             <input type="date" min={issueDate} value={dueDate} onChange={(event) => setDueDate(event.target.value)} required />
           </label>
-          <div className="wide invoice-adjustment-editor">
-            <div className="invoice-adjustment-summary">
-              <span><small>BASE AMOUNT</small><b>{cash.format(baseAmount)}</b></span>
-              <span><small>FINAL AMOUNT PAYABLE</small><b>{cash.format(finalAmount)}</b></span>
-            </div>
-            <div className="invoice-adjustment-heading">
-              <b>Deductions / adjustments</b>
-              <small>Use Reduce for deductions and Increase for additional charges. Leave unused rows at zero.</small>
-            </div>
-            {adjustments.map((row, index) => (
-              <div className="invoice-adjustment-row" key={row.type}>
-                <select
-                  value={row.effect}
-                  onChange={(event) => setAdjustments((current) => current.map((item, i) => i === index ? { ...item, effect: event.target.value as "Reduce" | "Increase" } : item))}
-                >
-                  <option value="Reduce">Deduct</option>
-                  <option value="Increase">Add</option>
-                </select>
-                <span>{row.type}</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={row.amount || ""}
-                  placeholder="0.00"
-                  onChange={(event) => setAdjustments((current) => current.map((item, i) => i === index ? { ...item, amount: Number(event.target.value) } : item))}
-                />
-                <input
-                  value={row.note}
-                  placeholder="Note"
-                  onChange={(event) => setAdjustments((current) => current.map((item, i) => i === index ? { ...item, note: event.target.value } : item))}
-                />
+
+          {selectionMode === "ONE" && (
+            <div className="wide invoice-adjustment-editor">
+              <div className="invoice-adjustment-summary">
+                <span><small>BASE AMOUNT</small><b>{cash.format(baseAmount)}</b></span>
+                <span><small>FINAL AMOUNT PAYABLE</small><b>{cash.format(finalAmount)}</b></span>
               </div>
-            ))}
-          </div>
+              <div className="invoice-adjustment-heading">
+                <b>Deductions / adjustments</b>
+                <small>Use Reduce for deductions and Increase for additional charges. Leave unused rows at zero.</small>
+              </div>
+              {adjustments.map((row, index) => (
+                <div className="invoice-adjustment-row" key={row.type}>
+                  <select
+                    value={row.effect}
+                    onChange={(event) => setAdjustments((current) => current.map((item, i) => i === index ? { ...item, effect: event.target.value as "Reduce" | "Increase" } : item))}
+                  >
+                    <option value="Reduce">Deduct</option>
+                    <option value="Increase">Add</option>
+                  </select>
+                  <span>{row.type}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={row.amount || ""}
+                    placeholder="0.00"
+                    onChange={(event) => setAdjustments((current) => current.map((item, i) => i === index ? { ...item, amount: Number(event.target.value) } : item))}
+                  />
+                  <input
+                    value={row.note}
+                    placeholder="Note"
+                    onChange={(event) => setAdjustments((current) => current.map((item, i) => i === index ? { ...item, note: event.target.value } : item))}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
           <label className="wide">
             Remarks
             <textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={3} />
@@ -9387,8 +9513,19 @@ function ManualInvoiceModal({
         </section>
         <div className="modalactions">
           <button type="button" onClick={close}>Cancel</button>
-          <button className="primary" disabled={saving || !student || finalAmount <= 0}>
-            {saving ? "Generating…" : "Generate & issue invoice"}
+          <button
+            className="primary"
+            disabled={
+              saving ||
+              (selectionMode === "ONE" && (!student || finalAmount <= 0)) ||
+              (invoiceType === "RENT" && selectionMode === "SELECTED" && selectedRegistrations.length === 0)
+            }
+          >
+            {saving
+              ? "Generating…"
+              : invoiceType === "RENT" && selectionMode !== "ONE"
+                ? `Generate ${rentStudents.length} invoice(s)`
+                : "Generate & issue invoice"}
           </button>
         </div>
       </form>
