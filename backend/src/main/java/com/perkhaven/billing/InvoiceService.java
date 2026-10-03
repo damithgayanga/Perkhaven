@@ -190,9 +190,8 @@ public class InvoiceService {
         if (difference.signum() == 0)
             throw new IllegalArgumentException("The previous and new security deposits are the same. No invoice or credit invoice is required.");
 
-        var issued = issueDate == null ? LocalDate.now(BUSINESS_ZONE) : issueDate;
-        var due = dueDate == null ? issued : dueDate;
-        if (due.isBefore(issued)) throw new IllegalArgumentException("Due date cannot be before the issue date.");
+        var issued = transfer.getTransferDate();
+        var due = transfer.getTransferDate();
 
         var key = student.getId() + ":DEPOSIT_ADJUSTMENT:" + transfer.getRequestNo();
         if (invoices.findByBillingKey(key).isPresent())
