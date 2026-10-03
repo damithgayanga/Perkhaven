@@ -2643,6 +2643,7 @@ function StudentSelfService({
     [viewingAgreement, setViewingAgreement] = useState(false),
     [agreementSignedName, setAgreementSignedName] = useState(""),
     [agreementConsent, setAgreementConsent] = useState(false),
+    [agreementConfirmations, setAgreementConfirmations] = useState<AgreementConfirmationState>(emptyAgreementConfirmations()),
     [signingAgreement, setSigningAgreement] = useState(false),
     [studentAgreement, setStudentAgreement] = useState<AgreementRecord | null>(null),
     [respondingRoom, setRespondingRoom] = useState<RoomTransferRequest | null>(
@@ -3152,7 +3153,47 @@ function StudentSelfService({
               }}
             />
           )}
-          {tab === "Agreement" && <section className="student-agreement-card"><div><p className="tag">CONTRACT AGREEMENT</p><h2>Your hostel agreement</h2><p>The agreement prepared by management will appear here for your review and electronic signature.</p></div><div className="agreement-status-row"><span className={`approval-status ${(studentAgreement?.status || "Not signed").toLowerCase().replaceAll(" ", "-")}`}>{studentAgreement?.status || "Not signed"}</span>{studentAgreement?.issuedAt && <small>Sent {fmtDateTime(studentAgreement.issuedAt)}</small>}{studentAgreement?.signedAt && <small>Signed {fmtDateTime(studentAgreement.signedAt)}</small>}</div>{preparedAgreement ? <button className="primary" onClick={() => { setAgreementSignedName(`${student.firstName} ${student.lastName}`); setAgreementConsent(false); setViewingAgreement(true); }}>{studentAgreement?.status === "Signed" ? "View signed agreement" : "Review and sign"}</button> : <p className="empty-state">Management has not sent an agreement yet.</p>}</section>}
+          {tab === "Agreement" && (
+            <section className="student-agreement-card">
+              <div>
+                <p className="tag">CONTRACT AGREEMENT</p>
+                <h2>Your hostel agreement</h2>
+                <p>The agreement prepared by management will appear here for your review and electronic signature.</p>
+              </div>
+              <div className="agreement-status-row">
+                <span className={`approval-status ${(studentAgreement?.status || "Not signed").toLowerCase().replaceAll(" ", "-")}`}>{studentAgreement?.status || "Not signed"}</span>
+                {studentAgreement?.issuedAt && <small>Sent {fmtDateTime(studentAgreement.issuedAt)}</small>}
+                {studentAgreement?.signedAt && <small>Signed {fmtDateTime(studentAgreement.signedAt)}</small>}
+              </div>
+              {preparedAgreement ? (
+                <button className="primary" onClick={() => {
+                  setAgreementSignedName(`${student.firstName} ${student.lastName}`);
+                  setAgreementConsent(false);
+                  setAgreementConfirmations(emptyAgreementConfirmations());
+                  setViewingAgreement(true);
+                }}>
+                  {studentAgreement?.status === "Signed" ? "View signed agreement" : "Review and sign"}
+                </button>
+              ) : <p className="empty-state">Management has not sent an agreement yet.</p>}
+              {studentAgreement?.status === "Signed" && (
+                <div className="agreement-confirmation-history">
+                  <div>
+                    <b>Confirmations accepted</b>
+                    <small>These acknowledgements form part of the electronic signing record.</small>
+                  </div>
+                  {AGREEMENT_SIGNING_CONFIRMATIONS.map((item, index) => {
+                    const acceptedAt = agreementConfirmationAcceptedAt(studentAgreement, item.key);
+                    return (
+                      <article key={item.key}>
+                        <span><b>{index + 1}.</b> {item.text}</span>
+                        <small>{acceptedAt ? `Accepted ${fmtDateTime(acceptedAt)}` : "Acceptance date not recorded for this agreement."}</small>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
           {tab === "Edit history" && (
             <ProfileRequestHistory requests={requests} />
           )}
@@ -3165,7 +3206,73 @@ function StudentSelfService({
           close={() => setPreviewingStudentInvoice(null)}
         />
       )}
-      {viewingAgreement && preparedAgreement && studentAgreement && <div className="backdrop"><section className="modal agreement-workspace-modal student-agreement-modal"><ModalHead tag="CONTRACT AGREEMENT" title={`${studentAgreement.agreementNo} · ${studentAgreement.revisionLabel}`} text={studentAgreement.status === "Signed" ? "This agreement has been electronically signed." : "Read the complete agreement before signing."} close={() => setViewingAgreement(false)} /><div className="agreement-workspace"><AgreementDocumentPreview data={preparedAgreement} agreementId={studentAgreement.id} signature={studentAgreement.signedName && studentAgreement.signedAt ? { name: studentAgreement.signedName, date: studentAgreement.signedAt } : undefined} /><aside className="agreement-sign-panel"><h3>Electronic signature</h3>{studentAgreement.status === "Signed" ? <><div className="success-banner">Signed electronically</div><dl><dt>Signed by</dt><dd>{studentAgreement.signedName}</dd><dt>Date and time</dt><dd>{studentAgreement.signedAt ? fmtDateTime(studentAgreement.signedAt) : "—"}</dd></dl></> : <><p>By signing, you confirm that you have read, understood and agree to this hostel accommodation agreement.</p><label>Full legal name<input value={agreementSignedName} onChange={(event) => setAgreementSignedName(event.target.value)} /></label><label className="agreement-consent"><input type="checkbox" checked={agreementConsent} onChange={(event) => setAgreementConsent(event.target.checked)} /><span>I consent to use this electronic signature and agree to be bound by the contract.</span></label><button className="primary" disabled={!agreementConsent || signingAgreement} onClick={async () => { setSigningAgreement(true); try { const response = await fetch(`/api/v1/agreements/${studentAgreement.id}/sign`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ signedName: agreementSignedName, consent: agreementConsent }) }); const result = await response.json(); if (!response.ok) throw new Error(result.detail || "Unable to sign agreement."); setStudentAgreement(result.agreement); setMessage("Agreement signed successfully."); setViewingAgreement(false); } catch (reason) { setMessage(reason instanceof Error ? reason.message : "Unable to sign agreement."); } finally { setSigningAgreement(false); } }}>Sign Agreement</button></>}</aside></div><div className="modalactions"><button className="secondary" onClick={() => void downloadIssuedAgreementPdf(studentAgreement.id, `${studentAgreement.agreementNo}-${studentAgreement.revisionLabel}.pdf`)}>Download PDF</button></div></section></div>}
+      {viewingAgreement && preparedAgreement && studentAgreement && (
+        <div className="backdrop">
+          <section className="modal agreement-workspace-modal student-agreement-modal">
+            <ModalHead tag="CONTRACT AGREEMENT" title={`${studentAgreement.agreementNo} · ${studentAgreement.revisionLabel}`} text={studentAgreement.status === "Signed" ? "This agreement has been electronically signed." : "Read the complete agreement before signing."} close={() => setViewingAgreement(false)} />
+            <div className="agreement-workspace">
+              <AgreementDocumentPreview data={preparedAgreement} agreementId={studentAgreement.id} signature={studentAgreement.signedName && studentAgreement.signedAt ? { name: studentAgreement.signedName, date: studentAgreement.signedAt } : undefined} />
+              <aside className="agreement-sign-panel">
+                <h3>Electronic signature</h3>
+                {studentAgreement.status === "Signed" ? (
+                  <>
+                    <div className="success-banner">Signed electronically</div>
+                    <dl><dt>Signed by</dt><dd>{studentAgreement.signedName}</dd><dt>Date and time</dt><dd>{studentAgreement.signedAt ? fmtDateTime(studentAgreement.signedAt) : "—"}</dd></dl>
+                    <div className="agreement-confirmation-list signed">
+                      <b>Confirmations accepted</b>
+                      {AGREEMENT_SIGNING_CONFIRMATIONS.map((item, index) => {
+                        const acceptedAt = agreementConfirmationAcceptedAt(studentAgreement, item.key);
+                        return <div key={item.key}><span>{index + 1}. {item.text}</span><small>{acceptedAt ? fmtDateTime(acceptedAt) : "Not recorded"}</small></div>;
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p>By signing this agreement I confirm that:</p>
+                    <div className="agreement-confirmation-list">
+                      {AGREEMENT_SIGNING_CONFIRMATIONS.map((item, index) => (
+                        <label className="agreement-consent agreement-confirmation-item" key={item.key}>
+                          <input type="checkbox" checked={agreementConfirmations[item.key]} onChange={(event) => setAgreementConfirmations((current) => ({ ...current, [item.key]: event.target.checked }))} />
+                          <span><b>{index + 1}.</b> {item.text}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <label>Full legal name<input value={agreementSignedName} onChange={(event) => setAgreementSignedName(event.target.value)} /></label>
+                    <label className="agreement-consent"><input type="checkbox" checked={agreementConsent} onChange={(event) => setAgreementConsent(event.target.checked)} /><span>I consent to use this electronic signature and agree to be bound by the contract.</span></label>
+                    <button className="primary" disabled={!agreementConsent || !Object.values(agreementConfirmations).every(Boolean) || signingAgreement || !agreementSignedName.trim()} onClick={async () => {
+                      setSigningAgreement(true);
+                      try {
+                        const response = await fetch(`/api/v1/agreements/${studentAgreement.id}/sign`, {
+                          method: "POST",
+                          headers: { "content-type": "application/json" },
+                          body: JSON.stringify({
+                            signedName: agreementSignedName,
+                            consent: agreementConsent,
+                            minimumStayConsent: agreementConfirmations.minimumStay,
+                            checkoutNoticeConsent: agreementConfirmations.checkoutNotice,
+                            hostelRulesConsent: agreementConfirmations.hostelRules,
+                            inventoryConsent: agreementConfirmations.inventory,
+                          }),
+                        });
+                        const result = await response.json();
+                        if (!response.ok) throw new Error(result.detail || "Unable to sign agreement.");
+                        setStudentAgreement(result.agreement);
+                        setMessage("Agreement signed successfully.");
+                        setViewingAgreement(false);
+                      } catch (reason) {
+                        setMessage(reason instanceof Error ? reason.message : "Unable to sign agreement.");
+                      } finally {
+                        setSigningAgreement(false);
+                      }
+                    }}>{signingAgreement ? "Signing…" : "Sign Agreement"}</button>
+                  </>
+                )}
+              </aside>
+            </div>
+            <div className="modalactions"><button className="secondary" onClick={() => void downloadIssuedAgreementPdf(studentAgreement.id, `${studentAgreement.agreementNo}-${studentAgreement.revisionLabel}.pdf`)}>Download PDF</button></div>
+          </section>
+        </div>
+      )}
       {makingPayment && (
         <div className="backdrop">
           <section className="modal student-action-modal">
@@ -5248,7 +5355,21 @@ const withAgreementContacts = (data: AgreementData): AgreementData => ({
   hostelTelephone: AGREEMENT_CONTACT_PROFILE.telephone,
   hostelEmail: AGREEMENT_CONTACT_PROFILE.email,
 });
-type AgreementRecord = { id: number; agreementNo: string; revision: number; revisionLabel: string; registrationNo: string; studentName: string; roomNo: string; startDate: string; agreementDataJson: string; status: "Pending" | "Signed"; issuedAt: string; signedName?: string; signedAt?: string; };
+type AgreementRecord = { id: number; agreementNo: string; revision: number; revisionLabel: string; registrationNo: string; studentName: string; roomNo: string; startDate: string; agreementDataJson: string; status: "Pending" | "Signed"; issuedAt: string; signedName?: string; signedAt?: string; minimumStayAcceptedAt?: string; checkoutNoticeAcceptedAt?: string; hostelRulesAcceptedAt?: string; inventoryAcceptedAt?: string; };
+type AgreementConfirmationState = { minimumStay: boolean; checkoutNotice: boolean; hostelRules: boolean; inventory: boolean };
+const emptyAgreementConfirmations = (): AgreementConfirmationState => ({ minimumStay: false, checkoutNotice: false, hostelRules: false, inventory: false });
+const AGREEMENT_SIGNING_CONFIRMATIONS: Array<{ key: keyof AgreementConfirmationState; text: string }> = [
+  { key: "minimumStay", text: "I understand the minimum stay is six (6) months. If I leave earlier without written approval, I remain liable for fees and other amounts due under the Agreement, which may be deducted from my Security Deposit." },
+  { key: "checkoutNotice", text: "I must give at least one (1) calendar month's written Check-Out Notice. My Check-Out Date will be the later of one month after notice or my requested date, and Accommodation Fees remain payable through that date." },
+  { key: "hostelRules", text: "I agree to comply with Appendix 1 and any reasonable rule amendments communicated by Hostel Management. Material or repeated breaches may result in termination, and serious breaches may result in immediate termination in accordance with the Agreement." },
+  { key: "inventory", text: "I confirm the Appendix 2 items handed over to me are in good condition, except any defects recorded at handover. I will return them in the same condition, fair wear and tear excepted, and I am responsible for reasonable repair/replacement costs and the applicable administration fee for loss or damage attributable to me." },
+];
+const agreementConfirmationAcceptedAt = (agreement: AgreementRecord, key: keyof AgreementConfirmationState) => {
+  if (key === "minimumStay") return agreement.minimumStayAcceptedAt;
+  if (key === "checkoutNotice") return agreement.checkoutNoticeAcceptedAt;
+  if (key === "hostelRules") return agreement.hostelRulesAcceptedAt;
+  return agreement.inventoryAcceptedAt;
+};
 type SettlementData = { printDate: string; accountNumber: string; accountHolderName: string; bankName: string; branchName: string; };
 type SettlementRecord = { id: number; settlementNo: string; registrationNo: string; residentName: string; roomNo: string; checkoutDate?: string; settlementDataJson: string; issuedAt: string };
 const blobBase64 = (blob: Blob) => new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(reader.error); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.readAsDataURL(blob); });
