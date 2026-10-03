@@ -46,6 +46,7 @@ public class InvoicePdfService {
                             ? "SECURITY DEPOSIT CREDIT INVOICE"
                             : "SECURITY DEPOSIT ADJUSTMENT INVOICE";
                     case RENT -> "MONTHLY HOSTEL INVOICE";
+                    case OTHER_CHARGE -> "HOSTEL CHARGE INVOICE";
                 };
                 text(canvas, REGULAR, 11, 166, 753, documentTitle, 15, 48, 78);
                 text(canvas, REGULAR, 8.5f, 50, 731, "Telephone: " + telephone, 54, 72, 91);
@@ -67,6 +68,7 @@ public class InvoicePdfService {
                     case DEPOSIT -> "SECURITY DEPOSIT";
                     case DEPOSIT_ADJUSTMENT -> invoice.getAmount().signum() < 0 ? "SECURITY DEPOSIT CREDIT" : "SECURITY DEPOSIT BALANCE";
                     case RENT -> "ROOM PRICE";
+                    case OTHER_CHARGE -> "HOSTEL CHARGE";
                 };
                 text(canvas, BOLD, 9, 67, y, lineLabel, 20, 39, 61);
                 right(canvas, REGULAR, 10, 528, y, money(invoice.getBaseAmount()), 20, 39, 61);
