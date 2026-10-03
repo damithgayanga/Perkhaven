@@ -83,6 +83,38 @@ public class InvoiceController {
         return response(invoice);
     }
 
+    @PostMapping("/manual/batch")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ManualBatchResponse manualBatch(@Valid @RequestBody ManualBatchInvoiceRequest request) {
+        if (request.invoiceType() != InvoiceType.RENT)
+            throw new IllegalArgumentException("Multiple-student invoice generation is available only for Monthly Accommodation Fee.");
+        if (request.registrationNos() == null || request.registrationNos().isEmpty())
+            throw new IllegalArgumentException("Select at least one student.");
+
+        var created = new java.util.ArrayList<Response>();
+        var skipped = new java.util.ArrayList<ManualBatchSkipped>();
+        for (var registrationNo : request.registrationNos().stream().filter(value -> value != null && !value.isBlank()).distinct().toList()) {
+            try {
+                var invoice = service.createManualInvoice(
+                        registrationNo,
+                        InvoiceType.RENT,
+                        request.month() == null || request.month().isBlank() ? null : YearMonth.parse(request.month()),
+                        null,
+                        request.issueDate(),
+                        request.dueDate(),
+                        request.remarks(),
+                        List.of());
+                created.add(response(invoice));
+                audit.record("CREATE_MANUAL", "INVOICE", invoice.getInvoiceNo(),
+                        registrationNo + " · RENT");
+            } catch (RuntimeException exception) {
+                skipped.add(new ManualBatchSkipped(registrationNo,
+                        exception.getMessage() == null ? "Unable to generate invoice." : exception.getMessage()));
+            }
+        }
+        return new ManualBatchResponse(created, skipped);
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
@@ -120,6 +152,10 @@ public class InvoiceController {
     public record ManualInvoiceRequest(@NotNull String registrationNo, @NotNull InvoiceType invoiceType, String month,
                                        BigDecimal baseAmount, LocalDate issueDate, LocalDate dueDate,
                                        String remarks, List<@Valid AdjustmentRequest> adjustments) {}
+    public record ManualBatchInvoiceRequest(@NotNull List<String> registrationNos, @NotNull InvoiceType invoiceType,
+                                            String month, LocalDate issueDate, LocalDate dueDate, String remarks) {}
+    public record ManualBatchSkipped(String registrationNo, String reason) {}
+    public record ManualBatchResponse(List<Response> invoices, List<ManualBatchSkipped> skipped) {}
     public record GenerationResponse(List<Response> invoices) {}
     public record AdjustmentResponse(String type, String effect, BigDecimal amount, String note) {
         static AdjustmentResponse from(BillingAdjustment value) { return new AdjustmentResponse(value.getAdjustmentType().name(), value.getAmount().signum() >= 0 ? "Increase" : "Reduce", value.getAmount().abs(), value.getNote()); }
