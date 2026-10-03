@@ -3657,7 +3657,18 @@ table thead .table-sort-head {
 .student-agreement-card p:not(.tag) { color: #65778b; }
 .agreement-status-row { display: grid; justify-items: center; gap: 5px; }
 .agreement-status-row small { color: #75869a; }
+.agreement-confirmation-history { grid-column: 1 / -1; display: grid; gap: 9px; padding: 16px; border: 1px solid #d5e0ea; border-radius: 9px; background: #f8fafc; }
+.agreement-confirmation-history > div { display: grid; gap: 3px; color: #173f67; }
+.agreement-confirmation-history > div small { color: #75869a; }
+.agreement-confirmation-history article { display: grid; gap: 5px; padding: 10px 12px; border: 1px solid #e0e6ec; border-radius: 7px; background: #fff; color: #324a62; font-size: .78rem; line-height: 1.45; }
+.agreement-confirmation-history article small { color: #667b90; font-weight: 700; }
+.agreement-confirmation-list { display: grid; gap: 8px; margin: 12px 0 18px; }
+.agreement-confirmation-list.signed { margin-top: 18px; padding-top: 16px; border-top: 1px solid #dce4eb; }
+.agreement-confirmation-list.signed > div { display: grid; gap: 4px; padding: 9px 0; border-bottom: 1px solid #edf1f4; color: #324a62; font-size: .74rem; line-height: 1.4; }
+.agreement-confirmation-list.signed > div small { color: #6e8194; font-weight: 800; }
 .agreement-consent { display: grid; grid-template-columns: 20px 1fr; align-items: start; gap: 8px; margin: 18px 0; color: #324a62; font-size: .78rem; line-height: 1.45; }
+.agreement-confirmation-item.agreement-consent { margin: 0; padding: 10px 11px; border: 1px solid #dce4eb; border-radius: 7px; background: #f8fafc; }
+.agreement-confirmation-item.agreement-consent:has(input:checked) { border-color: #9fcab7; background: #f0f8f4; }
 .agreement-consent input { margin-top: 2px; }
 .agreement-sign-panel dl { display: grid; gap: 5px; color: #3c5369; }
 .agreement-sign-panel dt { margin-top: 12px; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #728398; }
