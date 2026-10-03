@@ -24,6 +24,13 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/agreements")
 public class AgreementController {
+    private static final Map<String, String> SIGNING_CONFIRMATIONS = Map.of(
+            "minimumStay", "I understand the minimum stay is six (6) months. If I leave earlier without written approval, I remain liable for fees and other amounts due under the Agreement, which may be deducted from my Security Deposit.",
+            "checkoutNotice", "I must give at least one (1) calendar month's written Check-Out Notice. My Check-Out Date will be the later of one month after notice or my requested date, and Accommodation Fees remain payable through that date.",
+            "hostelRules", "I agree to comply with Appendix 1 and any reasonable rule amendments communicated by Hostel Management. Material or repeated breaches may result in termination, and serious breaches may result in immediate termination in accordance with the Agreement.",
+            "inventory", "I confirm the Appendix 2 items handed over to me are in good condition, except any defects recorded at handover. I will return them in the same condition, fair wear and tear excepted, and I am responsible for reasonable repair/replacement costs and the applicable administration fee for loss or damage attributable to me."
+    );
+
     private final AgreementRepository agreements;
     private final StudentRepository students;
     private final NumberSequenceRepository sequences;
@@ -137,6 +144,10 @@ public class AgreementController {
         if (!request.consent()) {
             throw new IllegalArgumentException("Electronic signature consent is required.");
         }
+        if (!request.minimumStayConsent() || !request.checkoutNoticeConsent()
+                || !request.hostelRulesConsent() || !request.inventoryConsent()) {
+            throw new IllegalArgumentException("All agreement confirmations must be accepted before signing.");
+        }
         var agreement = agreements.findById(id).orElseThrow(() -> new NotFoundException("Agreement not found."));
         if (!authorization.canAccessStudent(agreement.getStudent().getRegistrationNo(), principal)) {
             throw new AccessDeniedException("This agreement belongs to another student.");
@@ -144,8 +155,9 @@ public class AgreementController {
         if ("Signed".equals(agreement.getStatus())) {
             return Map.of("agreement", Response.from(agreement));
         }
-        agreement.sign(request.signedName().trim());
-        audit.record("SIGN", "AGREEMENT", agreement.getAgreementNo(), agreement.getSignedName());
+        agreement.sign(request.signedName().trim(), json.valueToTree(SIGNING_CONFIRMATIONS).toString());
+        audit.record("SIGN", "AGREEMENT", agreement.getAgreementNo(),
+                agreement.getSignedName() + " · four confirmations accepted");
         return Map.of("agreement", Response.from(agreement));
     }
 
@@ -167,7 +179,13 @@ public class AgreementController {
             String signedAt,
             String filename) {}
 
-    public record Sign(@NotBlank String signedName, boolean consent) {}
+    public record Sign(
+            @NotBlank String signedName,
+            boolean consent,
+            boolean minimumStayConsent,
+            boolean checkoutNoticeConsent,
+            boolean hostelRulesConsent,
+            boolean inventoryConsent) {}
 
     public record Response(
             Long id,
@@ -182,7 +200,11 @@ public class AgreementController {
             String status,
             Instant issuedAt,
             String signedName,
-            Instant signedAt) {
+            Instant signedAt,
+            Instant minimumStayAcceptedAt,
+            Instant checkoutNoticeAcceptedAt,
+            Instant hostelRulesAcceptedAt,
+            Instant inventoryAcceptedAt) {
         static Response from(Agreement agreement) {
             var student = agreement.getStudent();
             return new Response(
@@ -198,7 +220,11 @@ public class AgreementController {
                     agreement.getStatus(),
                     agreement.getIssuedAt(),
                     agreement.getSignedName(),
-                    agreement.getSignedAt());
+                    agreement.getSignedAt(),
+                    agreement.getMinimumStayAcceptedAt(),
+                    agreement.getCheckoutNoticeAcceptedAt(),
+                    agreement.getHostelRulesAcceptedAt(),
+                    agreement.getInventoryAcceptedAt());
         }
     }
 }
