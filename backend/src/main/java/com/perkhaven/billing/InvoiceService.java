@@ -69,12 +69,10 @@ public class InvoiceService {
                     transferDate,
                     transferDate,
                     key));
-            invoice.revise(
-                    difference,
+            invoice.describe(
                     "Security deposit adjustment for hostel room transfer " + transferRequestNo
                             + " from LKR " + previousDeposit.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString()
-                            + " to LKR " + revisedDeposit.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + ".",
-                    null);
+                            + " to LKR " + revisedDeposit.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + ".");
             enqueue(invoice);
             return invoice;
         });
