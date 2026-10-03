@@ -4206,7 +4206,12 @@ function StudentEvidencePanel({
                 entry.invoiceId === invoice.id && entry.status === "Pending",
             ),
         )
-        .sort((a, b) => a.month.localeCompare(b.month))[0];
+        .sort(
+          (a, b) =>
+            a.dueDate.localeCompare(b.dueDate) ||
+            a.issueDate.localeCompare(b.issueDate) ||
+            a.id - b.id,
+        )[0];
   const fullAmount = nextInvoice
     ? Math.max(0, nextInvoice.amount - (nextInvoice.paidAmount || 0))
     : 0;
@@ -4495,7 +4500,12 @@ function StudentEvidencePanelPaymentModeLegacy({
                 entry.invoiceId === invoice.id && entry.status === "Pending",
             ),
         )
-        .sort((a, b) => a.month.localeCompare(b.month))[0];
+        .sort(
+          (a, b) =>
+            a.dueDate.localeCompare(b.dueDate) ||
+            a.issueDate.localeCompare(b.issueDate) ||
+            a.id - b.id,
+        )[0];
   const [amount, setAmount] = useState(""),
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false);
@@ -9582,6 +9592,10 @@ function ManualInvoiceModal({
                     setSelectedTransferId(id);
                     const transfer = roomTransfers.find((item) => String(item.id) === id);
                     setRegistrationNo(transfer?.registrationNo || "");
+                    if (transfer?.transferDate) {
+                      setIssueDate(transfer.transferDate);
+                      setDueDate(transfer.transferDate);
+                    }
                     setError("");
                   }}
                   required
@@ -9673,11 +9687,26 @@ function ManualInvoiceModal({
 
           <label>
             Issue date
-            <input type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required />
+            <input
+              type="date"
+              value={issueDate}
+              onChange={(event) => setIssueDate(event.target.value)}
+              disabled={invoiceType === "DEPOSIT_ADJUSTMENT"}
+              required
+            />
+            {invoiceType === "DEPOSIT_ADJUSTMENT" && <small>Set to the approved room-transfer effective date.</small>}
           </label>
           <label>
             Due date
-            <input type="date" min={issueDate} value={dueDate} onChange={(event) => setDueDate(event.target.value)} required />
+            <input
+              type="date"
+              min={issueDate}
+              value={dueDate}
+              onChange={(event) => setDueDate(event.target.value)}
+              disabled={invoiceType === "DEPOSIT_ADJUSTMENT"}
+              required
+            />
+            {invoiceType === "DEPOSIT_ADJUSTMENT" && <small>The additional deposit enters the payment queue on the transfer date.</small>}
           </label>
 
           {selectionMode === "ONE" && invoiceType !== "DEPOSIT_ADJUSTMENT" && (
@@ -19254,20 +19283,18 @@ function AddPayment({
     ),
     rentAmountPayable = s ? rentPayable(s, month, adjustments) : 0,
     rentAlreadyPaid = s ? rentPaid(payments, s.registrationNo, month) : 0,
-    depositAmountPayable = s ? s.depositPayable : 0,
-    depositAlreadyPaid = s
-      ? payments
-          .filter(
-            (payment) =>
-              payment.registrationNo === s.registrationNo &&
-              canonicalPaymentType(payment.type) === "Deposit",
-          )
-          .reduce((sum, payment) => sum + payment.paidAmount, 0)
-      : 0,
-    depositOutstanding = Math.max(0, depositAmountPayable - depositAlreadyPaid),
-    rentLocked = type === "Rent" && depositOutstanding > 0,
-    payable = oldestInvoice ? oldestInvoice.amount : type === "Rent" ? rentAmountPayable : depositAmountPayable,
-    alreadyPaid = oldestInvoice ? (oldestInvoice.paidAmount || 0) : type === "Rent" ? rentAlreadyPaid : depositAlreadyPaid,
+    originalDepositDue = Boolean(
+      oldestInvoice &&
+        oldestInvoice.invoiceType === "Deposit" &&
+        Math.max(0, oldestInvoice.amount - (oldestInvoice.paidAmount || 0)) > 0,
+    ),
+    transferDepositDue = Boolean(
+      oldestInvoice &&
+        oldestInvoice.invoiceType === "Security Deposit Adjustment" &&
+        Math.max(0, oldestInvoice.amount - (oldestInvoice.paidAmount || 0)) > 0,
+    ),
+    payable = oldestInvoice ? oldestInvoice.amount : type === "Rent" ? rentAmountPayable : 0,
+    alreadyPaid = oldestInvoice ? (oldestInvoice.paidAmount || 0) : type === "Rent" ? rentAlreadyPaid : 0,
     remaining = Math.max(0, payable - alreadyPaid),
     currentPayment = Number(amount) || 0,
     outstandingAfter = Math.max(0, remaining - currentPayment),
@@ -19314,17 +19341,13 @@ function AddPayment({
     if (shopIncome && !shopTenant)
       return setError("Select a registered shop tenant.");
     setError("");
-    if (rentLocked)
-      return setError(
-        "Security Deposit should be Settled before entering Hostel Room Payments",
-      );
     if (overLimit)
       return setError(
         type === "Rent"
           ? `This payment exceeds the remaining ${cash.format(remaining)} payable for ${fmtMonth(month)}.`
           : shopIncome
             ? `This payment exceeds the remaining ${cash.format(shopRemaining)} ${type.toLowerCase()} payable for ${fmtMonth(month)}.`
-            : `This payment exceeds the remaining security deposit balance of ${cash.format(remaining)}.`,
+            : `This payment exceeds the remaining ${transferDepositDue ? "additional security deposit" : "security deposit"} balance of ${cash.format(remaining)}.`,
       );
     const form = new FormData(e.currentTarget);
     const evidence = form.get("evidence");
@@ -19447,15 +19470,10 @@ function AddPayment({
                 setShopReg("");
               }}
             >
-              <option
-                value="Rent"
-                disabled={Boolean(s && depositOutstanding > 0)}
-              >
-
-                Monthly Accommodation Fee
-                {s && depositOutstanding > 0 ? " — security deposit required first" : ""}
+              <option value="Rent">Monthly Accommodation Fee</option>
+              <option value="Deposit">
+                {transferDepositDue ? "Additional Security Deposit (Room Transfer)" : "Security Deposit"}
               </option>
-              <option value="Deposit">Security Deposit</option>
                   <option value="Shop Rent">Shop Monthly Rental</option>
               <option value="Shop Electricity">Shop Electricity</option>
               <option value="Shop Water">Shop Water</option>
@@ -19479,7 +19497,12 @@ function AddPayment({
                     void fetch(`/api/v1/invoices?registrationNo=${encodeURIComponent(registrationNo)}&size=100`)
                       .then(async (response) => { if (!response.ok) throw new Error("Unable to load due invoices"); return (await response.json()) as ApiPage<StudentInvoice>; })
                       .then((page) => {
-                        const due = page.items.filter((invoice) => invoice.status === "Issued" || invoice.status === "Partially Paid")
+                        const due = page.items
+                          .filter(
+                            (invoice) =>
+                              (invoice.status === "Issued" || invoice.status === "Partially Paid") &&
+                              Math.max(0, Number(invoice.amount || 0) - Number(invoice.paidAmount || 0)) > 0,
+                          )
                           .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.issueDate.localeCompare(b.issueDate) || a.id - b.id);
                         setDueInvoices(due);
                         if (due[0]) { setType(due[0].invoiceType === "Deposit" || due[0].invoiceType === "Security Deposit Adjustment" ? "Deposit" : "Rent"); setMonth(due[0].month || ""); setAmount(String(Math.max(0, due[0].amount - (due[0].paidAmount || 0)))); }
@@ -19585,12 +19608,19 @@ function AddPayment({
               />
             </>
           )}
-          {s && depositOutstanding > 0 && (
+          {s && originalDepositDue && oldestInvoice && (
             <div className="payment-prerequisite">
-              <b>Security Deposit should be Settled before entering Hostel Room Payments</b>
+              <b>Security Deposit must be settled before accommodation fee payments</b>
               <span>
-
-                Outstanding security deposit: {cash.format(depositOutstanding)}
+                Outstanding security deposit: {cash.format(Math.max(0, oldestInvoice.amount - (oldestInvoice.paidAmount || 0)))}
+              </span>
+            </div>
+          )}
+          {s && transferDepositDue && oldestInvoice && (
+            <div className="payment-prerequisite">
+              <b>Additional Security Deposit due following hostel room transfer</b>
+              <span>
+                Due {fmtDate(oldestInvoice.dueDate)} · Balance {cash.format(Math.max(0, oldestInvoice.amount - (oldestInvoice.paidAmount || 0)))}
               </span>
             </div>
           )}
@@ -19626,13 +19656,21 @@ function AddPayment({
             >
               <span>
                 <small>
-                  {type === "Rent" ? "MONTHLY PAYABLE" : "SECURITY DEPOSIT PAYABLE"}
+                  {type === "Rent"
+                    ? "MONTHLY PAYABLE"
+                    : transferDepositDue
+                      ? "ADDITIONAL SECURITY DEPOSIT PAYABLE"
+                      : "SECURITY DEPOSIT PAYABLE"}
                 </small>
                 <b>{cash.format(payable)}</b>
               </span>
               <span>
                 <small>
-                  {type === "Rent" ? "ALREADY PAID" : "SECURITY DEPOSIT PAID"}
+                  {type === "Rent"
+                    ? "ALREADY PAID"
+                    : transferDepositDue
+                      ? "ADDITIONAL DEPOSIT PAID"
+                      : "SECURITY DEPOSIT PAID"}
                 </small>
                 <b>{cash.format(alreadyPaid)}</b>
               </span>
