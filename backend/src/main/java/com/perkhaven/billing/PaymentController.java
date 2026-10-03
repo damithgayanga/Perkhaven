@@ -164,6 +164,7 @@ public class PaymentController {
                         case DEPOSIT -> "Deposit";
                         case DEPOSIT_ADJUSTMENT -> "Security Deposit Adjustment";
                         case RENT -> "Rent";
+                        case OTHER_CHARGE -> "Other Charge";
                     }, invoice.getAmount(), BigDecimal.ZERO,
                     value.getPaidAmount(), value.getPaidDate(), value.getSettlementMethod(), value.getEvidenceName(), value.getRemarks(), value.isCashVerified(), value.getCashVerifiedAt(), verified || value.isCashVerified());
         }
