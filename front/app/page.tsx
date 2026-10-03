@@ -147,7 +147,7 @@ type StudentInvoice = {
   registrationNo: string;
   studentName: string;
   roomNo: string;
-  invoiceType: "Deposit" | "Security Deposit Adjustment" | "Rent" | "Shop Electricity" | "Shop Water";
+  invoiceType: "Deposit" | "Security Deposit Adjustment" | "Rent" | "Other Charge" | "Shop Electricity" | "Shop Water";
   month: string;
   baseAmount?: number;
   amount: number;
@@ -3713,6 +3713,8 @@ async function buildInvoicePdf(invoice: StudentInvoice, student?: Student) {
   pdf.text(
     invoice.invoiceType === "Deposit"
       ? "HOSTEL SECURITY DEPOSIT INVOICE"
+      : invoice.invoiceType === "Other Charge"
+        ? "HOSTEL CHARGE INVOICE"
       : invoice.invoiceType === "Security Deposit Adjustment"
         ? invoice.amount < 0
           ? "SECURITY DEPOSIT CREDIT INVOICE"
@@ -3745,6 +3747,8 @@ async function buildInvoicePdf(invoice: StudentInvoice, student?: Student) {
   pdf.text(
     invoice.invoiceType === "Deposit"
       ? "Payment category: Security Deposit"
+      : invoice.invoiceType === "Other Charge"
+        ? "Payment category: Other Charge"
       : invoice.invoiceType === "Security Deposit Adjustment"
         ? invoice.amount < 0
           ? "Payment category: Security Deposit Credit"
@@ -4031,6 +4035,8 @@ const studentInvoiceLabel = (invoice: StudentInvoice) =>
       ? invoice.amount < 0
         ? "Security Deposit Credit"
         : "Security Deposit Balance"
+    : invoice.invoiceType === "Other Charge"
+      ? "Other Charge"
     : invoice.invoiceType === "Shop Electricity" || invoice.invoiceType === "Shop Water"
       ? `${invoice.invoiceType} · ${fmtMonth(invoice.month)}`
       : fmtMonth(invoice.month);
@@ -7280,7 +7286,8 @@ function PaymentView({
         {section === "invoices" && (
           <>
             <label className="month-control">Billing month<input id="manual-invoice-month" type="month" defaultValue={new Date().toISOString().slice(0, 7)} /></label>
-            <button className="primary" onClick={() => { const month = (document.getElementById("manual-invoice-month") as HTMLInputElement | null)?.value; window.dispatchEvent(new CustomEvent("issue-due-invoices", { detail: month })); }}>Issue invoices</button>
+            <button className="primary" onClick={() => { const month = (document.getElementById("manual-invoice-month") as HTMLInputElement | null)?.value; window.dispatchEvent(new CustomEvent("issue-due-invoices", { detail: month })); }}>Issue monthly invoices</button>
+            <button className="secondary" onClick={() => window.dispatchEvent(new Event("open-manual-invoice"))}>＋ Manual invoice</button>
             <button className="secondary" onClick={() => window.dispatchEvent(new Event("export-invoice-ledger"))}>⇩ Print / Export</button>
           </>
         )}
@@ -8984,6 +8991,7 @@ function InvoiceLedger({
 }) {
   const [editing, setEditing] = useState<StudentInvoice | null>(null),
     [previewing, setPreviewing] = useState<StudentInvoice | null>(null),
+    [manualOpen, setManualOpen] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
     [ledgerFilters, setLedgerFilters] = useState({ registration: "", name: "", month: "", type: "All" }),
     [exportFilters, setExportFilters] = useState({ invoice: "", registration: "", name: "", room: "", type: "All", status: "All" }),
@@ -8994,6 +9002,7 @@ function InvoiceLedger({
     if (invoice.invoiceType === "Security Deposit Adjustment")
       return invoice.amount < 0 ? "Security Deposit Credit" : "Security Deposit Balance";
     if (invoice.invoiceType === "Rent") return invoice.registrationNo.toUpperCase().startsWith("SH-") ? "Rent" : "Accommodation Fee";
+    if (invoice.invoiceType === "Other Charge") return "Other Charge";
     return invoice.invoiceType;
   };
   const visibleInvoices = invoices.filter((invoice) =>
@@ -9010,7 +9019,7 @@ function InvoiceLedger({
     (exportFilters.status === "All" || invoice.status === exportFilters.status));
   const exportInvoicesSpreadsheet = async () => {
     const XLSX = await import("xlsx");
-    const data = exportRows.map((invoice) => ({ "INVOICE NO.": invoice.invoiceNo, "ISSUE DATE": fmtCompactDate(invoice.issueDate), "DUE DATE": fmtCompactDate(invoice.dueDate), TYPE: invoiceTypeLabel(invoice), MONTH: invoice.invoiceType === "Deposit" || invoice.invoiceType === "Security Deposit Adjustment" ? "" : fmtMonth(invoice.month), REGISTRATION: invoice.registrationNo, NAME: invoice.studentName, ROOM: invoice.roomNo, AMOUNT: invoice.amount, STATUS: invoice.status, REVISION: `Rev.${invoiceRevision(invoice)}` }));
+    const data = exportRows.map((invoice) => ({ "INVOICE NO.": invoice.invoiceNo, "ISSUE DATE": fmtCompactDate(invoice.issueDate), "DUE DATE": fmtCompactDate(invoice.dueDate), TYPE: invoiceTypeLabel(invoice), MONTH: invoice.invoiceType === "Deposit" || invoice.invoiceType === "Security Deposit Adjustment" || invoice.invoiceType === "Other Charge" ? "" : fmtMonth(invoice.month), REGISTRATION: invoice.registrationNo, NAME: invoice.studentName, ROOM: invoice.roomNo, AMOUNT: invoice.amount, STATUS: invoice.status, REVISION: `Rev.${invoiceRevision(invoice)}` }));
     const sheet = XLSX.utils.json_to_sheet(data); sheet["!autofilter"] = { ref: `A1:K${Math.max(1, data.length + 1)}` }; sheet["!cols"] = [{wch:20},{wch:14},{wch:14},{wch:18},{wch:16},{wch:20},{wch:28},{wch:10},{wch:16},{wch:14},{wch:12}];
     const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, sheet, "Invoice Ledger"); XLSX.writeFile(book, `Perk-Haven-Invoice-Ledger-${new Date().toISOString().slice(0,10)}.xlsx`);
   };
@@ -9046,6 +9055,7 @@ function InvoiceLedger({
     return () => window.removeEventListener("issue-due-invoices", issue);
   });
   useEffect(() => { const open = () => setExportOpen(true); window.addEventListener("export-invoice-ledger", open); return () => window.removeEventListener("export-invoice-ledger", open); }, []);
+  useEffect(() => { const open = () => setManualOpen(true); window.addEventListener("open-manual-invoice", open); return () => window.removeEventListener("open-manual-invoice", open); }, []);
   return (
     <section className="panel payment-section">
       {error && <p className="form-error">⚠ {error}</p>}
@@ -9053,7 +9063,7 @@ function InvoiceLedger({
         <label>Student / tenant registration<input value={ledgerFilters.registration} onChange={(event) => setLedgerFilters((current) => ({ ...current, registration: event.target.value }))} placeholder="PH-STD-00006 or SH-..." /></label>
         <label>Name<input value={ledgerFilters.name} onChange={(event) => setLedgerFilters((current) => ({ ...current, name: event.target.value }))} /></label>
         <label>Month<input type="month" value={ledgerFilters.month} onChange={(event) => setLedgerFilters((current) => ({ ...current, month: event.target.value }))} /></label>
-        <label>Invoice type<select value={ledgerFilters.type} onChange={(event) => setLedgerFilters((current) => ({ ...current, type: event.target.value }))}><option>All</option><option>Deposit</option><option>Accommodation Fee</option><option>Rent</option><option>Shop Electricity</option><option>Shop Water</option></select></label>
+        <label>Invoice type<select value={ledgerFilters.type} onChange={(event) => setLedgerFilters((current) => ({ ...current, type: event.target.value }))}><option>All</option><option>Deposit</option><option>Security Deposit Balance</option><option>Security Deposit Credit</option><option>Accommodation Fee</option><option>Other Charge</option><option>Rent</option><option>Shop Electricity</option><option>Shop Water</option></select></label>
         <button className="secondary ledger-filter-clear" onClick={() => setLedgerFilters({ registration: "", name: "", month: "", type: "All" })}>Clear filters</button>
       </div>
       <div className="tablewrap">
@@ -9089,7 +9099,7 @@ function InvoiceLedger({
                   <td>{fmtDate(invoice.issueDate)}</td>
                   <td>{fmtDate(invoice.dueDate)}</td>
                   <td>{invoiceTypeLabel(invoice)}</td>
-                  <td>{invoice.invoiceType === "Deposit" || invoice.invoiceType === "Security Deposit Adjustment" ? "—" : fmtMonth(invoice.month)}</td>
+                  <td>{invoice.invoiceType === "Deposit" || invoice.invoiceType === "Security Deposit Adjustment" || invoice.invoiceType === "Other Charge" ? "—" : fmtMonth(invoice.month)}</td>
                   <td>
                     <b>{invoice.registrationNo}</b>
                   </td>
@@ -9147,10 +9157,20 @@ function InvoiceLedger({
         <label>Registration<input value={exportFilters.registration} onChange={(e)=>setExportFilters(c=>({...c,registration:e.target.value}))}/></label>
         <label>Name<input value={exportFilters.name} onChange={(e)=>setExportFilters(c=>({...c,name:e.target.value}))}/></label>
         <label>Hostel Room<input value={exportFilters.room} onChange={(e)=>setExportFilters(c=>({...c,room:e.target.value}))}/></label>
-        <label>Invoice type<select value={exportFilters.type} onChange={(e)=>setExportFilters(c=>({...c,type:e.target.value}))}><option>All</option><option>Deposit</option><option>Accommodation Fee</option><option>Rent</option><option>Shop Electricity</option><option>Shop Water</option></select></label>
-        <label>Status<select value={exportFilters.status} onChange={(e)=>setExportFilters(c=>({...c,status:e.target.value}))}><option>All</option><option>Issued</option><option>Partially Paid</option><option>Paid</option><option>Cancelled</option></select></label>
+        <label>Invoice type<select value={exportFilters.type} onChange={(e)=>setExportFilters(c=>({...c,type:e.target.value}))}><option>All</option><option>Deposit</option><option>Security Deposit Balance</option><option>Security Deposit Credit</option><option>Accommodation Fee</option><option>Other Charge</option><option>Rent</option><option>Shop Electricity</option><option>Shop Water</option></select></label>
+        <label>Status<select value={exportFilters.status} onChange={(e)=>setExportFilters(c=>({...c,status:e.target.value}))}><option>All</option><option>Issued</option><option>Partially Paid</option><option>Paid</option><option>Credited</option><option>Cancelled</option></select></label>
         <button className="secondary" onClick={()=>setExportFilters({invoice:"",registration:"",name:"",room:"",type:"All",status:"All"})}>Clear filters</button>
       </section><div className="modalactions"><button onClick={()=>setExportOpen(false)}>Cancel</button><button className="secondary" disabled={!exportRows.length} onClick={()=>void exportInvoicesPdf()}>Download PDF</button><button className="primary" disabled={!exportRows.length} onClick={()=>void exportInvoicesSpreadsheet()}>Export Spreadsheet</button></div></div></div>}
+      {manualOpen && (
+        <ManualInvoiceModal
+          students={students}
+          close={() => setManualOpen(false)}
+          save={(invoice) => {
+            invoicesUpdated([invoice, ...invoices]);
+            setManualOpen(false);
+          }}
+        />
+      )}
       {editing && (
         <InvoiceEditModal
           invoice={editing}
@@ -9171,6 +9191,208 @@ function InvoiceLedger({
         />
       )}
     </section>
+  );
+}
+
+function ManualInvoiceModal({
+  students,
+  close,
+  save,
+}: {
+  students: Student[];
+  close: () => void;
+  save: (invoice: StudentInvoice) => void;
+}) {
+  type ManualType = "DEPOSIT" | "RENT" | "OTHER_CHARGE";
+  const today = new Date().toISOString().slice(0, 10);
+  const [registrationNo, setRegistrationNo] = useState("");
+  const [invoiceType, setInvoiceType] = useState<ManualType>("RENT");
+  const [month, setMonth] = useState(today.slice(0, 7));
+  const [otherAmount, setOtherAmount] = useState(0);
+  const [issueDate, setIssueDate] = useState(today);
+  const [dueDate, setDueDate] = useState(today);
+  const [remarks, setRemarks] = useState("");
+  const [adjustments, setAdjustments] = useState(
+    ["Late Start Adjustment", "Early Vacate Adjustment", "Vacation Discount", "Other Adjustment"].map((type) => ({
+      type: type as MonthlyAdjustment["type"],
+      effect: "Reduce" as "Reduce" | "Increase",
+      amount: 0,
+      note: "",
+    })),
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const student = students.find((item) => item.registrationNo === registrationNo);
+  const baseAmount =
+    invoiceType === "DEPOSIT"
+      ? Number(student?.depositPayable || 0)
+      : invoiceType === "RENT"
+        ? Number(student?.monthlyRent || 0)
+        : otherAmount;
+  const adjustmentTotal = adjustments.reduce(
+    (total, row) => total + (row.effect === "Increase" ? row.amount : -row.amount),
+    0,
+  );
+  const finalAmount = Math.max(0, baseAmount + adjustmentTotal);
+
+  const updateType = (value: ManualType) => {
+    setInvoiceType(value);
+    if (value === "RENT") {
+      const [year, mon] = month.split("-").map(Number);
+      const end = new Date(Date.UTC(year, mon, 0)).toISOString().slice(0, 10);
+      setDueDate(end);
+    } else {
+      setDueDate(issueDate);
+    }
+  };
+  const updateMonth = (value: string) => {
+    setMonth(value);
+    if (value) {
+      const [year, mon] = value.split("-").map(Number);
+      setDueDate(new Date(Date.UTC(year, mon, 0)).toISOString().slice(0, 10));
+    }
+  };
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    const response = await fetch("/api/v1/invoices/manual", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        registrationNo,
+        invoiceType,
+        month: invoiceType === "RENT" ? month : null,
+        baseAmount: invoiceType === "OTHER_CHARGE" ? otherAmount : null,
+        issueDate,
+        dueDate,
+        remarks,
+        adjustments: adjustments
+          .filter((row) => row.amount > 0)
+          .map((row) => ({
+            type: adjustmentApiType(row.type),
+            effect: row.effect.toUpperCase(),
+            amount: row.amount,
+            note: row.note,
+          })),
+      }),
+    });
+    const result = await response.json();
+    setSaving(false);
+    if (!response.ok) {
+      setError(result.detail || "Unable to generate invoice.");
+      return;
+    }
+    save(result);
+  };
+
+  return (
+    <div className="backdrop">
+      <form className="modal paymentmodal" onSubmit={submit}>
+        <ModalHead
+          tag="INVOICE ADMINISTRATION"
+          title="Generate manual invoice"
+          text="Select the resident and payment type. Resident details, hostel room and standard charges are taken automatically from the system."
+          close={close}
+        />
+        <section className="formgrid two">
+          <label className="wide">
+            Student
+            <select value={registrationNo} onChange={(event) => setRegistrationNo(event.target.value)} required>
+              <option value="">Select student</option>
+              {students.map((item) => (
+                <option value={item.registrationNo} key={item.id}>
+                  {item.firstName} {item.lastName} · {item.registrationNo}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Hostel Room
+            <input value={student?.roomNo || ""} disabled />
+          </label>
+          <label>
+            Payment type
+            <select value={invoiceType} onChange={(event) => updateType(event.target.value as ManualType)}>
+              <option value="DEPOSIT">Security Deposit</option>
+              <option value="RENT">Monthly Accommodation Fee</option>
+              <option value="OTHER_CHARGE">Other Charge</option>
+            </select>
+          </label>
+          {invoiceType === "RENT" && (
+            <label>
+              Billing month
+              <input type="month" value={month} onChange={(event) => updateMonth(event.target.value)} required />
+            </label>
+          )}
+          {invoiceType === "OTHER_CHARGE" && (
+            <label>
+              Base amount (LKR)
+              <input type="number" min="0.01" step="0.01" value={otherAmount || ""} onChange={(event) => setOtherAmount(Number(event.target.value))} required />
+            </label>
+          )}
+          <label>
+            Standard / base amount (LKR)
+            <input value={baseAmount ? amountOnly.format(baseAmount) : ""} disabled />
+          </label>
+          <label>
+            Issue date
+            <input type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required />
+          </label>
+          <label>
+            Due date
+            <input type="date" min={issueDate} value={dueDate} onChange={(event) => setDueDate(event.target.value)} required />
+          </label>
+          <div className="wide invoice-adjustment-editor">
+            <div className="invoice-adjustment-summary">
+              <span><small>BASE AMOUNT</small><b>{cash.format(baseAmount)}</b></span>
+              <span><small>FINAL AMOUNT PAYABLE</small><b>{cash.format(finalAmount)}</b></span>
+            </div>
+            <div className="invoice-adjustment-heading">
+              <b>Deductions / adjustments</b>
+              <small>Use Reduce for deductions and Increase for additional charges. Leave unused rows at zero.</small>
+            </div>
+            {adjustments.map((row, index) => (
+              <div className="invoice-adjustment-row" key={row.type}>
+                <select
+                  value={row.effect}
+                  onChange={(event) => setAdjustments((current) => current.map((item, i) => i === index ? { ...item, effect: event.target.value as "Reduce" | "Increase" } : item))}
+                >
+                  <option value="Reduce">Deduct</option>
+                  <option value="Increase">Add</option>
+                </select>
+                <span>{row.type}</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={row.amount || ""}
+                  placeholder="0.00"
+                  onChange={(event) => setAdjustments((current) => current.map((item, i) => i === index ? { ...item, amount: Number(event.target.value) } : item))}
+                />
+                <input
+                  value={row.note}
+                  placeholder="Note"
+                  onChange={(event) => setAdjustments((current) => current.map((item, i) => i === index ? { ...item, note: event.target.value } : item))}
+                />
+              </div>
+            ))}
+          </div>
+          <label className="wide">
+            Remarks
+            <textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={3} />
+          </label>
+          {error && <p className="form-error wide">⚠ {error}</p>}
+        </section>
+        <div className="modalactions">
+          <button type="button" onClick={close}>Cancel</button>
+          <button className="primary" disabled={saving || !student || finalAmount <= 0}>
+            {saving ? "Generating…" : "Generate & issue invoice"}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -20253,7 +20475,7 @@ function StudentPaymentProfile({
         payment ? transactionIdFor(payment) : "—",
         invoice.invoiceNo,
         invoice.invoiceType,
-        invoice.invoiceType === "Deposit" || invoice.invoiceType === "Security Deposit Adjustment" ? "—" : fmtMonth(invoice.month),
+        invoice.invoiceType === "Deposit" || invoice.invoiceType === "Security Deposit Adjustment" || invoice.invoiceType === "Other Charge" ? "—" : fmtMonth(invoice.month),
         fmtDate(invoice.dueDate),
         payment ? fmtDate(payment.paidDate) : "—",
         payable == null ? "Included Above" : amountOnly.format(payable),
