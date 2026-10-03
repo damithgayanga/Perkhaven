@@ -7287,7 +7287,7 @@ function PaymentView({
           <>
             <label className="month-control">Billing month<input id="manual-invoice-month" type="month" defaultValue={new Date().toISOString().slice(0, 7)} /></label>
             <button className="primary" onClick={() => { const month = (document.getElementById("manual-invoice-month") as HTMLInputElement | null)?.value; window.dispatchEvent(new CustomEvent("issue-due-invoices", { detail: month })); }}>Issue monthly invoices</button>
-            <button className="secondary" onClick={() => window.dispatchEvent(new Event("open-manual-invoice"))}>＋ Manual invoice</button>
+            <button className="primary" onClick={() => window.dispatchEvent(new Event("open-manual-invoice"))}>＋ Generate Invoice</button>
             <button className="secondary" onClick={() => window.dispatchEvent(new Event("export-invoice-ledger"))}>⇩ Print / Export</button>
           </>
         )}
