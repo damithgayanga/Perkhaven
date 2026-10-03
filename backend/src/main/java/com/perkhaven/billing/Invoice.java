@@ -63,9 +63,16 @@ public class Invoice extends AuditedEntity {
 
     public Invoice(String invoiceNo, Student student, InvoiceType invoiceType, LocalDate billingMonth,
                    BigDecimal baseAmount, LocalDate issueDate, LocalDate dueDate) {
+        this(invoiceNo, student, invoiceType, billingMonth, baseAmount, issueDate, dueDate,
+                student.getId() + ":" + invoiceType + (billingMonth == null ? "" : ":" + billingMonth));
+    }
+
+    public Invoice(String invoiceNo, Student student, InvoiceType invoiceType, LocalDate billingMonth,
+                   BigDecimal baseAmount, LocalDate issueDate, LocalDate dueDate, String billingKey) {
         this.invoiceNo = invoiceNo; this.student = student; this.invoiceType = invoiceType; this.billingMonth = billingMonth;
-        this.billingKey = student.getId() + ":" + invoiceType + (billingMonth == null ? "" : ":" + billingMonth);
+        this.billingKey = billingKey;
         this.baseAmount = money(baseAmount); this.amount = money(baseAmount); this.issueDate = issueDate; this.dueDate = dueDate;
+        if (this.amount.signum() < 0) this.status = InvoiceStatus.CREDITED;
     }
 
     public void revise(BigDecimal directAmount, String remarks, List<AdjustmentData> values) {
@@ -83,6 +90,7 @@ public class Invoice extends AuditedEntity {
 
     public void markEmailStatus(String value) { emailStatus = value; }
     public void recordPayment(BigDecimal value) {
+        if (status == InvoiceStatus.CREDITED) throw new IllegalArgumentException("A credit invoice cannot receive a payment.");
         paidAmount = money(paidAmount.add(value));
         status = paidAmount.compareTo(amount) >= 0 ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID;
     }
