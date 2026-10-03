@@ -48,6 +48,8 @@ public class InvoiceService {
     }
 
     public Invoice createDeposit(Student student) {
+        if (student.getDepositPayable() == null || student.getDepositPayable().signum() <= 0)
+            throw new IllegalArgumentException("No security deposit is payable for this student.");
         return invoices.findByStudentIdAndInvoiceType(student.getId(), InvoiceType.DEPOSIT).orElseGet(() -> {
             var issueDate = student.getRegisteredDate();
             var invoice = invoices.save(new Invoice(number(student, "DEP"), student, InvoiceType.DEPOSIT, null,
@@ -135,6 +137,8 @@ public class InvoiceService {
         Invoice invoice;
         switch (invoiceType) {
             case DEPOSIT -> {
+                if (student.getDepositPayable() == null || student.getDepositPayable().signum() <= 0)
+                    throw new IllegalArgumentException("No security deposit is payable for this student, so a deposit invoice is not required.");
                 if (invoices.findByStudentIdAndInvoiceType(student.getId(), InvoiceType.DEPOSIT).isPresent())
                     throw new IllegalArgumentException("A security deposit invoice already exists for this student. Adjust or reissue the existing invoice instead.");
                 invoice = new Invoice(numberForYear(student, issued.getYear()), student, InvoiceType.DEPOSIT, null,
