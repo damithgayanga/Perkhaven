@@ -53,6 +53,34 @@ public class InvoiceService {
     }
 
     @Transactional
+    public Invoice createDepositAdjustment(Student student, String transferRequestNo,
+                                           BigDecimal previousDeposit, BigDecimal revisedDeposit,
+                                           LocalDate transferDate) {
+        var difference = revisedDeposit.subtract(previousDeposit).setScale(2, java.math.RoundingMode.HALF_UP);
+        if (difference.signum() == 0) return null;
+        var key = student.getId() + ":DEPOSIT_ADJUSTMENT:" + transferRequestNo;
+        return invoices.findByBillingKey(key).orElseGet(() -> {
+            var invoice = invoices.save(new Invoice(
+                    numberForYear(student, transferDate.getYear()),
+                    student,
+                    InvoiceType.DEPOSIT_ADJUSTMENT,
+                    null,
+                    difference,
+                    transferDate,
+                    transferDate,
+                    key));
+            invoice.revise(
+                    difference,
+                    "Security deposit adjustment for hostel room transfer " + transferRequestNo
+                            + " from LKR " + previousDeposit.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString()
+                            + " to LKR " + revisedDeposit.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + ".",
+                    null);
+            enqueue(invoice);
+            return invoice;
+        });
+    }
+
+    @Transactional
     public List<Invoice> createRegistrationInvoices(Student student) {
         var created = new java.util.ArrayList<Invoice>();
         if (student.getDepositPayable().signum() > 0) created.add(createDeposit(student));
@@ -163,11 +191,22 @@ public class InvoiceService {
                 || student.getEmail().toLowerCase(java.util.Locale.ROOT).contains("@invalid.")) {
             return;
         }
-        var descriptor = invoice.getInvoiceType() == InvoiceType.DEPOSIT ? "hostel deposit" : "rent for " + invoice.getBillingMonth().format(DISPLAY_MONTH);
+        var descriptor = switch (invoice.getInvoiceType()) {
+            case DEPOSIT -> "hostel security deposit";
+            case DEPOSIT_ADJUSTMENT -> invoice.getAmount().signum() < 0
+                    ? "security deposit credit adjustment"
+                    : "security deposit balance adjustment";
+            case RENT -> "rent for " + invoice.getBillingMonth().format(DISPLAY_MONTH);
+        };
         var subject = "Perkhaven invoice " + invoice.getInvoiceNo() + " Rev." + String.format("%02d", invoice.getRevisionNumber());
-        var body = "Dear " + student.getFirstName() + ",\n\nAttached is your invoice for " + descriptor +
-                ". The amount due is LKR " + invoice.getAmount().toPlainString() + " and payment is due by " + invoice.getDueDate() +
-                ".\n\nRegards,\nThe Perk Haven Hostel\n" + hostelTelephone + " | " + hostelEmail;
+        var body = invoice.getInvoiceType() == InvoiceType.DEPOSIT_ADJUSTMENT && invoice.getAmount().signum() < 0
+                ? "Dear " + student.getFirstName() + ",\n\nAttached is your credit invoice for " + descriptor
+                    + ". A credit of LKR " + invoice.getAmount().abs().toPlainString()
+                    + " has been recorded following your hostel room transfer.\n\nRegards,\nThe Perk Haven Hostel\n"
+                    + hostelTelephone + " | " + hostelEmail
+                : "Dear " + student.getFirstName() + ",\n\nAttached is your invoice for " + descriptor
+                    + ". The amount due is LKR " + invoice.getAmount().toPlainString() + " and payment is due by " + invoice.getDueDate()
+                    + ".\n\nRegards,\nThe Perk Haven Hostel\n" + hostelTelephone + " | " + hostelEmail;
         try {
             var name = invoice.getInvoiceNo() + "-Rev." + String.format("%02d", invoice.getRevisionNumber()) + ".pdf";
             var stored = storage.store("invoices/" + invoice.getInvoiceNo() + "/email", name, "application/pdf", pdf.create(invoice));
@@ -177,12 +216,16 @@ public class InvoiceService {
         }
     }
 
-    private String number(Student student, String suffix) {
+    private String numberForYear(Student student, int year) {
         var sequence = sequences.findForUpdate("INVOICE").orElseThrow(() -> new IllegalStateException("Invoice sequence is not configured.")).takeNextValue();
-        var year = suffix.equals("DEP") ? student.getRegisteredDate().getYear() : Integer.parseInt(suffix.substring(0, 4));
         var digits = student.getRegistrationNo().replaceAll("\\D", "");
         var reference = (digits.isBlank() ? student.getRegistrationNo().replaceAll("[^A-Za-z0-9]", "") : digits);
         reference = reference.length() > 4 ? reference.substring(reference.length() - 4) : String.format("%4s", reference).replace(' ', '0');
         return "INV-%04d-%s-%05d".formatted(year, reference, sequence);
+    }
+
+    private String number(Student student, String suffix) {
+        var year = suffix.equals("DEP") ? student.getRegisteredDate().getYear() : Integer.parseInt(suffix.substring(0, 4));
+        return numberForYear(student, year);
     }
 }
