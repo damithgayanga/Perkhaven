@@ -59,6 +59,7 @@ public class InvoiceService {
     public Invoice createDepositAdjustment(Student student, String transferRequestNo,
                                            BigDecimal previousDeposit, BigDecimal revisedDeposit,
                                            LocalDate transferDate) {
+        if (!automaticInvoiceIssuanceEnabled) return null;
         var difference = revisedDeposit.subtract(previousDeposit).setScale(2, java.math.RoundingMode.HALF_UP);
         if (difference.signum() == 0) return null;
         var key = student.getId() + ":DEPOSIT_ADJUSTMENT:" + transferRequestNo;
