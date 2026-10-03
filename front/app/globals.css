@@ -2064,6 +2064,18 @@ mark {
 .limited-topbar { min-height: 78px; padding: 12px clamp(18px, 4vw, 60px); background: #102f4a; color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 20px; position: sticky; top: 0; z-index: 40; box-shadow: 0 5px 16px rgba(6, 24, 39, .2); }
 .limited-topbar > div { display: flex; align-items: center; gap: 12px; }
 .limited-topbar .brand-logo { width: 54px; height: 54px; background: url('/perkhaven-logo-system.webp?brand=20260929-2') center/contain no-repeat; border-radius: 9px; }
+.student-portal-topbar { min-height: 96px; }
+.student-portal-topbar .student-portal-brand { gap: 14px; }
+.student-portal-topbar .student-portal-brand-logo {
+  width: 84px;
+  height: auto;
+  aspect-ratio: 468 / 443;
+  background: #fbfad6 url('/perkhaven-logo-system.webp?brand=20261004-student-admin-match') center / contain no-repeat;
+  border-radius: 11px;
+  box-shadow: 0 7px 20px #071a2b55;
+}
+.student-portal-topbar .student-portal-brand-label { align-self: end; padding-bottom: 7px; }
+.student-portal-topbar .student-portal-brand-label small { opacity: .9; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
 .limited-topbar span { display: grid; gap: 2px; }
 .limited-topbar small, .limited-topbar > div:last-child > span { opacity: .72; font-size: 11px; }
 .limited-topbar button { border: 1px solid rgba(255,255,255,.35); background: transparent; color: #fff; border-radius: 7px; padding: 8px 12px; cursor: pointer; }
@@ -3883,4 +3895,10 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(52, 139, 106
   .workspace > header { padding: 16px 18px; }
   .workspace > header::after { left: 18px; }
   .content { padding: 20px 15px 36px; }
+}
+
+@media (max-width: 700px) {
+  .student-portal-topbar { min-height: 82px; }
+  .student-portal-topbar .student-portal-brand-logo { width: 66px; }
+  .student-portal-topbar .student-portal-brand-label { display: none; }
 }
