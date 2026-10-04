@@ -67,7 +67,9 @@ public class BankReconciliationController {
         var linkRows = links.findAllByOrderByIdAsc();
         var linkResponses = linkRows.stream().map(LinkResponse::from).toList();
         var sources = new java.util.ArrayList<SourceResponse>();
-        sources.addAll(payments.findAllByOrderByPaidDateDescIdDesc().stream().map(payment -> SourceResponse.from(payment, linkRows)).toList());
+        sources.addAll(payments.findAllByOrderByPaidDateDescIdDesc().stream()
+                .filter(payment -> !"Cash".equalsIgnoreCase(payment.getSettlementMethod()))
+                .map(payment -> SourceResponse.from(payment, linkRows)).toList());
         sources.addAll(expenses.findAllByOrderByTransactionDateDescIdDesc().stream().filter(v -> "Approved".equals(v.getApprovalStatus())).map(v -> SourceResponse.from(v, linkRows)).toList());
         sources.addAll(pettyCashDeposits.findAllByOrderByTransactionDateDescIdDesc().stream().filter(v -> "Approved".equals(v.getApprovalStatus())).map(v -> SourceResponse.from(v, linkRows)).toList());
         return new RegisterResponse(banks.findAllByOrderByTransactionDateDescIdDesc().stream().map(BankResponse::from).toList(), linkResponses, sources);
