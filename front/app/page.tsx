@@ -16234,7 +16234,7 @@ function ExpensesView({
     });
     const result = await response.json();
     if (!response.ok)
-      return setCategoryError(result.error || "Unable to add category");
+      return setCategoryError(result.detail || result.error || "Unable to add category");
     categoryAdded(result.category);
     setNewCategory("");
   };
@@ -16245,7 +16245,8 @@ function ExpensesView({
       body: JSON.stringify({ id: category.id, active: !category.active }),
     });
     const result = await response.json();
-    if (response.ok) categoryUpdated(result.category);
+    if (!response.ok) return setCategoryError(result.detail || result.error || "Unable to update category");
+    categoryUpdated(result.category);
   };
   const editCategory = async (category: ExpenseCategory) => {
     const name = window.prompt("Expense sub-category name", category.name);
@@ -16262,7 +16263,7 @@ function ExpensesView({
       body: JSON.stringify({ id: category.id, name, mainCategory }),
     });
     const result = await response.json();
-    if (!response.ok) return setCategoryError(result.error || "Unable to edit category");
+    if (!response.ok) return setCategoryError(result.detail || result.error || "Unable to edit category");
     categoryUpdated(result.category);
   };
   const deleteCategory = async (category: ExpenseCategory) => {
@@ -16270,7 +16271,7 @@ function ExpensesView({
     setCategoryError("");
     const response = await fetch(`/api/v1/expenses/categories?id=${category.id}`, { method: "DELETE" });
     const result = await response.json();
-    if (!response.ok) return setCategoryError(result.error || "Unable to delete category");
+    if (!response.ok) return setCategoryError(result.detail || result.error || "Unable to delete category");
     categoryDeleted(category.id);
   };
   const approved = expenses.filter(

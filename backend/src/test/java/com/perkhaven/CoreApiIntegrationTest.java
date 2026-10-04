@@ -160,6 +160,41 @@ class CoreApiIntegrationTest {
     }
 
     @Test
+    void managementCanManageExpenseCategories() throws Exception {
+        var created = mvc.perform(post("/api/v1/expenses/categories")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CHAIRMAN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"mainCategory":"Staff Expenses","name":"Salary Integration Test"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.category.mainCategory").value("Staff Expenses"))
+                .andExpect(jsonPath("$.category.name").value("Salary Integration Test"))
+                .andReturn().getResponse().getContentAsString();
+        var categoryId = mapper.readTree(created).get("category").get("id").asLong();
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/expenses/categories")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MANAGING_DIRECTOR")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":" + categoryId + ",\"active\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.category.active").value(false));
+
+        mvc.perform(delete("/api/v1/expenses/categories")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CHAIRMAN")))
+                        .param("id", String.valueOf(categoryId)))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/expenses/categories")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STAFF")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"mainCategory":"Staff Expenses","name":"Staff Must Not Manage Categories"}
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void studentCanReadOwnPaymentReceiptButNotAnotherStudentsReceipt() throws Exception {
         var adminToken = token("admin@perkhaven.demo", "PerkAdmin#2026");
         var studentToken = token("student@perkhaven.demo", "PerkStudent#2026");
