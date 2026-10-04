@@ -9644,6 +9644,48 @@ function ManualInvoiceModal({
     );
   };
 
+  const selectStudentForInvoice = async (value: string) => {
+    setError("");
+    if (!value || invoiceType !== "DEPOSIT") {
+      setRegistrationNo(value);
+      return;
+    }
+
+    const cachedInvoice = depositInvoiceByRegistration.get(value);
+    if (cachedInvoice) {
+      setRegistrationNo("");
+      setError(
+        `Security Deposit invoice ${cachedInvoice.invoiceNo} already exists for this student. Use the existing invoice instead.`,
+      );
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch(
+        `/api/v1/invoices/deposit-status?registrationNo=${encodeURIComponent(value)}`,
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.detail || "Unable to check the existing Security Deposit invoice.");
+        return;
+      }
+      if (result.exists) {
+        setRegistrationNo("");
+        setError(
+          `Security Deposit invoice ${result.invoiceNo} already exists for this student. Use the existing invoice instead.`,
+        );
+        return;
+      }
+      setRegistrationNo(value);
+    } catch {
+      setRegistrationNo("");
+      setError("Unable to check the existing Security Deposit invoice. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
@@ -9791,8 +9833,7 @@ function ManualInvoiceModal({
               <select
                 value={registrationNo}
                 onChange={(event) => {
-                  setRegistrationNo(event.target.value);
-                  setError("");
+                  void selectStudentForInvoice(event.target.value);
                 }}
                 required
               >
