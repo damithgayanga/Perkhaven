@@ -89,6 +89,9 @@ public class InvoiceService {
     @Transactional
     public List<Invoice> createRegistrationInvoices(Student student) {
         if (!automaticInvoiceIssuanceEnabled) return List.of();
+        if (student.getRegisteredDate() == null || student.getStartDate() == null
+                || student.getRoom() == null || student.getMonthlyRent() == null
+                || student.getDepositPayable() == null) return List.of();
         var created = new java.util.ArrayList<Invoice>();
         if (student.getDepositPayable().signum() > 0) created.add(createDeposit(student));
         var today = LocalDate.now(BUSINESS_ZONE);

@@ -473,10 +473,18 @@ const studentFromApi = (value: Record<string, unknown>): Student => ({
   ...(value as unknown as Student),
   middleNames: String(value.middleNames || ""),
   dateOfBirth: String(value.dateOfBirth || ""),
+  idNo: String(value.idNo || ""),
+  mobile: String(value.mobile || ""),
   whatsapp: String(value.whatsapp || ""),
+  email: String(value.email || ""),
   university: String(value.university || ""),
   currentYear: String(value.currentYear || ""),
+  address: String(value.address || ""),
+  registeredDate: String(value.registeredDate || ""),
+  startDate: String(value.startDate || ""),
   roomNo: String(value.roomNo || ""),
+  monthlyRent: Number(value.monthlyRent || 0),
+  depositPayable: Number(value.depositPayable || 0),
   hasMedicalCondition: Boolean(value.hasMedicalCondition),
   medicalConditionDetails: String(value.medicalConditionDetails || ""),
   photoKey: value.photoName ? String(value.photoName) : undefined,
@@ -715,12 +723,18 @@ const shopPaymentPaid = (
         ["Shop Rent", "Shop Electricity", "Shop Water"].includes(payment.type),
     )
     .reduce((sum, payment) => sum + payment.paidAmount, 0);
+const studentProfileIncomplete = (student: Student) =>
+  !student.registeredDate || !student.startDate || !student.roomNo;
+const studentDisplayStatus = (student: Student) =>
+  studentProfileIncomplete(student) ? "Incomplete" : student.status;
 const studentStatusTone = (student: Student) =>
-  student.status === "Inactive"
-    ? "inactive"
-    : student.noticeToVacateDate
-      ? "notice"
-      : "active";
+  studentProfileIncomplete(student)
+    ? "notice"
+    : student.status === "Inactive"
+      ? "inactive"
+      : student.noticeToVacateDate
+        ? "notice"
+        : "active";
 
 function consolidatePayments(payments: Payment[]) {
   const consolidated = new Map<string, Payment>();
@@ -7017,7 +7031,7 @@ function StudentView({
   remove: (registrationNo: string) => void;
 }) {
   const [statusFilter, setStatusFilter] = useState<
-    "All" | "Active" | "Inactive"
+    "All" | "Active" | "Inactive" | "Incomplete"
   >("All");
   const [studentFilters, setStudentFilters] = useState({ registration: "", name: "", room: "" });
   const [editing, setEditing] = useState<Student | null>(null);
@@ -7039,11 +7053,13 @@ function StudentView({
     -1,
   );
   const visibleRows = rows.filter((student) =>
-    (statusFilter === "All" || student.status === statusFilter) &&
+    (statusFilter === "All" || studentDisplayStatus(student) === statusFilter) &&
     student.registrationNo.toLowerCase().includes(studentFilters.registration.toLowerCase()) &&
     `${student.firstName} ${student.lastName}`.toLowerCase().includes(studentFilters.name.toLowerCase()) &&
     student.roomNo.toLowerCase().includes(studentFilters.room.toLowerCase()));
   const depositStatus = (student: Student) => {
+    if (studentProfileIncomplete(student))
+      return { text: "Profile incomplete", tone: "pending" };
     const paid = payments
       .filter(
         (payment) =>
@@ -7060,6 +7076,8 @@ function StudentView({
       : { text: "Paid", tone: "paid" };
   };
   const roomPaymentStatus = (student: Student) => {
+    if (studentProfileIncomplete(student))
+      return { text: "Profile incomplete", tone: "pending" };
     const firstMonth =
       student.startDate.slice(0, 7) < "2026-01"
         ? "2026-01"
@@ -7088,7 +7106,7 @@ function StudentView({
           <input value={studentFilters.registration} onChange={(e)=>setStudentFilters(c=>({...c,registration:e.target.value}))} placeholder="Registration no." />
           <input value={studentFilters.name} onChange={(e)=>setStudentFilters(c=>({...c,name:e.target.value}))} placeholder="Resident name" />
           <input value={studentFilters.room} onChange={(e)=>setStudentFilters(c=>({...c,room:e.target.value}))} placeholder="Hostel Room no." />
-          <select value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value as "All"|"Active"|"Inactive")}><option>All</option><option>Active</option><option>Inactive</option></select>
+          <select value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value as "All"|"Active"|"Inactive"|"Incomplete")}><option>All</option><option>Active</option><option>Inactive</option><option>Incomplete</option></select>
           <button className="secondary" onClick={()=>{setStudentFilters({registration:"",name:"",room:""});setStatusFilter("All");}}>Clear filters</button>
         </div>
       </div>
@@ -7139,7 +7157,7 @@ function StudentView({
                   </td>
                   <td>
                     <span className={`status ${studentStatusTone(s)}`}>
-                      ● {s.status}
+                      ● {studentDisplayStatus(s)}
                     </span>
                   </td>
                   <td onClick={(event) => event.stopPropagation()}>
@@ -19180,6 +19198,7 @@ function Register({
   save: (s: Student) => void;
 }) {
   const managementCreator = ["Admin", "Chairman", "Managing Director"].includes(creatorRole);
+  const [profileOnly, setProfileOnly] = useState(creatorRole === "Admin");
   const [selectedRoom, setSelectedRoom] = useState("");
   const [registrationStatus, setRegistrationStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
   const [registeredDate, setRegisteredDate] = useState(new Date().toISOString().slice(0, 10));
@@ -19207,13 +19226,30 @@ function Register({
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setRegistrationError("");
-    if (roomFull)
+    if (!profileOnly && roomFull)
       return setRegistrationError(
         `hostel room ${selectedRoom} is full on ${fmtDate(startDate)}. Review the existing residents' check-out dates.`,
       );
     const f = new FormData(e.currentTarget),
-      v = (k: string) => String(f.get(k) || ""),
-      inactiveRegistration = registrationStatus === "INACTIVE",
+      v = (k: string) => String(f.get(k) || "");
+
+    if (profileOnly) {
+      const response = await fetch("/api/v1/students", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          firstName: v("firstName"),
+          lastName: v("lastName"),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok)
+        return setRegistrationError(result.detail || "Unable to create resident profile");
+      save(studentFromApi(result));
+      return;
+    }
+
+    const inactiveRegistration = registrationStatus === "INACTIVE",
       phone = (prefix: string) =>
         combinePhone(v(`${prefix}CountryCode`), v(`${prefix}Number`)),
       r = rooms.find((x) => x.roomNo === v("roomNo"));
@@ -19289,24 +19325,37 @@ function Register({
           text="The registration number is assigned automatically when saved."
           close={close}
         />
+        {creatorRole === "Admin" && (
+          <div className="payment-tabs" role="tablist" aria-label="Resident creation mode">
+            <button type="button" className={profileOnly ? "active" : ""} onClick={() => setProfileOnly(true)}>
+              Basic profile
+            </button>
+            <button type="button" className={!profileOnly ? "active" : ""} onClick={() => setProfileOnly(false)}>
+              Full registration
+            </button>
+          </div>
+        )}
         <p className="form-guidance">
-          {registrationStatus === "INACTIVE"
-            ? "For an inactive resident, only name, Registration date, Accommodation start date, Check-Out date, Hostel Room, Monthly accommodation fee and Security Deposit are required."
-            : "For an active resident, all registration details are required except Notice to Check-Out date and Check-Out date."}
+          {profileOnly
+            ? "Only First name and Last name are required. The resident ID is generated now; all other details can be added later from Edit."
+            : registrationStatus === "INACTIVE"
+              ? "For an inactive resident, name, Registration date, Accommodation start date, Check-Out date, Hostel Room, Monthly accommodation fee and Security Deposit are required."
+              : "For an active resident, all registration details are required except Notice to Check-Out date and Check-Out date."}
         </p>
         <FormSection title="Personal details">
           <Field name="firstName" label="First name" required />
-          <Field name="middleNames" label="Middle name(s)" />
+          {!profileOnly && <Field name="middleNames" label="Middle name(s)" />}
           <Field name="lastName" label="Last name" required />
-          <Field name="dateOfBirth" label="Date of birth" type="date" required={registrationStatus === "ACTIVE"} />
+          {!profileOnly && <Field name="dateOfBirth" label="Date of birth" type="date" required={registrationStatus === "ACTIVE"} />}
           <Field name="idNo" label="National ID no." required={registrationStatus === "ACTIVE"} />
           <PhoneField prefix="mobile" label="Mobile no." required={registrationStatus === "ACTIVE"} />
           <PhoneField prefix="whatsapp" label="WhatsApp no." required={registrationStatus === "ACTIVE"} />
           <Field name="email" label="Email address" type="email" required={registrationStatus === "ACTIVE"} />
           <Field name="university" label="University" required={registrationStatus === "ACTIVE"} />
           <Field name="currentYear" label="Current year" required={registrationStatus === "ACTIVE"} />
-          <Field name="address" label="Permanent address" wide required={registrationStatus === "ACTIVE"} />
+          <Field name="address" label="Permanent address" wide required={registrationStatus === "ACTIVE"} />}
         </FormSection>
+        {!profileOnly && <>
         <FormSection title="Emergency contacts">
           <Field name="emergency1Name" label="Contact 1 · name" required={registrationStatus === "ACTIVE"} />
           <PhoneField prefix="emergency1Contact" label="Contact 1 · phone" required={!managementCreator && registrationStatus === "ACTIVE"} />
@@ -19459,7 +19508,12 @@ function Register({
             <p className="form-error">⚠ {registrationError}</p>
           )}
         </FormSection>
-        <Actions close={close} text="Register resident" disabled={roomFull} />
+        </>}
+        <Actions
+          close={close}
+          text={profileOnly ? "Create resident profile" : "Register resident"}
+          disabled={!profileOnly && roomFull}
+        />
       </form>
     </div>
   );
@@ -19476,6 +19530,7 @@ function EditStudent({
   save: (student: Student) => void;
 }) {
   const [error, setError] = useState("");
+  const [draft, setDraft] = useState(studentProfileIncomplete(student));
   const [status, setStatus] = useState<"Active" | "Inactive">(student.status);
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -19483,7 +19538,7 @@ function EditStudent({
     const form = new FormData(event.currentTarget);
     const value = (name: string) => String(form.get(name) || "");
     const phone = (prefix: string) => combinePhone(value(`${prefix}CountryCode`), value(`${prefix}Number`));
-    const makingActive = student.status === "Inactive" && status === "Active";
+    const makingActive = (draft || student.status === "Inactive") && status === "Active";
     const response = await fetch(`/api/v1/students/${encodeURIComponent(student.registrationNo)}`, {
       method: "PUT",
       headers: { "content-type": "application/json" },
@@ -19495,9 +19550,14 @@ function EditStudent({
         university: value("university"), currentYear: value("currentYear"), address: value("address"),
         hasMedicalCondition: value("hasMedicalCondition") === "yes",
         medicalConditionDetails: value("medicalConditionDetails"),
-        registeredDate: value("registeredDate"), startDate: value("startDate"), vacatedDate: makingActive ? null : (value("vacatedDate") || null), noticeToVacateDate: makingActive ? null : (value("noticeToVacateDate") || null), roomNo: value("roomNo"),
-        monthlyRent: Number(value("monthlyRent")), depositPayable: Number(value("depositPayable")),
-        status: status.toUpperCase(),
+        registeredDate: value("registeredDate") || null,
+        startDate: value("startDate") || null,
+        vacatedDate: draft || makingActive ? null : (value("vacatedDate") || null),
+        noticeToVacateDate: draft || makingActive ? null : (value("noticeToVacateDate") || null),
+        roomNo: value("roomNo"),
+        monthlyRent: value("monthlyRent") ? Number(value("monthlyRent")) : null,
+        depositPayable: value("depositPayable") ? Number(value("depositPayable")) : null,
+        status: draft ? "INACTIVE" : status.toUpperCase(),
         emergencyContacts: [
           { name: value("emergency1Name"), phone: phone("emergency1Contact"), relationship: value("emergency1Relationship"), address: value("emergency1Address") },
           { name: value("emergency2Name"), phone: phone("emergency2Contact"), relationship: value("emergency2Relationship"), address: value("emergency2Address") },
@@ -19650,32 +19710,51 @@ function EditStudent({
         <FormSection title="Registration and hostel room">
           <label>
             Student status
-            <select name="status" value={status} onChange={(event) => setStatus(event.target.value as "Active" | "Inactive")}>
+            <select
+              name="status"
+              value={draft ? "Draft" : status}
+              onChange={(event) => {
+                if (event.target.value === "Draft") {
+                  setDraft(true);
+                  setStatus("Inactive");
+                } else {
+                  setDraft(false);
+                  setStatus(event.target.value as "Active" | "Inactive");
+                }
+              }}
+            >
+              <option value="Draft">Incomplete profile · complete later</option>
               <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
+              <option value="Inactive">Inactive / checked out</option>
             </select>
-            <small>{status === "Inactive" ? "Check-Out date is required; Notice to Check-Out date may remain blank for backlog records." : "All resident details are required except the two check-out dates."}</small>
+            <small>
+              {draft
+                ? "You can save any details entered now and complete the remaining profile later."
+                : status === "Inactive"
+                  ? "Check-Out date and the registration / accommodation details are required."
+                  : "All resident details are required except the two check-out dates."}
+            </small>
           </label>
           <Field
             name="registeredDate"
             label="Registration date"
             type="date"
             defaultValue={student.registeredDate}
-            required
+            required={!draft}
           />
           <Field
             name="startDate"
             label="Accommodation start date"
             type="date"
             defaultValue={student.startDate}
-            required
+            required={!draft}
           />
           <Field name="noticeToVacateDate" label="Notice to Check-Out date (optional)" type="date" defaultValue={student.noticeToVacateDate || ""} />
-          <Field name="vacatedDate" label="Check-Out date (optional)" type="date" defaultValue={student.vacatedDate || ""} required={status === "Inactive"} />
+          <Field name="vacatedDate" label="Check-Out date (optional)" type="date" defaultValue={student.vacatedDate || ""} required={!draft && status === "Inactive"} />
           <label>
 
             Hostel Room
-            <select name="roomNo" defaultValue={student.roomNo} required>
+            <select name="roomNo" defaultValue={student.roomNo} required={!draft}>
               {rooms.map((room) => (
                 <option key={room.roomNo}>{room.roomNo}</option>
               ))}
@@ -19686,16 +19765,16 @@ function EditStudent({
             label="Monthly accommodation fee (LKR)"
             type="number"
             min="0"
-            defaultValue={student.monthlyRent}
-            required
+            defaultValue={student.monthlyRent || ""}
+            required={!draft}
           />
           <Field
             name="depositPayable"
             label="Security Deposit payable (LKR)"
             type="number"
             min="0"
-            defaultValue={student.depositPayable}
-            required
+            defaultValue={student.depositPayable || ""}
+            required={!draft}
           />
           {error && <p className="form-error">⚠ {error}</p>}
         </FormSection>

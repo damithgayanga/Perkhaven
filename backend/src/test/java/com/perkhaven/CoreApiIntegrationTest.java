@@ -674,6 +674,43 @@ class CoreApiIntegrationTest {
     }
 
     @Test
+    void adminCanCreateResidentProfileWithNamesOnlyAndCompleteItLater() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+
+        var created = mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"firstName":"Basic","lastName":"Profile"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.firstName").value("Basic"))
+                .andExpect(jsonPath("$.lastName").value("Profile"))
+                .andExpect(jsonPath("$.status").value("INACTIVE"))
+                .andExpect(jsonPath("$.registeredDate").doesNotExist())
+                .andExpect(jsonPath("$.startDate").doesNotExist())
+                .andExpect(jsonPath("$.roomNo").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+
+        var registrationNo = mapper.readTree(created).get("registrationNo").asText();
+
+        mvc.perform(get("/api/v1/invoices").param("registrationNo", registrationNo)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalItems").value(0));
+
+        mvc.perform(put("/api/v1/students/{registrationNo}", registrationNo)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"registrationNo":"%s","firstName":"Basic","lastName":"Profile",
+                                 "mobile":"+94770000111","status":"INACTIVE"}
+                                """.formatted(registrationNo)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mobile").value("+94770000111"))
+                .andExpect(jsonPath("$.startDate").doesNotExist());
+    }
+
+    @Test
     void addingEmailToResidentDoesNotAutomaticallyGrantPortalAccess() throws Exception {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
         var incomplete = """

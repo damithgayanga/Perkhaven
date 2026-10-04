@@ -159,9 +159,9 @@ public class StudentController {
                             && i.getPaidAmount().signum() == 0)
                     .forEach(invoices::delete);
         }
-        // Backlog residents may have been created before historical invoice
-        // generation was enabled. Re-running is idempotent and fills any gaps.
-        if (student.getStatus() == RecordStatus.INACTIVE) invoiceService.createRegistrationInvoices(student);
+        // Re-running is idempotent. Draft profiles are ignored until the
+        // registration and billing fields have been completed.
+        invoiceService.createRegistrationInvoices(student);
         audit.record("UPDATE", "STUDENT", registrationNo, changedFields(previous, student));
         return StudentResponse.from(student);
     }
@@ -206,38 +206,49 @@ public class StudentController {
     }
 
     private void apply(Student student, StudentRequest request) {
-        validateProfileRequirements(request);
+        var requestedStatus = request.status() != null
+                ? request.status()
+                : student.getStatus() != null ? student.getStatus() : RecordStatus.INACTIVE;
+        validateProfileRequirements(request, requestedStatus);
         if (request.email() != null && !request.email().isBlank()
-                && students.existsByEmailIgnoreCaseAndRegistrationNoNot(request.email(), request.registrationNo())) {
+                && students.existsByEmailIgnoreCaseAndRegistrationNoNot(request.email(), student.getRegistrationNo())) {
             throw new ConflictException("Email is already assigned to another student.");
         }
         Room room = request.roomNo() == null || request.roomNo().isBlank() ? null : rooms.findByRoomNoIgnoreCase(request.roomNo()).orElseThrow(() -> new NotFoundException("Room not found."));
-        if (room != null && student.getRoom() != room && request.status() == RecordStatus.ACTIVE && students.countByRoomIdAndStatus(room.getId(), RecordStatus.ACTIVE) >= room.getBeds()) {
+        if (room != null && student.getRoom() != room && requestedStatus == RecordStatus.ACTIVE && students.countByRoomIdAndStatus(room.getId(), RecordStatus.ACTIVE) >= room.getBeds()) {
             throw new ConflictException("Room has no available beds.");
         }
         var contacts = request.emergencyContacts() == null ? List.<Student.EmergencyContactData>of() : request.emergencyContacts().stream()
                 .map(c -> new Student.EmergencyContactData(c.name(), c.phone(), c.relationship(), c.address())).toList();
+        var storedStatus = request.vacatedDate() != null && request.vacatedDate().isBefore(LocalDate.now())
+                ? RecordStatus.INACTIVE : requestedStatus;
         student.update(new Student.StudentData(request.firstName(), request.middleNames(), request.lastName(), request.dateOfBirth(),
                 request.idNo(), request.mobile(), request.whatsapp(), request.email(),
                 request.university(), request.currentYear(), request.address(), request.hasMedicalCondition(),
                 request.medicalConditionDetails(), request.registeredDate(), request.startDate(), request.vacatedDate(), request.noticeToVacateDate(), request.monthlyRent(),
-                request.depositPayable(), request.vacatedDate() != null && request.vacatedDate().isBefore(LocalDate.now()) ? RecordStatus.INACTIVE : request.status(), contacts), room);
+                request.depositPayable(), storedStatus, contacts), room);
     }
 
-    private void validateProfileRequirements(StudentRequest request) {
+    private void validateProfileRequirements(StudentRequest request, RecordStatus requestedStatus) {
         var missing = new ArrayList<String>();
-        if (request.registeredDate() == null) missing.add("Registration date");
-        if (request.startDate() == null) missing.add("Accommodation start date");
-        if (request.roomNo() == null || request.roomNo().isBlank()) missing.add("Hostel Room");
-        if (request.monthlyRent() == null) missing.add("Monthly accommodation fee");
-        if (request.depositPayable() == null) missing.add("Security Deposit");
 
-        if (request.status() == RecordStatus.INACTIVE) {
-            if (request.vacatedDate() == null) missing.add("Check-Out date");
+        // An INACTIVE record without a Check-Out date is treated as an
+        // incomplete profile. Admin may create it with only first/last name and
+        // progressively complete the remaining fields before activation.
+        var incompleteProfile = requestedStatus == RecordStatus.INACTIVE && request.vacatedDate() == null;
+        if (!incompleteProfile) {
+            if (request.registeredDate() == null) missing.add("Registration date");
+            if (request.startDate() == null) missing.add("Accommodation start date");
+            if (request.roomNo() == null || request.roomNo().isBlank()) missing.add("Hostel Room");
+            if (request.monthlyRent() == null) missing.add("Monthly accommodation fee");
+            if (request.depositPayable() == null) missing.add("Security Deposit");
+        }
+
+        if (requestedStatus == RecordStatus.INACTIVE && !incompleteProfile) {
             if (!missing.isEmpty()) {
                 throw new IllegalArgumentException("Inactive students require: " + String.join(", ", missing) + ".");
             }
-        } else if (request.status() == RecordStatus.ACTIVE) {
+        } else if (requestedStatus == RecordStatus.ACTIVE) {
             if (request.dateOfBirth() == null) missing.add("Date of birth");
             if (request.idNo() == null || request.idNo().isBlank()) missing.add("National ID no.");
             if (request.mobile() == null || request.mobile().isBlank()) missing.add("Mobile no.");
@@ -297,8 +308,8 @@ public class StudentController {
                                  String idNo, String mobile, String whatsapp, @Email String email,
                                  String university, String currentYear, String address, boolean hasMedicalCondition,
                                  @Size(max = 2000) String medicalConditionDetails, LocalDate registeredDate,
-                                 @NotNull LocalDate startDate, String roomNo, LocalDate vacatedDate, LocalDate noticeToVacateDate, @NotNull @DecimalMin("0.00") BigDecimal monthlyRent,
-                                 @NotNull @DecimalMin("0.00") BigDecimal depositPayable, @NotNull RecordStatus status,
+                                 LocalDate startDate, String roomNo, LocalDate vacatedDate, LocalDate noticeToVacateDate, @DecimalMin("0.00") BigDecimal monthlyRent,
+                                 @DecimalMin("0.00") BigDecimal depositPayable, RecordStatus status,
                                  @Size(max = 2) List<@Valid EmergencyContactRequest> emergencyContacts) {}
     public record EmergencyContactResponse(int order, String name, String phone, String relationship, String address) {
         static EmergencyContactResponse from(StudentEmergencyContact contact) { return new EmergencyContactResponse(contact.getOrder(), contact.getName(), contact.getPhone(), contact.getRelationship(), contact.getAddress()); }

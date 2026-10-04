@@ -50,18 +50,18 @@ public class Student extends AuditedEntity {
     private boolean hasMedicalCondition;
     @Column(name = "medical_condition_details", length = 2000)
     private String medicalConditionDetails;
-    @Column(name = "registered_date", nullable = false)
+    @Column(name = "registered_date")
     private LocalDate registeredDate;
-    @Column(name = "start_date", nullable = false)
+    @Column(name = "start_date")
     private LocalDate startDate;
     @Column(name = "vacated_date") private LocalDate vacatedDate;
     @Column(name = "notice_to_vacate_date") private LocalDate noticeToVacateDate;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "room_id")
     private Room room;
-    @Column(name = "monthly_rent", nullable = false, precision = 14, scale = 2)
+    @Column(name = "monthly_rent", precision = 14, scale = 2)
     private BigDecimal monthlyRent;
-    @Column(name = "deposit_payable", nullable = false, precision = 14, scale = 2)
+    @Column(name = "deposit_payable", precision = 14, scale = 2)
     private BigDecimal depositPayable;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
