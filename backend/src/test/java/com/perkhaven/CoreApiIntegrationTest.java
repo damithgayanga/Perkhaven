@@ -566,6 +566,31 @@ class CoreApiIntegrationTest {
     }
 
     @Test
+    void inactiveHistoricalResidentsMayShareMissingOptionalContactDetails() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+        var first = """
+                {"registrationNo":"PH-HISTORY-980","firstName":"Historical","lastName":"One",
+                 "middleNames":"","idNo":"","mobile":"","whatsapp":"","email":"","university":"","currentYear":"","address":"",
+                 "registeredDate":"2025-01-01","startDate":"2025-01-01","noticeToVacateDate":"2025-03-01",
+                 "vacatedDate":"2025-03-31","roomNo":"104","monthlyRent":20000.00,"depositPayable":0.00,
+                 "status":"INACTIVE","emergencyContacts":[]}
+                """;
+        var second = first
+                .replace("PH-HISTORY-980", "PH-HISTORY-981")
+                .replace("\"Historical\",\"lastName\":\"One\"", "\"Historical\",\"lastName\":\"Two\"");
+
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(first))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.email").doesNotExist());
+
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(second))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.email").doesNotExist());
+    }
+
+    @Test
     void adminProfileEditRecordsChangedFieldsInResidentHistory() throws Exception {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
         var original = """

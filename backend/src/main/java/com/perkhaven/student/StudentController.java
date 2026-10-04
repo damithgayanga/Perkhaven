@@ -222,10 +222,10 @@ public class StudentController {
                 .map(c -> new Student.EmergencyContactData(c.name(), c.phone(), c.relationship(), c.address())).toList();
         var storedStatus = request.vacatedDate() != null && request.vacatedDate().isBefore(LocalDate.now())
                 ? RecordStatus.INACTIVE : requestedStatus;
-        student.update(new Student.StudentData(request.firstName(), request.middleNames(), request.lastName(), request.dateOfBirth(),
-                request.idNo(), request.mobile(), request.whatsapp(), request.email(),
-                request.university(), request.currentYear(), request.address(), request.hasMedicalCondition(),
-                request.medicalConditionDetails(), request.registeredDate(), request.startDate(), request.vacatedDate(), request.noticeToVacateDate(), request.monthlyRent(),
+        student.update(new Student.StudentData(request.firstName(), blankToNull(request.middleNames()), request.lastName(), request.dateOfBirth(),
+                blankToNull(request.idNo()), blankToNull(request.mobile()), blankToNull(request.whatsapp()), blankToNull(request.email()),
+                blankToNull(request.university()), blankToNull(request.currentYear()), blankToNull(request.address()), request.hasMedicalCondition(),
+                blankToNull(request.medicalConditionDetails()), request.registeredDate(), request.startDate(), request.vacatedDate(), request.noticeToVacateDate(), request.monthlyRent(),
                 request.depositPayable(), storedStatus, contacts), room);
     }
 
@@ -298,6 +298,10 @@ public class StudentController {
         var current = profileValues(student);
         var changed = previous.keySet().stream().filter(key -> !previous.get(key).equals(current.get(key))).toList();
         return changed.isEmpty() ? "No profile values changed" : "Updated: " + String.join(", ", changed);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private String text(Object value) { return value == null ? "" : value.toString(); }
