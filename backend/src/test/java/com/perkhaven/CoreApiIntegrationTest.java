@@ -510,7 +510,7 @@ class CoreApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content(formerJanuaryResident))
                 .andExpect(status().isCreated());
 
-        mvc.perform(post("/api/v1/invoices/manual/batch")
+        var batchResult = mvc.perform(post("/api/v1/invoices/manual/batch")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -519,10 +519,15 @@ class CoreApiIntegrationTest {
                                  "issueDate":"2098-01-25","dueDate":"2098-01-31","remarks":"January billing"}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.invoices[*].registrationNo",
-                        org.hamcrest.Matchers.hasItem("PH-BATCH-972")))
-                .andExpect(jsonPath("$.skipped[*].registrationNo",
-                        org.hamcrest.Matchers.hasItem("PH-BATCH-971")));
+                .andReturn();
+        var batchBody = mapper.readTree(batchResult.getResponse().getContentAsString());
+        var invoiceRegistrations = new java.util.HashSet<String>();
+        batchBody.path("invoices").forEach(item -> invoiceRegistrations.add(item.path("registrationNo").asText()));
+        var skippedRegistrations = new java.util.HashSet<String>();
+        batchBody.path("skipped").forEach(item -> skippedRegistrations.add(item.path("registrationNo").asText()));
+        if (!invoiceRegistrations.contains("PH-BATCH-972") || !skippedRegistrations.contains("PH-BATCH-971")) {
+            throw new AssertionError("Unexpected residency-month batch result: " + batchBody);
+        }
     }
 
     @Test
