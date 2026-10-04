@@ -72,7 +72,7 @@ public class Invoice extends AuditedEntity {
         this.invoiceNo = invoiceNo; this.student = student; this.invoiceType = invoiceType; this.billingMonth = billingMonth;
         this.billingKey = billingKey;
         this.baseAmount = money(baseAmount); this.amount = money(baseAmount); this.issueDate = issueDate; this.dueDate = dueDate;
-        if (this.amount.signum() < 0) this.status = InvoiceStatus.CREDITED;
+        refreshStatus();
     }
 
     public void configureInitial(String remarks, List<AdjustmentData> values) {
@@ -85,6 +85,7 @@ public class Invoice extends AuditedEntity {
             adjustments.clear();
             amount = money(directAmount);
             this.remarks = remarks;
+            refreshStatus();
         } else {
             applyAdjustments(remarks, values);
         }
@@ -97,7 +98,7 @@ public class Invoice extends AuditedEntity {
         applyAdjustments(remarks, values);
         if (amount.compareTo(paidAmount) < 0)
             throw new IllegalArgumentException("The revised invoice amount cannot be lower than the amount already paid.");
-        status = paidAmount.compareTo(amount) >= 0 ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID;
+        refreshStatus();
         revisionNumber++; reissuedAt = Instant.now(); emailStatus = "QUEUED";
     }
 
@@ -112,18 +113,33 @@ public class Invoice extends AuditedEntity {
         }
         amount = money(total.max(BigDecimal.ZERO));
         this.remarks = remarks;
+        refreshStatus();
     }
 
     public void describe(String value) { remarks = value; }
     public void markEmailStatus(String value) { emailStatus = value; }
     public void recordPayment(BigDecimal value) {
         if (status == InvoiceStatus.CREDITED) throw new IllegalArgumentException("A credit invoice cannot receive a payment.");
+        if (status == InvoiceStatus.CLOSED_NIL_BALANCE) throw new IllegalArgumentException("A closed nil-balance invoice cannot receive a payment.");
         paidAmount = money(paidAmount.add(value));
-        status = paidAmount.compareTo(amount) >= 0 ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID;
+        refreshStatus();
     }
     public void removePayment(BigDecimal value) {
         paidAmount = money(paidAmount.subtract(value).max(BigDecimal.ZERO));
-        status = paidAmount.signum() == 0 ? InvoiceStatus.ISSUED : InvoiceStatus.PARTIALLY_PAID;
+        refreshStatus();
+    }
+    private void refreshStatus() {
+        if (amount.signum() < 0) {
+            status = InvoiceStatus.CREDITED;
+        } else if (amount.signum() == 0 && paidAmount.signum() == 0) {
+            status = InvoiceStatus.CLOSED_NIL_BALANCE;
+        } else if (paidAmount.signum() == 0) {
+            status = InvoiceStatus.ISSUED;
+        } else if (paidAmount.compareTo(amount) >= 0) {
+            status = InvoiceStatus.PAID;
+        } else {
+            status = InvoiceStatus.PARTIALLY_PAID;
+        }
     }
     private static BigDecimal money(BigDecimal value) { return value.setScale(2, java.math.RoundingMode.HALF_UP); }
     public String getInvoiceNo() { return invoiceNo; }
