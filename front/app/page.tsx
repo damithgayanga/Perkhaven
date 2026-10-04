@@ -889,6 +889,12 @@ export default function Home() {
       page<StudentInvoice>("/api/v1/invoices").then((result) => setStudentInvoices(result.items)),
       fetch("/api/v1/payments").then(async (response) => { if (!response.ok) throw new Error("Unable to load payments"); setPayments(await response.json()); }),
       fetch("/api/v1/payment-evidence-submissions").then(async (response) => { if (!response.ok) throw new Error("Unable to load payment evidence"); setPaymentEvidence((await response.json()).evidence || []); }),
+      fetch("/api/v1/expenses").then(async (response) => {
+        if (!response.ok) throw new Error("Unable to load expenses");
+        const result = await response.json();
+        setExpenses(result.expenses || []);
+        setExpenseCategories(result.categories || []);
+      }),
       fetch("/api/student-profile-requests").then(async (response) => { if (!response.ok) throw new Error("Unable to load profile edit requests"); setProfileRequests((await response.json()).requests || []); }),
       fetch("/api/v1/checkout-notice-requests").then(async (response) => { if (!response.ok) throw new Error("Unable to load Check-Out notices"); setCheckoutNoticeRequests((await response.json()).requests || []); }),
       fetch("/api/v1/room-transfer-requests").then(async (response) => { if (!response.ok) throw new Error("Unable to load hostel room-change requests"); setRoomTransferRequests((await response.json()).requests || []); }),
