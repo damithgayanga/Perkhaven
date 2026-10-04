@@ -5178,8 +5178,24 @@ function AdminControls({
           ? `/api/v1/admin/students/${encodeURIComponent(student.registrationNo)}/access/resend`
           : `/api/v1/admin/students/${encodeURIComponent(student.registrationNo)}/access`;
       const response = await fetch(url, { method: action === "disable" ? "DELETE" : "POST" });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.detail || "Unable to update student portal access.");
+      const responseText = await response.text();
+      let result: Record<string, unknown> = {};
+      if (responseText.trim()) {
+        try {
+          result = JSON.parse(responseText) as Record<string, unknown>;
+        } catch {
+          if (!response.ok) throw new Error(`Unable to update student portal access (HTTP ${response.status}).`);
+          throw new Error("Student portal access was updated, but the server returned an invalid response.");
+        }
+      }
+      if (!response.ok) {
+        throw new Error(
+          String(result.detail || result.message || `Unable to update student portal access (HTTP ${response.status}).`),
+        );
+      }
+      if (!responseText.trim()) {
+        throw new Error("Student portal access request completed without a response. Refresh the page and check the current status.");
+      }
       applyAccessResult(student, result);
     } catch (reason) {
       setStudentAccessMessage(reason instanceof Error ? reason.message : "Unable to update student portal access.");
