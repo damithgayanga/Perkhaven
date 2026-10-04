@@ -525,7 +525,6 @@ class CoreApiIntegrationTest {
         batchBody.path("invoices").forEach(item -> invoiceRegistrations.add(item.path("registrationNo").asText()));
         var skippedRegistrations = new java.util.HashSet<String>();
         batchBody.path("skipped").forEach(item -> skippedRegistrations.add(item.path("registrationNo").asText()));
-        System.out.println("RESIDENCY_BATCH_RESULT=" + batchBody);
         if (!invoiceRegistrations.contains("PH-BATCH-972") || !skippedRegistrations.contains("PH-BATCH-971")) {
             throw new AssertionError("Unexpected residency-month batch result: " + batchBody);
         }

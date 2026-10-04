@@ -96,6 +96,7 @@ public class InvoiceController {
 
     @PostMapping("/manual/batch")
     @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
     public ManualBatchResponse manualBatch(@Valid @RequestBody ManualBatchInvoiceRequest request) {
         if (request.invoiceType() != InvoiceType.RENT)
             throw new IllegalArgumentException("Multiple-student invoice generation is available only for Monthly Accommodation Fee.");

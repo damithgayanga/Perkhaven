@@ -111,7 +111,7 @@ public class InvoiceService {
         var today = LocalDate.now(BUSINESS_ZONE);
         if (!isAutomaticInvoiceWindow(today)) return invoices.findAll();
         var month = YearMonth.from(today);
-        for (var student : students.findByStatusOrderByRegistrationNo(RecordStatus.ACTIVE)) {
+        for (var student : students.findAll()) {
             if (eligibleForMonth(student, month)) createRent(student, month, today);
         }
         return invoices.findAll();
@@ -121,7 +121,7 @@ public class InvoiceService {
     public List<Invoice> generateForMonth(YearMonth month) {
         var today = LocalDate.now(BUSINESS_ZONE);
         var generated = new java.util.ArrayList<Invoice>();
-        for (var student : students.findByStatusOrderByRegistrationNo(RecordStatus.ACTIVE)) {
+        for (var student : students.findAll()) {
             if (eligibleForMonth(student, month)) generated.add(createRent(student, month, today));
         }
         return generated;

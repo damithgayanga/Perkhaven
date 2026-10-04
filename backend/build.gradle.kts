@@ -59,7 +59,4 @@ sourceSets.main {
 tasks.withType<Test> {
     useJUnitPlatform()
     jvmArgs("-XX:+EnableDynamicAgentLoading")
-    testLogging {
-        showStandardStreams = true
-    }
 }
