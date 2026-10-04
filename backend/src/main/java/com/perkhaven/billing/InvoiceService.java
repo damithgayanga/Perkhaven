@@ -28,6 +28,7 @@ public class InvoiceService {
             "INV-2025-0034-00066",
             "INV-2025-0030-00030"
     );
+    private static final LocalDate STUDENT_EMAIL_CUTOFF = LocalDate.of(2026, 10, 1);
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Colombo");
     private static final DateTimeFormatter NUMBER_MONTH = DateTimeFormatter.ofPattern("uuuuMM");
     private static final DateTimeFormatter DISPLAY_MONTH = DateTimeFormatter.ofPattern("MM-uuuu");
@@ -320,6 +321,10 @@ public class InvoiceService {
     }
 
     private void enqueue(Invoice invoice) {
+        if (isStudentBillingInvoice(invoice) && invoice.getDueDate().isBefore(STUDENT_EMAIL_CUTOFF)) {
+            invoice.markEmailStatus("NOT SENT - BEFORE 01-OCT-2026");
+            return;
+        }
         var student = invoice.getStudent();
         if (student.getEmail() == null || student.getEmail().isBlank()
                 || student.getEmail().toLowerCase(java.util.Locale.ROOT).endsWith(".invalid")
@@ -350,6 +355,12 @@ public class InvoiceService {
         } catch (java.io.IOException exception) {
             throw new IllegalStateException("Unable to store invoice attachment.", exception);
         }
+    }
+
+    private boolean isStudentBillingInvoice(Invoice invoice) {
+        return invoice.getInvoiceType() == InvoiceType.RENT
+                || invoice.getInvoiceType() == InvoiceType.DEPOSIT
+                || invoice.getInvoiceType() == InvoiceType.DEPOSIT_ADJUSTMENT;
     }
 
     private String numberForYear(Student student, int year) {
