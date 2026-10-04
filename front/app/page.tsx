@@ -9286,7 +9286,7 @@ function InvoiceLedger({
     [previewing, setPreviewing] = useState<StudentInvoice | null>(null),
     [manualOpen, setManualOpen] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
-    [ledgerFilters, setLedgerFilters] = useState({ registration: "", name: "", month: "", type: "All" }),
+    [ledgerFilters, setLedgerFilters] = useState({ registration: "", name: "", month: "", type: "All", status: "All" }),
     [exportFilters, setExportFilters] = useState({ invoice: "", registration: "", name: "", room: "", type: "All", status: "All" }),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -9313,7 +9313,8 @@ function InvoiceLedger({
     invoice.registrationNo.toLowerCase().includes(ledgerFilters.registration.toLowerCase()) &&
     invoice.studentName.toLowerCase().includes(ledgerFilters.name.toLowerCase()) &&
     (!ledgerFilters.month || invoice.month.slice(0, 7) === ledgerFilters.month) &&
-    (ledgerFilters.type === "All" || invoiceTypeLabel(invoice) === ledgerFilters.type));
+    (ledgerFilters.type === "All" || invoiceTypeLabel(invoice) === ledgerFilters.type) &&
+    (ledgerFilters.status === "All" || invoice.status === ledgerFilters.status));
   const exportRows = invoices.filter((invoice) =>
     invoice.invoiceNo.toLowerCase().includes(exportFilters.invoice.toLowerCase()) &&
     invoice.registrationNo.toLowerCase().includes(exportFilters.registration.toLowerCase()) &&
@@ -9368,7 +9369,8 @@ function InvoiceLedger({
         <label>Name<input value={ledgerFilters.name} onChange={(event) => setLedgerFilters((current) => ({ ...current, name: event.target.value }))} /></label>
         <label>Month<input type="month" value={ledgerFilters.month} onChange={(event) => setLedgerFilters((current) => ({ ...current, month: event.target.value }))} /></label>
         <label>Invoice type<select value={ledgerFilters.type} onChange={(event) => setLedgerFilters((current) => ({ ...current, type: event.target.value }))}><option>All</option><option>Deposit</option><option>Security Deposit Balance</option><option>Security Deposit Credit</option><option>Accommodation Fee</option><option>Other Charge</option><option>Rent</option><option>Shop Electricity</option><option>Shop Water</option></select></label>
-        <button className="secondary ledger-filter-clear" onClick={() => setLedgerFilters({ registration: "", name: "", month: "", type: "All" })}>Clear filters</button>
+        <label>Status<select value={ledgerFilters.status} onChange={(event) => setLedgerFilters((current) => ({ ...current, status: event.target.value }))}><option>All</option><option>Issued</option><option>Partially Paid</option><option>Paid</option><option>Credited</option><option>Cancelled</option></select></label>
+        <button className="secondary ledger-filter-clear" onClick={() => setLedgerFilters({ registration: "", name: "", month: "", type: "All", status: "All" })}>Clear filters</button>
       </div>
       <div className="tablewrap">
         <table className="ledger-table">
