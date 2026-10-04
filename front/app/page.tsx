@@ -7430,7 +7430,7 @@ function PaymentView({
   };
   return (
     <div className="content payment-workspace">
-      <div className="payment-tabs-row">
+      <div className={`payment-tabs-row ${section === "invoices" ? "invoice-ledger-sticky-tabs" : ""}`}>
       <div className="payment-tabs" role="tablist" aria-label="Payment views">
         <button
           className={section === "ledger" ? "active" : ""}
@@ -9362,7 +9362,7 @@ function InvoiceLedger({
   useEffect(() => { const open = () => setExportOpen(true); window.addEventListener("export-invoice-ledger", open); return () => window.removeEventListener("export-invoice-ledger", open); }, []);
   useEffect(() => { const open = () => setManualOpen(true); window.addEventListener("open-manual-invoice", open); return () => window.removeEventListener("open-manual-invoice", open); }, []);
   return (
-    <section className="panel payment-section">
+    <section className="panel payment-section invoice-ledger-section">
       {error && <p className="form-error">⚠ {error}</p>}
       <div className="ledger-filters">
         <label>Student / tenant registration<input value={ledgerFilters.registration} onChange={(event) => setLedgerFilters((current) => ({ ...current, registration: event.target.value }))} placeholder="PH-STD-00006 or SH-..." /></label>
