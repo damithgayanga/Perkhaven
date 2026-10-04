@@ -48,7 +48,7 @@ public class CognitoStudentAccessService {
         if (userPoolId.isBlank()) throw new IllegalStateException("Cognito student access is not configured.");
         var student = students.findByRegistrationNoIgnoreCase(registrationNo)
                 .orElseThrow(() -> new NotFoundException("Student not found."));
-        if (student.getStatus() != RecordStatus.ACTIVE)
+        if (student.getStatus() != RecordStatus.ACTIVE && !isTestAccount(student.getRegistrationNo()))
             throw new ConflictException("Student access can only be enabled for active students.");
         if (student.getEmail() == null || student.getEmail().isBlank() || student.getEmail().endsWith("@invalid.perkhaven.local"))
             throw new ConflictException("A valid student email address is required before access can be enabled.");
@@ -93,6 +93,10 @@ public class CognitoStudentAccessService {
     }
 
     public boolean isConfigured() { return !userPoolId.isBlank(); }
+
+    private boolean isTestAccount(String registrationNo) {
+        return registrationNo != null && registrationNo.toUpperCase(java.util.Locale.ROOT).startsWith("PH-TST-");
+    }
 
     private AdminCreateUserRequest createRequest(String username, List<AttributeType> attributes, String temporaryPassword) {
         return AdminCreateUserRequest.builder()

@@ -21,6 +21,27 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.UserNotFoun
 
 class CognitoStudentAccessServiceTest {
     @Test
+    void inactiveTestAccountStillReceivesPortalInvitation() {
+        var students = mock(StudentRepository.class);
+        var cognito = mock(CognitoIdentityProviderClient.class);
+        var mail = mock(MailGateway.class);
+        var student = mock(Student.class);
+        when(student.getRegistrationNo()).thenReturn("PH-TST-00001");
+        when(student.getEmail()).thenReturn("perkhaven@gmail.com");
+        when(student.getStatus()).thenReturn(RecordStatus.INACTIVE);
+        when(students.findByRegistrationNoIgnoreCase("PH-TST-00001")).thenReturn(Optional.of(student));
+        when(cognito.adminGetUser(any(AdminGetUserRequest.class)))
+                .thenThrow(UserNotFoundException.builder().message("not found").build());
+
+        var service = new CognitoStudentAccessService(students, cognito, mail, "ap-south-1_example", "https://student.perkhaven.lk");
+        assertEquals("PH-TST-00001", service.invite("PH-TST-00001"));
+
+        verify(mail).sendText(org.mockito.ArgumentMatchers.eq("perkhaven@gmail.com"),
+                org.mockito.ArgumentMatchers.eq("Your Perk Haven Student Portal access"),
+                org.mockito.ArgumentMatchers.contains("Temporary password:"));
+    }
+
+    @Test
     void newStudentReceivesEmailInvitationAndStudentGroup() {
         var students = mock(StudentRepository.class);
         var cognito = mock(CognitoIdentityProviderClient.class);

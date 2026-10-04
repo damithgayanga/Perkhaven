@@ -5240,7 +5240,7 @@ function AdminControls({
           <div>
             <p className="tag">STUDENT PORTAL ACCESS</p>
             <h2>Student portal access management</h2>
-            <p>Control who may use student.perkhaven.lk. Email invitations are intentionally not enabled in this stage.</p>
+            <p>Control who may use student.perkhaven.lk. Granting access automatically emails the resident a temporary password and sign-in instructions.</p>
           </div>
         </div>
 
@@ -5280,7 +5280,8 @@ function AdminControls({
                 const status = studentAccessStatus(student);
                 const busy = studentAccessBusy === student.registrationNo;
                 const invalidEmail = !student.email || student.email.endsWith("@invalid.perkhaven.local");
-                const inactiveResident = student.status !== "Active";
+                const testAccount = student.registrationNo.toUpperCase().startsWith("PH-TST-");
+                const inactiveResident = student.status !== "Active" && !testAccount;
                 return (
                   <tr key={student.registrationNo}>
                     <td><b>{student.registrationNo}</b></td>
