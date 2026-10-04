@@ -2289,6 +2289,10 @@ mark {
   background: #fae8e6;
   color: #a9433d;
 }
+.payment-cell.not-applicable {
+  background: #f2f4f7;
+  color: #7a8796;
+}
 .summary-table-wrap {
   overflow-x: auto;
   border-top: 1px solid #dce3ea;
