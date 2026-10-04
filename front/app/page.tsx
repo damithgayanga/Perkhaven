@@ -14025,13 +14025,15 @@ function PaymentBankReconciliationModal({
 
   const candidates = bankTransactions
     .filter((bank) => bank.drCr.toLowerCase().includes("cr"))
+    .filter(
+      (bank) =>
+        !links.some(
+          (link) => link.bankTransactionId === bank.bankTransactionId,
+        ),
+    )
     .filter((bank) => {
-      const available =
-        Math.abs(Number(bank.amount || 0)) - allocatedToOthers(bank.bankTransactionId);
-      return (
-        bank.bankTransactionId === currentBankTransactionId ||
-        available + 0.01 >= payment.paidAmount
-      );
+      const available = Math.abs(Number(bank.amount || 0));
+      return available + 0.01 >= payment.paidAmount;
     })
     .filter((bank) =>
       `${bank.bankTransactionId} ${bank.transactionDate} ${bank.remarks || ""} ${bank.amount}`
