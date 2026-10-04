@@ -519,8 +519,10 @@ class CoreApiIntegrationTest {
                                  "issueDate":"2098-01-25","dueDate":"2098-01-31","remarks":"January billing"}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.invoices[?(@.registrationNo == 'PH-BATCH-972')]").isNotEmpty())
-                .andExpect(jsonPath("$.skipped[?(@.registrationNo == 'PH-BATCH-971')]").isNotEmpty());
+                .andExpect(jsonPath("$.invoices[*].registrationNo",
+                        org.hamcrest.Matchers.hasItem("PH-BATCH-972")))
+                .andExpect(jsonPath("$.skipped[*].registrationNo",
+                        org.hamcrest.Matchers.hasItem("PH-BATCH-971")));
     }
 
     @Test
