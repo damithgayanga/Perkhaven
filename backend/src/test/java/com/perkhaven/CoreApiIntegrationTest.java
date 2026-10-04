@@ -474,6 +474,51 @@ class CoreApiIntegrationTest {
     }
 
     @Test
+    void batchMonthlyInvoicesOnlyIncludeActiveResidentsForSelectedMonth() throws Exception {
+        var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
+
+        var januaryResident = """
+                {"registrationNo":"PH-BATCH-970","firstName":"January","lastName":"Resident",
+                 "dateOfBirth":"2003-01-01","idNo":"BATCH970","mobile":"+94770000970","whatsapp":"+94770000970",
+                 "email":"batch970@example.com","university":"Test","currentYear":"Year 1","address":"Test",
+                 "registeredDate":"2098-01-01","startDate":"2098-01-10","roomNo":"104",
+                 "monthlyRent":20000.00,"depositPayable":0.00,"status":"ACTIVE","emergencyContacts":[
+                    {"name":"Primary Contact","phone":"+94771111111","relationship":"Parent","address":"Test"},
+                    {"name":"Secondary Contact","phone":"+94772222222","relationship":"Sibling","address":"Test"}
+                 ]}
+                """;
+        var februaryResident = januaryResident
+                .replace("PH-BATCH-970", "PH-BATCH-971")
+                .replace("January", "February")
+                .replace("BATCH970", "BATCH971")
+                .replace("+94770000970", "+94770000971")
+                .replace("batch970@example.com", "batch971@example.com")
+                .replace("2098-01-10", "2098-02-01");
+
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(januaryResident))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(februaryResident))
+                .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/v1/invoices/manual/batch")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"registrationNos":["PH-BATCH-970","PH-BATCH-971"],
+                                 "invoiceType":"RENT","month":"2098-01",
+                                 "issueDate":"2098-01-25","dueDate":"2098-01-31","remarks":"January billing"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.invoices.length()").value(1))
+                .andExpect(jsonPath("$.invoices[0].registrationNo").value("PH-BATCH-970"))
+                .andExpect(jsonPath("$.skipped.length()").value(1))
+                .andExpect(jsonPath("$.skipped[0].registrationNo").value("PH-BATCH-971"))
+                .andExpect(jsonPath("$.skipped[0].reason").value("Student was not residing in the hostel during the selected billing month."));
+    }
+
+    @Test
     void migratedStudentReceivesDepositAndEveryHistoricalRentInvoice() throws Exception {
         var token = token("admin@perkhaven.demo", "PerkAdmin#2026");
         var today = LocalDate.now(ZoneId.of("Asia/Colombo"));

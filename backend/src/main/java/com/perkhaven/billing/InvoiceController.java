@@ -101,15 +101,19 @@ public class InvoiceController {
             throw new IllegalArgumentException("Multiple-student invoice generation is available only for Monthly Accommodation Fee.");
         if (request.registrationNos() == null || request.registrationNos().isEmpty())
             throw new IllegalArgumentException("Select at least one student.");
+        if (request.month() == null || request.month().isBlank())
+            throw new IllegalArgumentException("Billing month is required for a monthly accommodation fee invoice.");
+        var billingMonth = YearMonth.parse(request.month());
 
         var created = new java.util.ArrayList<Response>();
         var skipped = new java.util.ArrayList<ManualBatchSkipped>();
         for (var registrationNo : request.registrationNos().stream().filter(value -> value != null && !value.isBlank()).distinct().toList()) {
             try {
+                service.validateMonthlyBatchEligibility(registrationNo, billingMonth);
                 var invoice = service.createManualInvoice(
                         registrationNo,
                         InvoiceType.RENT,
-                        request.month() == null || request.month().isBlank() ? null : YearMonth.parse(request.month()),
+                        billingMonth,
                         null,
                         request.issueDate(),
                         request.dueDate(),

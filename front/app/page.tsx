@@ -9404,9 +9404,17 @@ function ManualInvoiceModal({
   }, []);
   const selectedTransfer = roomTransfers.find((item) => String(item.id) === selectedTransferId);
   const student = students.find((item) => item.registrationNo === registrationNo);
+  const eligibleForMonthlyInvoice = (item: Student) => {
+    if (item.status !== "Active" || !month || !item.startDate || !item.roomNo || Number(item.monthlyRent || 0) <= 0) return false;
+    const [year, mon] = month.split("-").map(Number);
+    const firstDay = `${month}-01`;
+    const lastDay = new Date(Date.UTC(year, mon, 0)).toISOString().slice(0, 10);
+    return item.startDate <= lastDay && (!item.vacatedDate || item.vacatedDate >= firstDay);
+  };
+  const eligibleRentStudents = students.filter(eligibleForMonthlyInvoice);
   const rentStudents =
     selectionMode === "ALL"
-      ? students
+      ? eligibleRentStudents
       : selectionMode === "SELECTED"
         ? students.filter((item) => selectedRegistrations.includes(item.registrationNo))
         : student
@@ -9493,7 +9501,7 @@ function ManualInvoiceModal({
     if (invoiceType === "RENT" && selectionMode !== "ONE") {
       const registrationNos =
         selectionMode === "ALL"
-          ? students.map((item) => item.registrationNo)
+          ? eligibleRentStudents.map((item) => item.registrationNo)
           : selectedRegistrations;
       if (!registrationNos.length) {
         setSaving(false);
@@ -9587,7 +9595,7 @@ function ManualInvoiceModal({
               <select value={selectionMode} onChange={(event) => setSelectionMode(event.target.value as SelectionMode)}>
                 <option value="ONE">One student</option>
                 <option value="SELECTED">Select students</option>
-                <option value="ALL">All students</option>
+                <option value="ALL">All eligible active residents</option>
               </select>
             </label>
           )}
@@ -9675,10 +9683,14 @@ function ManualInvoiceModal({
           {invoiceType === "RENT" && selectionMode === "ALL" && (
             <div className="wide invoice-adjustment-editor">
               <div className="invoice-adjustment-summary">
-                <span><small>STUDENTS SELECTED</small><b>{students.length}</b></span>
+                <span><small>ELIGIBLE ACTIVE RESIDENTS</small><b>{eligibleRentStudents.length}</b></span>
                 <span><small>INVOICE TYPE</small><b>Monthly Accommodation Fee</b></span>
               </div>
-              <small>All students currently loaded in the student register will be included. Students who already have an invoice for the selected month will be skipped automatically.</small>
+              <small>
+                Only active residents who were residing in the hostel during {fmtMonth(month)} are included.
+                Residents whose accommodation had not started yet, had already checked out before the month,
+                or have an incomplete room / monthly-fee profile are excluded. Existing invoices for the month are skipped automatically.
+              </small>
             </div>
           )}
 
@@ -9786,7 +9798,8 @@ function ManualInvoiceModal({
               saving ||
               (invoiceType === "DEPOSIT_ADJUSTMENT" && !selectedTransfer) ||
               (invoiceType !== "DEPOSIT_ADJUSTMENT" && selectionMode === "ONE" && (!student || finalAmount <= 0)) ||
-              (invoiceType === "RENT" && selectionMode === "SELECTED" && selectedRegistrations.length === 0)
+              (invoiceType === "RENT" && selectionMode === "SELECTED" && selectedRegistrations.length === 0) ||
+              (invoiceType === "RENT" && selectionMode === "ALL" && eligibleRentStudents.length === 0)
             }
           >
             {saving
