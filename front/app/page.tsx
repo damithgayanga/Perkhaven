@@ -657,12 +657,24 @@ const adjustmentTotal = (
       (item) => item.registrationNo === registrationNo && item.month === month,
     )
     .reduce((sum, item) => sum + item.amount, 0);
+const studentStayedInMonth = (student: Student, month: string) => {
+  if (!student.startDate) return true;
+  const firstDay = `${month}-01`;
+  const [year, monthNumber] = month.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year, monthNumber, 0))
+    .toISOString()
+    .slice(0, 10);
+  return (
+    student.startDate <= lastDay &&
+    (!student.vacatedDate || student.vacatedDate >= firstDay)
+  );
+};
 const rentPayable = (
   student: Student,
   month: string,
   adjustments: MonthlyAdjustment[],
 ) =>
-  month < student.startDate.slice(0, 7)
+  !studentStayedInMonth(student, month)
     ? 0
     : Math.max(
         0,
@@ -7346,9 +7358,12 @@ function PaymentView({
           student.roomNo,
           student.registrationNo,
           `${student.firstName} ${student.lastName}`,
-          ...months.map((month) => mode === "paid"
-            ? rentPaid(payments, student.registrationNo, month)
-            : invoices.find((invoice) => invoice.registrationNo === student.registrationNo && invoice.invoiceType === "Rent" && invoice.month === month && invoice.status !== "Cancelled")?.amount || 0),
+          ...months.map((month) =>
+            !studentStayedInMonth(student, month)
+              ? "N/A"
+              : mode === "paid"
+                ? rentPaid(payments, student.registrationNo, month)
+                : invoices.find((invoice) => invoice.registrationNo === student.registrationNo && invoice.invoiceType === "Rent" && invoice.month === month && invoice.status !== "Cancelled")?.amount || 0),
         ])
       : [...shopTenants].filter((tenant) =>
           tenant.registrationNo.toLowerCase().includes(shopFilters.registration.toLowerCase()) &&
@@ -7404,7 +7419,7 @@ function PaymentView({
       if (y + 8 > pageHeight - 10) { pdf.addPage("a4", "landscape"); page += 1; y = drawHeader(page); }
       if (rowIndex % 2) { pdf.setFillColor(247, 249, 252); pdf.rect(margin, y, widths.reduce((a, b) => a + b, 0), 8, "F"); }
       let x = margin; pdf.setTextColor(20, 39, 61); pdf.setFont("helvetica", "normal"); pdf.setFontSize(6.3);
-      row.forEach((value, index) => { const text = index >= 3 ? (Number(value) ? `LKR ${Number(value).toLocaleString("en-LK")}` : "—") : String(value); pdf.text(text, index >= 3 ? x + widths[index] - 1 : x + 1, y + 5, index >= 3 ? { align: "right", maxWidth: widths[index] - 2 } : { maxWidth: widths[index] - 2 }); x += widths[index]; });
+      row.forEach((value, index) => { const text = index >= 3 ? (value === "N/A" ? "N/A" : Number(value) ? `LKR ${Number(value).toLocaleString("en-LK")}` : "—") : String(value); pdf.text(text, index >= 3 ? x + widths[index] - 1 : x + 1, y + 5, index >= 3 ? { align: "right", maxWidth: widths[index] - 2 } : { maxWidth: widths[index] - 2 }); x += widths[index]; });
       y += 8;
     });
     const exportFrom = kind === "rooms" ? roomFrom : shopFrom, exportTo = kind === "rooms" ? roomTo : shopTo;
@@ -11647,6 +11662,7 @@ function RoomPaymentMatrix({
                   <small>{student.status}</small>
                 </td>
                 {months.map((month) => {
+                  const applicable = studentStayedInMonth(student, month);
                   const paid = rentPaid(
                       payments,
                       student.registrationNo,
@@ -11655,31 +11671,37 @@ function RoomPaymentMatrix({
                     payable = invoicePayable(student.registrationNo, month);
                   const value = mode === "paid" ? paid : payable;
                   const status =
-                    mode === "paid"
-                      ? paid >= payable && payable > 0
-                        ? "paid"
-                        : paid > 0
-                          ? "partial"
-                          : "unpaid"
-                      : payable > 0
-                        ? "standard"
-                        : "unpaid";
+                    !applicable
+                      ? "not-applicable"
+                      : mode === "paid"
+                        ? paid >= payable && payable > 0
+                          ? "paid"
+                          : paid > 0
+                            ? "partial"
+                            : "unpaid"
+                        : payable > 0
+                          ? "standard"
+                          : "unpaid";
                   return (
                     <td
                       key={month}
                       className={`payment-cell ${status}`}
                       title={
-                        mode === "paid"
-                          ? `Paid ${amountOnly.format(paid)} of ${amountOnly.format(payable)}`
-                          : payable > 0
-                            ? `Invoice Ledger amount ${amountOnly.format(payable)}`
-                            : "No accommodation fee invoice issued for this month"
+                        !applicable
+                          ? "Not applicable — resident was not staying in the hostel during this month"
+                          : mode === "paid"
+                            ? `Paid ${amountOnly.format(paid)} of ${amountOnly.format(payable)}`
+                            : payable > 0
+                              ? `Invoice Ledger amount ${amountOnly.format(payable)}`
+                              : "No accommodation fee invoice issued for this month"
                       }
                     >
                       <b>
-                        {payable > 0 || mode === "paid"
-                          ? shortCash(value)
-                          : "Not invoiced"}
+                        {!applicable
+                          ? "N/A"
+                          : payable > 0 || mode === "paid"
+                            ? shortCash(value)
+                            : "Not invoiced"}
                       </b>
                     </td>
                   );
