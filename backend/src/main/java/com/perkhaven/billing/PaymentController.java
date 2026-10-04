@@ -82,7 +82,8 @@ public class PaymentController {
                 .filter(payment -> canManagePayments || authorization.canAccessStudent(
                         payment.getInvoice().getStudent().getRegistrationNo(), authentication))
                 .map(payment -> Response.from(payment,
-                        reconciliationLinks.findBySourceTypeAndSourceRecordId("Payment", payment.getId()).isPresent()))
+                        !"Cash".equalsIgnoreCase(payment.getSettlementMethod())
+                                && reconciliationLinks.findBySourceTypeAndSourceRecordId("Payment", payment.getId()).isPresent()))
                 .toList();
     }
 
