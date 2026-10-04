@@ -77,7 +77,10 @@ public class BankReconciliationService {
 
     private Source resolve(String type, Long id) {
         return switch (type) {
-            case "Payment" -> payments.findById(id).map(v -> new Source(v.getTransactionId(), v.getPaidAmount())).orElseThrow(() -> new IllegalArgumentException("Payment transaction not found."));
+            case "Payment" -> payments.findById(id)
+                    .filter(v -> !"Cash".equalsIgnoreCase(v.getSettlementMethod()))
+                    .map(v -> new Source(v.getTransactionId(), v.getPaidAmount()))
+                    .orElseThrow(() -> new IllegalArgumentException("Bank reconciliation is not applicable to cash payments."));
             case "Expense" -> expenses.findById(id).filter(v -> "Approved".equals(v.getApprovalStatus())).map(v -> new Source(v.getTransactionId(), v.getAmount())).orElseThrow(() -> new IllegalArgumentException("Approved expense not found."));
             case "Petty Cash Deposit" -> pettyCashDeposits.findById(id).filter(v -> "Approved".equals(v.getApprovalStatus())).map(v -> new Source(v.getTransactionId(), v.getAmount())).orElseThrow(() -> new IllegalArgumentException("Approved petty cash deposit not found."));
             default -> throw new IllegalArgumentException("Unsupported reconciliation source type.");
