@@ -199,7 +199,7 @@ public class InvoiceController {
                     value.getRevisionNumber(), value.getRemarks() == null ? "" : value.getRemarks(), value.getEmailStatus(), value.getReissuedAt(), value.getCreatedAt(),
                     value.getAdjustments().stream().map(AdjustmentResponse::from).toList(), transactionIds);
         }
-        private static String status(InvoiceStatus value) { return switch (value) { case ISSUED -> "Issued"; case PARTIALLY_PAID -> "Partially Paid"; case PAID -> "Paid"; case CREDITED -> "Credited"; case CANCELLED -> "Cancelled"; }; }
+        private static String status(InvoiceStatus value) { return switch (value) { case ISSUED -> "Issued"; case PARTIALLY_PAID -> "Partially Paid"; case PAID -> "Paid"; case CLOSED_NIL_BALANCE -> "Closed – Nil Balance"; case CREDITED -> "Credited"; case CANCELLED -> "Cancelled"; }; }
     }
     private Response response(Invoice value) { return Response.from(value, payments.findTransactionIdsByInvoiceId(value.getId())); }
 }
