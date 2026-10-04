@@ -22,6 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class InvoiceService {
+    private static final java.util.Set<String> ONE_TIME_PAID_INVOICE_CORRECTIONS = java.util.Set.of(
+            "INV-2025-0034-00066",
+            "INV-2025-0030-00030"
+    );
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Colombo");
     private static final DateTimeFormatter NUMBER_MONTH = DateTimeFormatter.ofPattern("uuuuMM");
     private static final DateTimeFormatter DISPLAY_MONTH = DateTimeFormatter.ofPattern("MM-uuuu");
@@ -275,7 +279,25 @@ public class InvoiceService {
     @Transactional
     public Invoice revise(long id, BigDecimal amount, String remarks, List<Invoice.AdjustmentData> adjustments) {
         var invoice = find(id);
-        invoice.revise(amount, remarks, adjustments);
+        if (invoice.getPaidAmount().signum() > 0) {
+            if (!ONE_TIME_PAID_INVOICE_CORRECTIONS.contains(invoice.getInvoiceNo()))
+                throw new IllegalArgumentException("Invoices with payments cannot be edited or revised.");
+            var correctionAlreadyUsed = invoice.getAdjustments().stream()
+                    .anyMatch(value -> value.getAdjustmentType() == AdjustmentType.LATE_START
+                            && value.getAmount().signum() != 0);
+            if (correctionAlreadyUsed)
+                throw new IllegalArgumentException("The one-time paid-invoice correction has already been used for this invoice.");
+            var nonZero = adjustments == null ? List.<Invoice.AdjustmentData>of() : adjustments.stream()
+                    .filter(value -> value.amount() != null && value.amount().signum() != 0)
+                    .toList();
+            if (nonZero.size() != 1
+                    || nonZero.getFirst().type() != AdjustmentType.LATE_START
+                    || nonZero.getFirst().increase())
+                throw new IllegalArgumentException("Only one Late Start Adjustment reduction is permitted for this one-time correction.");
+            invoice.reviseWithPostedPayment(remarks, adjustments);
+        } else {
+            invoice.revise(amount, remarks, adjustments);
+        }
         enqueue(invoice);
         return invoice;
     }
