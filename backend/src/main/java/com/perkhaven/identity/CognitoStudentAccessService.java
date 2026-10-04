@@ -102,6 +102,7 @@ public class CognitoStudentAccessService {
         return AdminCreateUserRequest.builder()
                 .userPoolId(userPoolId).username(username).userAttributes(attributes)
                 .temporaryPassword(temporaryPassword)
+                .forceAliasCreation(true)
                 .messageAction(MessageActionType.SUPPRESS)
                 .build();
     }

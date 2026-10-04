@@ -61,6 +61,7 @@ class CognitoStudentAccessServiceTest {
         verify(cognito).adminCreateUser(invitation.capture());
         assertEquals("PH-2026-123", invitation.getValue().username());
         assertEquals("SUPPRESS", invitation.getValue().messageActionAsString());
+        assertEquals(true, invitation.getValue().forceAliasCreation());
         assertEquals("student@example.com", invitation.getValue().userAttributes().stream()
                 .filter(attribute -> "email".equals(attribute.name())).findFirst().orElseThrow().value());
         verify(mail).sendText(org.mockito.ArgumentMatchers.eq("student@example.com"),
