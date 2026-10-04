@@ -169,6 +169,7 @@ class CoreApiIntegrationTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.category.mainCategory").value("Staff Expenses"))
+                .andExpect(jsonPath("$.category.code").value("EC-010-05"))
                 .andExpect(jsonPath("$.category.name").value("Salary Integration Test"))
                 .andReturn().getResponse().getContentAsString();
         var categoryId = mapper.readTree(created).get("category").get("id").asLong();
