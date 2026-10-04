@@ -52,6 +52,15 @@ public class InvoiceController {
         return PageResponse.from(invoices.findAll(PageRequest.of(page, Math.min(size, 100), Sort.by(Sort.Direction.DESC, "issueDate", "id"))), this::response);
     }
 
+    @GetMapping("/deposit-status")
+    @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN')")
+    @Transactional(readOnly = true)
+    public DepositStatusResponse depositStatus(@RequestParam String registrationNo) {
+        var invoice = invoices.findByStudentRegistrationNoIgnoreCaseAndInvoiceType(registrationNo, InvoiceType.DEPOSIT);
+        return invoice.map(value -> new DepositStatusResponse(true, value.getInvoiceNo()))
+                .orElseGet(() -> new DepositStatusResponse(false, ""));
+    }
+
     @PostMapping("/generation-runs")
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
@@ -175,6 +184,7 @@ public class InvoiceController {
     public record ManualBatchSkipped(String registrationNo, String reason) {}
     public record ManualBatchResponse(List<Response> invoices, List<ManualBatchSkipped> skipped) {}
     public record GenerationResponse(List<Response> invoices) {}
+    public record DepositStatusResponse(boolean exists, String invoiceNo) {}
     public record AdjustmentResponse(String type, String effect, BigDecimal amount, String note) {
         static AdjustmentResponse from(BillingAdjustment value) { return new AdjustmentResponse(value.getAdjustmentType().name(), value.getAmount().signum() >= 0 ? "Increase" : "Reduce", value.getAmount().abs(), value.getNote()); }
     }
