@@ -37,6 +37,10 @@ public class Payment extends AuditedEntity {
     private boolean cashVerified;
     @Column(name = "cash_verified_at")
     private Instant cashVerifiedAt;
+    @Column(name = "receipt_email_status", length = 40)
+    private String receiptEmailStatus;
+    @Column(name = "receipt_emailed_at")
+    private Instant receiptEmailedAt;
 
     protected Payment() {}
     public Payment(String transactionId, Invoice invoice, BigDecimal paidAmount, LocalDate paidDate,
@@ -56,6 +60,12 @@ public class Payment extends AuditedEntity {
     public String getEvidenceContentType() { return evidenceContentType; }
     public boolean isCashVerified() { return cashVerified; }
     public Instant getCashVerifiedAt() { return cashVerifiedAt; }
+    public String getReceiptEmailStatus() { return receiptEmailStatus; }
+    public Instant getReceiptEmailedAt() { return receiptEmailedAt; }
+    public void markReceiptEmailStatus(String status) {
+        receiptEmailStatus = status;
+        if (status != null && status.startsWith("SMTP_SENT")) receiptEmailedAt = Instant.now();
+    }
     public void verifyCash(boolean verified) { cashVerified = verified; cashVerifiedAt = verified ? Instant.now() : null; }
     public void update(Invoice invoice, BigDecimal amount, LocalDate date, String method, String remarks,
                        String evidenceKey, String evidenceName, String evidenceContentType) {
