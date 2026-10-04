@@ -1,6 +1,7 @@
 package com.perkhaven.reconciliation;
 
 import com.perkhaven.billing.PaymentRepository;
+import com.perkhaven.billing.PaymentReceiptEmailService;
 import com.perkhaven.common.sequence.NumberSequenceRepository;
 import com.perkhaven.expense.ExpenseRepository;
 import com.perkhaven.expense.PettyCashDepositRepository;
@@ -22,14 +23,15 @@ public class BankReconciliationService {
     private final BankTransactionRepository banks;
     private final ReconciliationLinkRepository links;
     private final PaymentRepository payments;
+    private final PaymentReceiptEmailService receiptEmails;
     private final ExpenseRepository expenses;
     private final PettyCashDepositRepository pettyCashDeposits;
     private final NumberSequenceRepository sequences;
 
     public BankReconciliationService(BankTransactionRepository banks, ReconciliationLinkRepository links,
-                                     PaymentRepository payments, ExpenseRepository expenses,
+                                     PaymentRepository payments, PaymentReceiptEmailService receiptEmails, ExpenseRepository expenses,
                                      PettyCashDepositRepository pettyCashDeposits, NumberSequenceRepository sequences) {
-        this.banks = banks; this.links = links; this.payments = payments; this.expenses = expenses;
+        this.banks = banks; this.links = links; this.payments = payments; this.receiptEmails = receiptEmails; this.expenses = expenses;
         this.pettyCashDeposits = pettyCashDeposits; this.sequences = sequences;
     }
 
@@ -72,6 +74,12 @@ public class BankReconciliationService {
             total = total.add(selection.reconciledAmount());
             if (total.compareTo(bank.getAmount()) > 0) throw new IllegalArgumentException("Reconciled total exceeds the bank amount.");
             links.save(new ReconciliationLink(bank, type, selection.recordId(), source.transactionId(), selection.reconciledAmount()));
+            if ("Payment".equals(type)) {
+                payments.findById(selection.recordId()).ifPresent(payment -> {
+                    if (selection.reconciledAmount().compareTo(payment.getPaidAmount()) >= 0)
+                        receiptEmails.sendIfEligible(payment);
+                });
+            }
         }
     }
 
