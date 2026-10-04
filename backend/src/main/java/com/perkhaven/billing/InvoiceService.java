@@ -22,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class InvoiceService {
+    // Temporary production exception: these two legacy invoices may be corrected once
+    // even though a payment is already posted. All other paid invoices remain locked.
     private static final java.util.Set<String> ONE_TIME_PAID_INVOICE_CORRECTIONS = java.util.Set.of(
             "INV-2025-0034-00066",
             "INV-2025-0030-00030"
