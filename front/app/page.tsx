@@ -9489,6 +9489,7 @@ function InvoiceLedger({
       {manualOpen && (
         <ManualInvoiceModal
           students={students}
+          invoices={invoices}
           close={() => setManualOpen(false)}
           save={(invoice) => {
             invoicesUpdated([invoice, ...invoices]);
@@ -9522,10 +9523,12 @@ function InvoiceLedger({
 
 function ManualInvoiceModal({
   students,
+  invoices,
   close,
   save,
 }: {
   students: Student[];
+  invoices: StudentInvoice[];
   close: () => void;
   save: (invoice: StudentInvoice) => void;
 }) {
@@ -9562,6 +9565,15 @@ function ManualInvoiceModal({
   }, []);
   const selectedTransfer = roomTransfers.find((item) => String(item.id) === selectedTransferId);
   const student = students.find((item) => item.registrationNo === registrationNo);
+  const depositInvoiceByRegistration = new Map(
+    invoices
+      .filter((item) => item.invoiceType === "Deposit")
+      .map((item) => [item.registrationNo, item] as const),
+  );
+  const existingDepositInvoice =
+    invoiceType === "DEPOSIT" && registrationNo
+      ? depositInvoiceByRegistration.get(registrationNo)
+      : undefined;
   const eligibleForMonthlyInvoice = (item: Student) => {
     if (!month || !item.startDate || !item.roomNo || Number(item.monthlyRent || 0) <= 0) return false;
     const [year, mon] = month.split("-").map(Number);
@@ -9602,6 +9614,13 @@ function ManualInvoiceModal({
       setSelectedRegistrations([]);
     }
     if (value !== "DEPOSIT_ADJUSTMENT") setSelectedTransferId("");
+    if (
+      value === "DEPOSIT" &&
+      registrationNo &&
+      depositInvoiceByRegistration.has(registrationNo)
+    ) {
+      setRegistrationNo("");
+    }
     if (value === "RENT") {
       const [year, mon] = month.split("-").map(Number);
       const end = new Date(Date.UTC(year, mon, 0)).toISOString().slice(0, 10);
@@ -9629,6 +9648,14 @@ function ManualInvoiceModal({
     event.preventDefault();
     setSaving(true);
     setError("");
+
+    if (invoiceType === "DEPOSIT" && existingDepositInvoice) {
+      setSaving(false);
+      setError(
+        `Security Deposit invoice ${existingDepositInvoice.invoiceNo} already exists for this student. Use the existing invoice instead of creating another one.`,
+      );
+      return;
+    }
 
     if (invoiceType === "DEPOSIT_ADJUSTMENT") {
       if (!selectedTransfer) {
@@ -9761,14 +9788,39 @@ function ManualInvoiceModal({
           {invoiceType !== "DEPOSIT_ADJUSTMENT" && (invoiceType !== "RENT" || selectionMode === "ONE") && (
             <label className="wide">
               Student
-              <select value={registrationNo} onChange={(event) => setRegistrationNo(event.target.value)} required>
+              <select
+                value={registrationNo}
+                onChange={(event) => {
+                  setRegistrationNo(event.target.value);
+                  setError("");
+                }}
+                required
+              >
                 <option value="">Select student</option>
-                {students.map((item) => (
-                  <option value={item.registrationNo} key={item.id}>
-                    {item.firstName} {item.lastName} · {item.registrationNo}
-                  </option>
-                ))}
+                {students.map((item) => {
+                  const depositInvoice =
+                    invoiceType === "DEPOSIT"
+                      ? depositInvoiceByRegistration.get(item.registrationNo)
+                      : undefined;
+                  return (
+                    <option
+                      value={item.registrationNo}
+                      key={item.id}
+                      disabled={Boolean(depositInvoice)}
+                    >
+                      {item.firstName} {item.lastName} · {item.registrationNo}
+                      {depositInvoice
+                        ? ` · Security Deposit already invoiced (${depositInvoice.invoiceNo})`
+                        : ""}
+                    </option>
+                  );
+                })}
               </select>
+              {invoiceType === "DEPOSIT" && (
+                <small>
+                  Residents who already have a Security Deposit invoice are shown as unavailable to prevent duplicate invoices.
+                </small>
+              )}
             </label>
           )}
 
@@ -9956,6 +10008,7 @@ function ManualInvoiceModal({
             disabled={
               saving ||
               (invoiceType === "DEPOSIT_ADJUSTMENT" && !selectedTransfer) ||
+              (invoiceType === "DEPOSIT" && Boolean(existingDepositInvoice)) ||
               (invoiceType !== "DEPOSIT_ADJUSTMENT" && selectionMode === "ONE" && (!student || finalAmount <= 0)) ||
               (invoiceType === "RENT" && selectionMode === "SELECTED" && selectedRegistrations.length === 0) ||
               (invoiceType === "RENT" && selectionMode === "ALL" && eligibleRentStudents.length === 0)
