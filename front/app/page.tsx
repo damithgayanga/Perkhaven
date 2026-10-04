@@ -14009,6 +14009,7 @@ function PaymentBankReconciliationModal({
 }) {
   const [selectedBankTransactionId, setSelectedBankTransactionId] =
     useState(currentBankTransactionId);
+  const [unlocked, setUnlocked] = useState(!currentBankTransactionId);
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -14142,94 +14143,124 @@ function PaymentBankReconciliationModal({
           close={close}
         />
         <section className="formsection">
-          <div className="section-heading">
-            <div>
-              <h3>Select the relevant bank transaction</h3>
-              <span>
-                Incoming bank transactions with sufficient available value are shown below.
-              </span>
-            </div>
-          </div>
-          <label className="wide">
-            Search bank transactions
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by ID, date, description or amount"
-            />
-          </label>
-          <div className="tablewrap">
-            <table className="ledger-table">
-              <thead>
-                <tr>
-                  <th>SELECT</th>
-                  <th>BANK TRANSACTION ID</th>
-                  <th>DATE</th>
-                  <th>DESCRIPTION</th>
-                  <th>AMOUNT</th>
-                  <th>AVAILABLE</th>
-                </tr>
-              </thead>
-              <tbody>
-                {candidates.map((bank) => {
-                  const available =
-                    Math.abs(Number(bank.amount || 0)) -
-                    allocatedToOthers(bank.bankTransactionId);
-                  return (
-                    <tr
-                      key={bank.bankTransactionId}
-                      className={
-                        selectedBankTransactionId === bank.bankTransactionId
-                          ? "selected-reconciliation-row"
-                          : ""
-                      }
-                      onClick={() =>
-                        setSelectedBankTransactionId(bank.bankTransactionId)
-                      }
-                    >
-                      <td>
-                        <input
-                          type="radio"
-                          name={`payment-bank-${payment.id}`}
-                          checked={
+          {currentBankTransactionId && !unlocked ? (
+            <>
+              <div className="section-heading">
+                <div>
+                  <h3>Bank transaction reconciled</h3>
+                  <span>
+                    This reconciliation is locked to prevent accidental changes.
+                  </span>
+                </div>
+              </div>
+              <div className="wide approval-entry-note">
+                <b>Bank Transaction ID</b>
+                <button
+                  type="button"
+                  className="invoice-number-button transaction-id"
+                  onClick={() => {
+                    setUnlocked(true);
+                    setError("");
+                  }}
+                  title="Unlock this reconciliation to change the bank transaction"
+                >
+                  {currentBankTransactionId}
+                </button>
+                <small>Click the Bank Transaction ID above to unlock and change the reconciliation.</small>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="section-heading">
+                <div>
+                  <h3>{currentBankTransactionId ? "Change bank transaction" : "Select the relevant bank transaction"}</h3>
+                  <span>
+                    Incoming bank transactions with sufficient available value are shown below.
+                  </span>
+                </div>
+              </div>
+              <label className="wide">
+                Search bank transactions
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by ID, date, description or amount"
+                />
+              </label>
+              <div className="tablewrap">
+                <table className="ledger-table">
+                  <thead>
+                    <tr>
+                      <th>SELECT</th>
+                      <th>BANK TRANSACTION ID</th>
+                      <th>DATE</th>
+                      <th>DESCRIPTION</th>
+                      <th>AMOUNT</th>
+                      <th>AVAILABLE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {candidates.map((bank) => {
+                      const available =
+                        Math.abs(Number(bank.amount || 0)) -
+                        allocatedToOthers(bank.bankTransactionId);
+                      return (
+                        <tr
+                          key={bank.bankTransactionId}
+                          className={
                             selectedBankTransactionId === bank.bankTransactionId
+                              ? "selected-reconciliation-row"
+                              : ""
                           }
-                          onChange={() =>
+                          onClick={() =>
                             setSelectedBankTransactionId(bank.bankTransactionId)
                           }
-                        />
-                      </td>
-                      <td>
-                        <b className="transaction-id">{bank.bankTransactionId}</b>
-                      </td>
-                      <td>{fmtCompactDate(bank.transactionDate)}</td>
-                      <td>{bank.remarks || "—"}</td>
-                      <td>
-                        <b>
-                          {bank.currency} {amountOnly.format(Math.abs(bank.amount))}
-                        </b>
-                      </td>
-                      <td>
-                        {bank.currency} {amountOnly.format(Math.max(0, available))}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {!candidates.length && (
-                  <tr>
-                    <td colSpan={6}>
-                      No suitable incoming bank transactions are available.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          {currentBankTransactionId && (
-            <small>
-              Current reconciliation: <b>{currentBankTransactionId}</b>. Selecting
-              another transaction will move this payment to the new bank transaction.
-            </small>
+                        >
+                          <td>
+                            <input
+                              type="radio"
+                              name={`payment-bank-${payment.id}`}
+                              checked={
+                                selectedBankTransactionId === bank.bankTransactionId
+                              }
+                              onChange={() =>
+                                setSelectedBankTransactionId(bank.bankTransactionId)
+                              }
+                            />
+                          </td>
+                          <td>
+                            <b className="transaction-id">{bank.bankTransactionId}</b>
+                          </td>
+                          <td>{fmtCompactDate(bank.transactionDate)}</td>
+                          <td>{bank.remarks || "—"}</td>
+                          <td>
+                            <b>
+                              {bank.currency} {amountOnly.format(Math.abs(bank.amount))}
+                            </b>
+                          </td>
+                          <td>
+                            {bank.currency} {amountOnly.format(Math.max(0, available))}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {!candidates.length && (
+                      <tr>
+                        <td colSpan={6}>
+                          No suitable incoming bank transactions are available.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {currentBankTransactionId && (
+                <small>
+                  Current reconciliation: <b>{currentBankTransactionId}</b>. Saving another
+                  transaction will replace the existing reconciliation.
+                </small>
+              )}
+            </>
           )}
           {error && <p className="form-error">⚠ {error}</p>}
         </section>
@@ -14237,14 +14268,16 @@ function PaymentBankReconciliationModal({
           <button type="button" onClick={close}>
             Cancel
           </button>
-          <button
-            type="button"
-            className="primary"
-            disabled={!selectedBankTransactionId || saving}
-            onClick={() => void save()}
-          >
-            {saving ? "Reconciling…" : "Save reconciliation"}
-          </button>
+          {(!currentBankTransactionId || unlocked) && (
+            <button
+              type="button"
+              className="primary"
+              disabled={!selectedBankTransactionId || saving}
+              onClick={() => void save()}
+            >
+              {saving ? "Reconciling…" : currentBankTransactionId ? "Save new reconciliation" : "Save reconciliation"}
+            </button>
+          )}
         </div>
       </div>
     </div>
