@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
     List<Payment> findAllByOrderByPaidDateDescIdDesc();
+    boolean existsByTransactionId(String transactionId);
     @Query("select payment.evidenceKey from Payment payment where payment.invoice.student.id = :studentId")
     List<String> findEvidenceKeysByStudentId(@Param("studentId") Long studentId);
     @Modifying(clearAutomatically = true, flushAutomatically = true)

@@ -419,12 +419,12 @@ jobs:
           echo "subnets=$(terraform output -json ecs_subnet_ids | jq -c '.')" >> "$GITHUB_OUTPUT"
           echo "database_identifier=$(terraform output -raw database_identifier)" >> "$GITHUB_OUTPUT"
 
-      - name: Preserve pre-cleanup database snapshot
+      - name: Preserve pre-go-live database snapshot
         env:
           DATABASE_IDENTIFIER: ${{ steps.infra.outputs.database_identifier }}
         shell: bash
         run: |
-          snapshot_identifier="${DATABASE_IDENTIFIER}-pre-initial-cleanup"
+          snapshot_identifier="${DATABASE_IDENTIFIER}-pre-go-live-reset"
           if ! aws rds describe-db-snapshots --db-snapshot-identifier "$snapshot_identifier" >/dev/null 2>&1; then
             aws rds create-db-snapshot \
               --db-instance-identifier "$DATABASE_IDENTIFIER" \

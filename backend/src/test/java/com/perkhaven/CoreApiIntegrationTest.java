@@ -759,32 +759,52 @@ class CoreApiIntegrationTest {
                 .replace("+94770000101", "+94770000102")
                 .replace("sequence.one", "sequence.two");
 
-        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+        var firstResponse = mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON).content(firstStudent))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.registrationNo").value("PH-STD-00001"));
-        mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
+                .andReturn().getResponse().getContentAsString();
+        var firstRegistration = mapper.readTree(firstResponse).get("registrationNo").asText();
+
+        var secondResponse = mvc.perform(post("/api/v1/students").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON).content(secondStudent))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.registrationNo").value("PH-STD-00002"));
+                .andReturn().getResponse().getContentAsString();
+        var secondRegistration = mapper.readTree(secondResponse).get("registrationNo").asText();
+        var firstNumber = Integer.parseInt(firstRegistration.substring(firstRegistration.lastIndexOf('-') + 1));
+        var secondNumber = Integer.parseInt(secondRegistration.substring(secondRegistration.lastIndexOf('-') + 1));
+        if (secondNumber != firstNumber + 1) throw new AssertionError("Student registration numbers must remain sequential.");
 
-        var invoicesResponse = mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-STD-00001")
+        var invoicesResponse = mvc.perform(get("/api/v1/invoices").param("registrationNo", firstRegistration)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(1))
                 .andReturn().getResponse().getContentAsString();
         var invoiceId = mapper.readTree(invoicesResponse).at("/items/0/id").asLong();
         var evidence = new MockMultipartFile("evidence", "sequence-payment.pdf", "application/pdf", new byte[]{'%', 'P', 'D', 'F'});
-        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payments")
+        var paymentResponse = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payments")
                         .file(evidence).param("invoiceId", String.valueOf(invoiceId)).param("paidAmount", "100.00")
                         .param("paidDate", "2026-08-13").param("settlementMethod", "Bank Transfer")
                         .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var paymentId = mapper.readTree(paymentResponse).get("id").asLong();
+        var transactionId = mapper.readTree(paymentResponse).get("transactionId").asText();
+
+        mvc.perform(delete("/api/v1/payments/{id}", paymentId).header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
 
-        mvc.perform(delete("/api/v1/students/PH-STD-00001").header("Authorization", "Bearer " + token))
+        var replacementEvidence = new MockMultipartFile("evidence", "replacement-payment.pdf", "application/pdf", new byte[]{'%', 'P', 'D', 'F'});
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payments")
+                        .file(replacementEvidence).param("invoiceId", String.valueOf(invoiceId)).param("paidAmount", "100.00")
+                        .param("paidDate", "2026-08-13").param("settlementMethod", "Bank Transfer")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transactionId").value(transactionId));
+
+        mvc.perform(delete("/api/v1/students/{registrationNo}", firstRegistration).header("Authorization", "Bearer " + token))
                 .andExpect(status().isNoContent());
-        mvc.perform(get("/api/v1/students/PH-STD-00001").header("Authorization", "Bearer " + token))
+        mvc.perform(get("/api/v1/students/{registrationNo}", firstRegistration).header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
-        mvc.perform(get("/api/v1/invoices").param("registrationNo", "PH-STD-00001")
+        mvc.perform(get("/api/v1/invoices").param("registrationNo", firstRegistration)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(0));
     }

@@ -10092,7 +10092,7 @@ function PaymentLedger({
     )
       return;
     setError("");
-    const response = await fetch(`/api/payments?id=${payment.id}`, {
+    const response = await fetch(`/api/v1/payments/${payment.id}`, {
       method: "DELETE",
     });
     const result = await response.json();
@@ -19344,16 +19344,20 @@ function Register({
         </p>
         <FormSection title="Personal details">
           <Field name="firstName" label="First name" required />
-          {!profileOnly && <Field name="middleNames" label="Middle name(s)" />}
           <Field name="lastName" label="Last name" required />
-          {!profileOnly && <Field name="dateOfBirth" label="Date of birth" type="date" required={registrationStatus === "ACTIVE"} />}
-          <Field name="idNo" label="National ID no." required={registrationStatus === "ACTIVE"} />
-          <PhoneField prefix="mobile" label="Mobile no." required={registrationStatus === "ACTIVE"} />
-          <PhoneField prefix="whatsapp" label="WhatsApp no." required={registrationStatus === "ACTIVE"} />
-          <Field name="email" label="Email address" type="email" required={registrationStatus === "ACTIVE"} />
-          <Field name="university" label="University" required={registrationStatus === "ACTIVE"} />
-          <Field name="currentYear" label="Current year" required={registrationStatus === "ACTIVE"} />
-          <Field name="address" label="Permanent address" wide required={registrationStatus === "ACTIVE"} />}
+          {!profileOnly && (
+            <>
+              <Field name="middleNames" label="Middle name(s)" />
+              <Field name="dateOfBirth" label="Date of birth" type="date" required={registrationStatus === "ACTIVE"} />
+              <Field name="idNo" label="National ID no." required={registrationStatus === "ACTIVE"} />
+              <PhoneField prefix="mobile" label="Mobile no." required={registrationStatus === "ACTIVE"} />
+              <PhoneField prefix="whatsapp" label="WhatsApp no." required={registrationStatus === "ACTIVE"} />
+              <Field name="email" label="Email address" type="email" required={registrationStatus === "ACTIVE"} />
+              <Field name="university" label="University" required={registrationStatus === "ACTIVE"} />
+              <Field name="currentYear" label="Current year" required={registrationStatus === "ACTIVE"} />
+              <Field name="address" label="Permanent address" wide required={registrationStatus === "ACTIVE"} />
+            </>
+          )}
         </FormSection>
         {!profileOnly && <>
         <FormSection title="Emergency contacts">

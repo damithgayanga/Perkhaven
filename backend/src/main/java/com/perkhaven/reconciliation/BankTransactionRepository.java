@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 public interface BankTransactionRepository extends JpaRepository<BankTransaction, Long> {
     List<BankTransaction> findAllByOrderByTransactionDateDescIdDesc();
     boolean existsBySourceFingerprint(String fingerprint);
+    boolean existsByBankTransactionIdEndingWith(String suffix);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<BankTransaction> findByBankTransactionId(String bankTransactionId);
 }

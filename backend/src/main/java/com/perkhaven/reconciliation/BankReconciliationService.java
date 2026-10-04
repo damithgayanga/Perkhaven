@@ -40,8 +40,13 @@ public class BankReconciliationService {
             var fingerprint = fingerprint(row);
             if (banks.existsBySourceFingerprint(fingerprint)) { duplicates++; continue; }
             var sequence = sequences.findForUpdate("BANK_TRANSACTION").orElseThrow();
-            var number = sequence.takeNextValue();
-            var transaction = new BankTransaction("BNK-%04d-%06d".formatted(row.transactionDate().getYear(), number), fingerprint, row);
+            long number;
+            String transactionId;
+            do {
+                number = sequence.takeNextValue();
+                transactionId = "BNK-%04d-%06d".formatted(row.transactionDate().getYear(), number);
+            } while (banks.existsByBankTransactionIdEndingWith(transactionId.substring(transactionId.lastIndexOf('-'))));
+            var transaction = new BankTransaction(transactionId, fingerprint, row);
             transaction.setSourceFileKey(sourceFileKey);
             banks.save(transaction);
             imported++;

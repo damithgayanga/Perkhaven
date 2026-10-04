@@ -3,6 +3,7 @@ package com.perkhaven.reconciliation;
 import com.perkhaven.billing.Payment;
 import com.perkhaven.billing.PaymentRepository;
 import com.perkhaven.common.audit.AuditService;
+import com.perkhaven.common.sequence.NumberSequenceRepository;
 import com.perkhaven.storage.StorageService;
 import com.perkhaven.expense.Expense;
 import com.perkhaven.expense.ExpenseRepository;
@@ -48,12 +49,15 @@ public class BankReconciliationController {
     private final BankReconciliationService service;
     private final AuditService audit;
     private final StorageService storage;
+    private final NumberSequenceRepository sequences;
 
     public BankReconciliationController(BankTransactionRepository banks, ReconciliationLinkRepository links,
                                         PaymentRepository payments, ExpenseRepository expenses, PettyCashDepositRepository pettyCashDeposits, BankSpreadsheetImporter importer,
-                                        BankReconciliationService service, AuditService audit, StorageService storage) {
+                                        BankReconciliationService service, AuditService audit, StorageService storage,
+                                        NumberSequenceRepository sequences) {
         this.banks = banks; this.links = links; this.payments = payments; this.expenses = expenses; this.pettyCashDeposits = pettyCashDeposits; this.importer = importer; this.service = service; this.audit = audit;
         this.storage = storage;
+        this.sequences = sequences;
     }
 
     @GetMapping
@@ -126,8 +130,17 @@ public class BankReconciliationController {
         var bank = banks.findById(id).orElseThrow(() -> new IllegalArgumentException("Bank transaction not found."));
         var reference = bank.getBankTransactionId();
         banks.delete(bank);
-        audit.record("DELETE", "BANK_TRANSACTION", reference, null);
+        sequences.findForUpdate("BANK_TRANSACTION").orElseThrow().recycle(sequenceNumber(reference));
+        audit.record("DELETE", "BANK_TRANSACTION", reference, "Sequence number recycled");
         return Map.of("success", true);
+    }
+
+    private long sequenceNumber(String transactionId) {
+        try {
+            return Long.parseLong(transactionId.substring(transactionId.lastIndexOf('-') + 1));
+        } catch (RuntimeException exception) {
+            throw new IllegalStateException("Invalid transaction number: " + transactionId, exception);
+        }
     }
 
     public record CorrectedRowsRequest(List<BankTransaction.Data> rows) {}

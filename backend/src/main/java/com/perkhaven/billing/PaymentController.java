@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -106,12 +107,34 @@ public class PaymentController {
         // Keep evidence browsable in S3: student registration -> invoice -> evidence.
         var stored = storage.store("students/" + invoice.getStudent().getRegistrationNo()
                 + "/invoices/" + invoice.getInvoiceNo() + "/evidence", evidence);
-        var transactionId = "PH-PAY-%06d".formatted(sequences.findForUpdate("PAYMENT").orElseThrow(() -> new IllegalStateException("Payment sequence is not configured.")).takeNextValue());
+        var sequence = sequences.findForUpdate("PAYMENT").orElseThrow(() -> new IllegalStateException("Payment sequence is not configured."));
+        String transactionId;
+        do {
+            transactionId = "PH-PAY-%06d".formatted(sequence.takeNextValue());
+        } while (payments.existsByTransactionId(transactionId));
         var payment = payments.save(new Payment(transactionId, invoice, paidAmount, paidDate, settlementMethod, remarks,
                 stored.key(), stored.originalName(), stored.contentType()));
         invoice.recordPayment(paidAmount);
         audit.record("CREATE", "PAYMENT", transactionId, "Invoice " + invoice.getInvoiceNo());
         return Response.from(payment);
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public java.util.Map<String, Object> delete(@PathVariable long id) {
+        var payment = payments.findById(id).orElseThrow(() -> new NotFoundException("Payment not found."));
+        var reference = payment.getTransactionId();
+        var evidenceKey = payment.getEvidenceKey();
+        payment.getInvoice().removePayment(payment.getPaidAmount());
+        reconciliationLinks.deleteBySourceTypeAndSourceRecordId("Payment", id);
+        payments.delete(payment);
+        sequences.findForUpdate("PAYMENT")
+                .orElseThrow(() -> new IllegalStateException("Payment sequence is not configured."))
+                .recycle(sequenceNumber(reference));
+        storage.delete(evidenceKey);
+        audit.record("DELETE", "PAYMENT", reference, "Sequence number recycled");
+        return java.util.Map.of("success", true);
     }
 
     @PatchMapping("/{id}/cash-verification")
@@ -146,6 +169,14 @@ public class PaymentController {
         var payment = payments.findById(id).orElseThrow(() -> new NotFoundException("Payment not found."));
         var disposition = (download ? "attachment" : "inline") + "; filename=\"" + payment.getTransactionId() + ".pdf\"";
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).header(HttpHeaders.CONTENT_DISPOSITION, disposition).body(receipts.create(payment));
+    }
+
+    private long sequenceNumber(String transactionId) {
+        try {
+            return Long.parseLong(transactionId.substring(transactionId.lastIndexOf('-') + 1));
+        } catch (RuntimeException exception) {
+            throw new IllegalStateException("Invalid transaction number: " + transactionId, exception);
+        }
     }
 
     public record Response(Long id, String transactionId, String invoiceNo, Long invoiceId, String registrationNo,

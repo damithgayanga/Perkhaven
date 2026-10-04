@@ -35,4 +35,8 @@ public class NumberSequence {
     public void synchronizeNextValue(long value) {
         if (value > 0) this.nextValue = value;
     }
+
+    public void recycle(long value) {
+        if (value > 0 && value < nextValue) this.nextValue = value;
+    }
 }
