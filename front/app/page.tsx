@@ -9283,6 +9283,17 @@ function InvoiceLedger({
     if (invoice.invoiceType === "Other Charge") return "Other Charge";
     return invoice.invoiceType;
   };
+  const oneTimePaidInvoiceCorrections = new Set([
+    "INV-2025-0034-00066",
+    "INV-2025-0030-00030",
+  ]);
+  const canOneTimeCorrectPaidInvoice = (invoice: StudentInvoice) =>
+    oneTimePaidInvoiceCorrections.has(invoice.invoiceNo) &&
+    (invoice.paidAmount || 0) > 0 &&
+    !(invoice.adjustments || []).some(
+      (row) => adjustmentUiType(row.type) === "Late Start Adjustment" && Number(row.amount) > 0,
+    );
+
   const visibleInvoices = invoices.filter((invoice) =>
     invoice.registrationNo.toLowerCase().includes(ledgerFilters.registration.toLowerCase()) &&
     invoice.studentName.toLowerCase().includes(ledgerFilters.name.toLowerCase()) &&
@@ -9369,7 +9380,9 @@ function InvoiceLedger({
               const student = students.find(
                 (item) => item.registrationNo === invoice.registrationNo,
               );
-              const invoiceLocked = (invoice.paidAmount || 0) > 0;
+              const invoiceLocked =
+                (invoice.paidAmount || 0) > 0 &&
+                !canOneTimeCorrectPaidInvoice(invoice);
               return (
                 <tr key={invoice.id}>
                   <td>
@@ -9407,7 +9420,13 @@ function InvoiceLedger({
                         type="button"
                         className="review-button"
                         disabled={invoiceLocked}
-                        title={invoiceLocked ? "This invoice is locked because a payment has been posted." : "Edit this invoice and issue a revision"}
+                        title={
+                          invoiceLocked
+                            ? "This invoice is locked because a payment has been posted."
+                            : (invoice.paidAmount || 0) > 0
+                              ? "Temporary one-time correction: Late Start Adjustment only."
+                              : "Edit this invoice and issue a revision"
+                        }
                         onClick={() => setEditing(invoice)}
                       >
                         Edit / Revise
@@ -9463,6 +9482,7 @@ function InvoiceLedger({
       {editing && (
         <InvoiceEditModal
           invoice={editing}
+          oneTimePaidCorrection={canOneTimeCorrectPaidInvoice(editing)}
           close={() => setEditing(null)}
           save={(invoice) => {
             invoiceUpdated(invoice);
@@ -9940,10 +9960,12 @@ function ManualInvoiceModal({
 
 function InvoiceEditModal({
   invoice,
+  oneTimePaidCorrection = false,
   close,
   save,
 }: {
   invoice: StudentInvoice;
+  oneTimePaidCorrection?: boolean;
   close: () => void;
   save: (invoice: StudentInvoice) => void;
 }) {
@@ -9953,9 +9975,16 @@ function InvoiceEditModal({
       : ["Late Start Adjustment", "Early Vacate Adjustment", "Vacation Discount", "Other Adjustment"].map((type) => ({
           type: type as MonthlyAdjustment["type"], effect: "Reduce" as const, amount: 0, note: "",
         }));
+  const editableAdjustments = oneTimePaidCorrection
+    ? initialAdjustments.map((row) =>
+        row.type === "Late Start Adjustment"
+          ? { ...row, effect: "Reduce" as const }
+          : { ...row, amount: 0, note: "" },
+      )
+    : initialAdjustments;
   const [amount, setAmount] = useState(invoice.amount);
   const [baseAmount] = useState(invoice.baseAmount ?? invoice.amount);
-  const [invoiceAdjustments, setInvoiceAdjustments] = useState(initialAdjustments);
+  const [invoiceAdjustments, setInvoiceAdjustments] = useState(editableAdjustments);
   const [remarks, setRemarks] = useState(invoice.remarks);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -9972,6 +10001,19 @@ function InvoiceEditModal({
     event.preventDefault();
     setSaving(true);
     setError("");
+    if (oneTimePaidCorrection) {
+      const lateStart = invoiceAdjustments.find((row) => row.type === "Late Start Adjustment");
+      if (!lateStart || lateStart.effect !== "Reduce" || lateStart.amount <= 0) {
+        setSaving(false);
+        setError("Enter a Late Start Adjustment reduction for this one-time correction.");
+        return;
+      }
+      if (calculatedAmount < Number(invoice.paidAmount || 0)) {
+        setSaving(false);
+        setError("The revised invoice amount cannot be lower than the payment already posted.");
+        return;
+      }
+    }
     const response = await fetch(`/api/v1/invoices/${invoice.id}`, {
       method: "PUT",
       headers: { "content-type": "application/json" },
@@ -9999,7 +10041,11 @@ function InvoiceEditModal({
         <ModalHead
           tag="INVOICE ADMINISTRATION"
           title={`Edit and issue revision · ${invoice.invoiceNo}`}
-          text={`Apply any increase or reduction to this invoice. Saving issues a new revision and the revised total becomes the Amount Payable source.`}
+          text={
+            oneTimePaidCorrection
+              ? "Temporary one-time correction. Only a Late Start Adjustment reduction is allowed. The posted payment remains unchanged."
+              : "Apply any increase or reduction to this invoice. Saving issues a new revision and the revised total becomes the Amount Payable source."
+          }
           close={close}
         />
         <section className="formgrid two">
@@ -10038,6 +10084,12 @@ function InvoiceEditModal({
                   <small>FINAL AMOUNT PAYABLE</small>
                   <b>{cash.format(calculatedAmount)}</b>
                 </span>
+                {oneTimePaidCorrection && (
+                  <span>
+                    <small>PAYMENT ALREADY POSTED</small>
+                    <b>{cash.format(Number(invoice.paidAmount || 0))}</b>
+                  </span>
+                )}
               </div>
               <div className="invoice-adjustment-heading">
                 <b>Invoice adjustments</b>
@@ -10056,6 +10108,7 @@ function InvoiceEditModal({
                     Effect
                     <select
                       value={row.effect}
+                      disabled={oneTimePaidCorrection}
                       onChange={(event) =>
                         setInvoiceAdjustments((current) =>
                           current.map((item, itemIndex) =>
@@ -10083,6 +10136,7 @@ function InvoiceEditModal({
                       step="0.01"
                       value={row.amount || ""}
                       placeholder="Nil"
+                      disabled={oneTimePaidCorrection && row.type !== "Late Start Adjustment"}
                       onChange={(event) =>
                         setInvoiceAdjustments((current) =>
                           current.map((item, itemIndex) =>
@@ -10105,6 +10159,7 @@ function InvoiceEditModal({
                     <input
                       value={row.note}
                       placeholder="Optional description"
+                      disabled={oneTimePaidCorrection && row.type !== "Late Start Adjustment"}
                       onChange={(event) =>
                         setInvoiceAdjustments((current) =>
                           current.map((item, itemIndex) =>
@@ -10140,7 +10195,13 @@ function InvoiceEditModal({
         {error && <p className="form-error">⚠ {error}</p>}
         <Actions
           close={close}
-          text={saving ? "Saving…" : "Save and reissue"}
+          text={
+            saving
+              ? "Saving…"
+              : oneTimePaidCorrection
+                ? "Apply one-time correction"
+                : "Save and reissue"
+          }
           disabled={saving}
         />
       </form>
