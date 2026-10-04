@@ -91,6 +91,16 @@ public class Invoice extends AuditedEntity {
         revisionNumber++; reissuedAt = Instant.now(); emailStatus = "QUEUED";
     }
 
+    public void reviseWithPostedPayment(String remarks, List<AdjustmentData> values) {
+        if (paidAmount.signum() <= 0) throw new IllegalArgumentException("This correction is only for an invoice with a posted payment.");
+        if (values == null) throw new IllegalArgumentException("A Late Start Adjustment is required.");
+        applyAdjustments(remarks, values);
+        if (amount.compareTo(paidAmount) < 0)
+            throw new IllegalArgumentException("The revised invoice amount cannot be lower than the amount already paid.");
+        status = paidAmount.compareTo(amount) >= 0 ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID;
+        revisionNumber++; reissuedAt = Instant.now(); emailStatus = "QUEUED";
+    }
+
     private void applyAdjustments(String remarks, List<AdjustmentData> values) {
         adjustments.clear();
         var total = baseAmount;
