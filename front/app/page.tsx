@@ -7096,9 +7096,7 @@ function StudentView({
     if (studentProfileIncomplete(student))
       return { text: "Profile incomplete", tone: "pending" };
     const firstMonth =
-      student.startDate.slice(0, 7) < "2026-01"
-        ? "2026-01"
-        : student.startDate.slice(0, 7);
+      student.startDate.slice(0, 7);
     const finalMonth =
       student.vacatedDate &&
       student.vacatedDate.slice(0, 7) < lastCompletedMonth
@@ -7109,6 +7107,8 @@ function StudentView({
         rentPayable(student, month, adjustments) >
         rentPaid(payments, student.registrationNo, month),
     );
+    const dueMonths = monthRange(firstMonth, finalMonth);
+    if (!dueMonths.length) return { text: "No amount due", tone: "paid" };
     return outstandingMonths.length
       ? {
           text: `${outstandingMonths.map(fmtMonth).join(", ")} Outstanding`,
@@ -12205,7 +12205,7 @@ function DepositView({
   );
   const depositExportRows = rows.map((student) => {
     const depositPaid = payments.filter((payment) => payment.registrationNo === student.registrationNo && canonicalPaymentType(payment.type) === "Deposit").reduce((sum, payment) => sum + payment.paidAmount, 0);
-    const start = student.startDate.slice(0, 7) < "2026-01" ? "2026-01" : student.startDate.slice(0, 7);
+    const start = student.startDate.slice(0, 7);
     const rentOutstanding = monthRange(start, lastCompletedMonth).reduce((sum, month) => sum + Math.max(0, rentPayable(student, month, adjustments) - rentPaid(payments, student.registrationNo, month)), 0);
     const deductions = Math.min(depositPaid, rentOutstanding);
     return {
@@ -19843,9 +19843,7 @@ function AddPayment({
       today.getMonth() + 1,
     ).padStart(2, "0")}`;
     let candidate =
-      student.startDate.slice(0, 7) < "2026-01"
-        ? "2026-01"
-        : student.startDate.slice(0, 7);
+      student.startDate.slice(0, 7);
     let checked = 0;
     while (candidate <= currentMonth && checked < 120) {
       const payableForMonth = rentPayable(student, candidate, adjustments);
@@ -21476,15 +21474,18 @@ function StudentPaymentProfile({
       const latestInvoice = invoiceEntries
         .filter((invoice) => invoice.invoiceType === "Rent" && invoice.month === month && invoice.status !== "Cancelled")
         .sort((a, b) => (b.revisionNumber ?? b.version ?? 0) - (a.revisionNumber ?? a.version ?? 0))[0];
-      if (!latestInvoice) return { month, payable: 0, paid: 0, outstanding: 0 };
-      const payable = latestInvoice.amount;
-      const paid = latestInvoice.paidAmount || 0;
+      const payable = latestInvoice
+        ? latestInvoice.amount
+        : rentPayable(student, month, adjustments);
+      const paid = latestInvoice
+        ? latestInvoice.paidAmount || 0
+        : rentPaid(payments, student.registrationNo, month);
       return {
         month,
         payable,
         paid,
         outstanding: Math.max(0, payable - paid),
-        invoiceNo: latestInvoice.invoiceNo,
+        invoiceNo: latestInvoice?.invoiceNo,
       };
     })
     .filter((row) => row.outstanding > 0);
