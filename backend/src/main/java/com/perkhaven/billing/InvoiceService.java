@@ -253,8 +253,6 @@ public class InvoiceService {
     public void validateMonthlyBatchEligibility(String registrationNo, YearMonth month) {
         var student = students.findByRegistrationNoIgnoreCase(registrationNo)
                 .orElseThrow(() -> new NotFoundException("Student not found."));
-        if (student.getStatus() != RecordStatus.ACTIVE)
-            throw new IllegalArgumentException("Student is not active for monthly accommodation fee billing.");
         if (student.getStartDate() == null || student.getRoom() == null || student.getMonthlyRent() == null || student.getMonthlyRent().signum() <= 0)
             throw new IllegalArgumentException("Student profile is incomplete for monthly accommodation fee billing.");
         if (!eligibleForMonth(student, month))

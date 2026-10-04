@@ -9421,7 +9421,7 @@ function ManualInvoiceModal({
   const selectedTransfer = roomTransfers.find((item) => String(item.id) === selectedTransferId);
   const student = students.find((item) => item.registrationNo === registrationNo);
   const eligibleForMonthlyInvoice = (item: Student) => {
-    if (item.status !== "Active" || !month || !item.startDate || !item.roomNo || Number(item.monthlyRent || 0) <= 0) return false;
+    if (!month || !item.startDate || !item.roomNo || Number(item.monthlyRent || 0) <= 0) return false;
     const [year, mon] = month.split("-").map(Number);
     const firstDay = `${month}-01`;
     const lastDay = new Date(Date.UTC(year, mon, 0)).toISOString().slice(0, 10);
@@ -9611,7 +9611,7 @@ function ManualInvoiceModal({
               <select value={selectionMode} onChange={(event) => setSelectionMode(event.target.value as SelectionMode)}>
                 <option value="ONE">One student</option>
                 <option value="SELECTED">Select students</option>
-                <option value="ALL">All eligible active residents</option>
+                <option value="ALL">All residents in selected month</option>
               </select>
             </label>
           )}
@@ -9699,13 +9699,14 @@ function ManualInvoiceModal({
           {invoiceType === "RENT" && selectionMode === "ALL" && (
             <div className="wide invoice-adjustment-editor">
               <div className="invoice-adjustment-summary">
-                <span><small>ELIGIBLE ACTIVE RESIDENTS</small><b>{eligibleRentStudents.length}</b></span>
+                <span><small>RESIDENTS IN SELECTED MONTH</small><b>{eligibleRentStudents.length}</b></span>
                 <span><small>INVOICE TYPE</small><b>Monthly Accommodation Fee</b></span>
               </div>
               <small>
-                Only active residents who were residing in the hostel during {fmtMonth(month)} are included.
-                Residents whose accommodation had not started yet, had already checked out before the month,
-                or have an incomplete room / monthly-fee profile are excluded. Existing invoices for the month are skipped automatically.
+                Residents are selected from their accommodation dates for {fmtMonth(month)}, not from their current Active / Inactive status.
+                Anyone whose stay overlapped the selected month is included. Residents whose accommodation had not started yet,
+                had already checked out before the month, or have an incomplete room / monthly-fee profile are excluded.
+                Existing invoices for the month are skipped automatically.
               </small>
             </div>
           )}
