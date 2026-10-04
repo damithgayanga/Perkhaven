@@ -38,10 +38,11 @@ public class PaymentController {
     private final AuditService audit;
     private final NumberSequenceRepository sequences;
     private final PaymentReceiptPdfService receipts;
+    private final PaymentReceiptEmailService receiptEmails;
     private final ReconciliationLinkRepository reconciliationLinks;
     private final AuthorizationService authorization;
-    public PaymentController(PaymentRepository payments, InvoiceRepository invoices, StorageService storage, AuditService audit, NumberSequenceRepository sequences, PaymentReceiptPdfService receipts, ReconciliationLinkRepository reconciliationLinks, AuthorizationService authorization) {
-        this.payments = payments; this.invoices = invoices; this.storage = storage; this.audit = audit; this.sequences = sequences; this.receipts = receipts;
+    public PaymentController(PaymentRepository payments, InvoiceRepository invoices, StorageService storage, AuditService audit, NumberSequenceRepository sequences, PaymentReceiptPdfService receipts, PaymentReceiptEmailService receiptEmails, ReconciliationLinkRepository reconciliationLinks, AuthorizationService authorization) {
+        this.payments = payments; this.invoices = invoices; this.storage = storage; this.audit = audit; this.sequences = sequences; this.receipts = receipts; this.receiptEmails = receiptEmails;
         this.reconciliationLinks = reconciliationLinks;
         this.authorization = authorization;
     }
@@ -145,6 +146,7 @@ public class PaymentController {
         var payment = payments.findById(id).orElseThrow(() -> new NotFoundException("Payment not found."));
         if (!"Cash".equalsIgnoreCase(payment.getSettlementMethod())) throw new IllegalArgumentException("Only cash payments can be manually verified.");
         payment.verifyCash(verified);
+        if (verified) receiptEmails.sendIfEligible(payment);
         audit.record(verified ? "VERIFY" : "UNVERIFY", "PAYMENT", payment.getTransactionId(), "Cash payment");
         return Response.from(payment);
     }
@@ -183,7 +185,8 @@ public class PaymentController {
     public record Response(Long id, String transactionId, String invoiceNo, Long invoiceId, String registrationNo,
                            String studentName, String roomNo, String month, String type, BigDecimal payableAmount,
                            BigDecimal vacationDiscount, BigDecimal paidAmount, LocalDate paidDate, String settlementMethod,
-                           String evidenceName, String remarks, boolean cashVerified, java.time.Instant cashVerifiedAt, boolean verified) {
+                           String evidenceName, String remarks, boolean cashVerified, java.time.Instant cashVerifiedAt, boolean verified,
+                           String receiptEmailStatus, java.time.Instant receiptEmailedAt) {
         static Response from(Payment value) { return from(value, value.isCashVerified()); }
         static Response from(Payment value, boolean verified) {
             var invoice = value.getInvoice(); var student = invoice.getStudent();
@@ -198,7 +201,8 @@ public class PaymentController {
                         case RENT -> "Rent";
                         case OTHER_CHARGE -> "Other Charge";
                     }, invoice.getAmount(), BigDecimal.ZERO,
-                    value.getPaidAmount(), value.getPaidDate(), value.getSettlementMethod(), value.getEvidenceName(), value.getRemarks(), value.isCashVerified(), value.getCashVerifiedAt(), verified || value.isCashVerified());
+                    value.getPaidAmount(), value.getPaidDate(), value.getSettlementMethod(), value.getEvidenceName(), value.getRemarks(), value.isCashVerified(), value.getCashVerifiedAt(), verified || value.isCashVerified(),
+                    value.getReceiptEmailStatus(), value.getReceiptEmailedAt());
         }
     }
 }
