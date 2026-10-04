@@ -45,8 +45,4 @@ INSERT INTO expense_categories (version, created_at, updated_at, code, main_cate
 (0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'EC-990-01', 'Other', 'Utility - Telephone', TRUE),
 (0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'EC-990-02', 'Other', 'Utility - Electricity', TRUE),
 (0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'EC-990-03', 'Other', 'Utility - Water', TRUE),
-(0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'EC-990-04', 'Other', 'Other Expenses', TRUE)
-ON CONFLICT (main_category, name) DO UPDATE SET
- code = EXCLUDED.code,
- active = TRUE,
- updated_at = CURRENT_TIMESTAMP;
+(0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'EC-990-04', 'Other', 'Other Expenses', TRUE);
