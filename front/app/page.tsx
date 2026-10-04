@@ -1563,6 +1563,13 @@ export default function Home() {
               );
               if (payment) setPayments((current) => [payment, ...current]);
             }}
+            paymentUpdated={(payment) =>
+              setPayments((current) =>
+                current.map((item) =>
+                  item.id === payment.id ? payment : item,
+                ),
+              )
+            }
             expenseUpdated={(expense) =>
               setExpenses((current) =>
                 current.map((item) =>
@@ -7720,6 +7727,7 @@ type ActionListProps = {
   reviewer: string;
   reviewerRole: AuthenticatedUser["role"];
   evidenceReviewed: (entry: StudentPaymentEvidence, payment?: Payment) => void;
+  paymentUpdated: (payment: Payment) => void;
   expenseUpdated: (expense: Expense) => void;
   profileReviewed: (request: StudentProfileRequest, student?: Student) => void;
   checkoutNoticeReviewed: (request: CheckoutNoticeRequest, student?: Student) => void;
@@ -7740,6 +7748,7 @@ function ActionList(props: ActionListProps) {
   void ActionListLegacy;
   const {
     paymentEvidence,
+    payments,
     expenses,
     profileRequests,
     checkoutNoticeRequests,
@@ -7748,6 +7757,7 @@ function ActionList(props: ActionListProps) {
     reviewer,
     reviewerRole,
     evidenceReviewed,
+    paymentUpdated,
     expenseUpdated,
     profileReviewed,
     checkoutNoticeReviewed,
@@ -7813,10 +7823,36 @@ function ActionList(props: ActionListProps) {
   const visibleEvidence = paymentEvidence.filter((entry) =>
     actionMatches(filter, evidenceStatus(entry)),
   );
-  const visiblePayments = bankSources.filter(
-    (entry) =>
-      entry.sourceType === "Payment" &&
-      actionMatches(filter, entry.bankTransactionId ? "Completed" : "Pending"),
+  const paymentVerificationRows = payments
+    .filter((payment) => payment.paidAmount > 0)
+    .map((payment) => {
+      const settlementMethod = payment.settlementMethod || "Bank Transfer";
+      const bank = bankSources.find(
+        (source) =>
+          source.sourceType === "Payment" && source.recordId === payment.id,
+      );
+      const cashPayment = settlementMethod === "Cash";
+      const completed = cashPayment
+        ? Boolean(payment.cashVerified)
+        : Boolean(bank?.bankTransactionId);
+      return {
+        sourceType: "Payment" as const,
+        recordId: payment.id,
+        transactionId: transactionIdFor(payment),
+        date: payment.paidDate,
+        description: `${payment.registrationNo} · ${payment.studentName}`,
+        amount: payment.paidAmount,
+        bankTransactionId: bank?.bankTransactionId || "",
+        reconciledAmount: bank?.reconciledAmount || 0,
+        actionDate: cashPayment ? payment.cashVerifiedAt : bank?.actionDate,
+        settlementMethod,
+        cashVerified: Boolean(payment.cashVerified),
+        cashVerifiedAt: payment.cashVerifiedAt,
+        completed,
+      };
+    });
+  const visiblePayments = paymentVerificationRows.filter((entry) =>
+    actionMatches(filter, entry.completed ? "Completed" : "Pending"),
   );
   const visibleExpenses = expenses.filter((entry) =>
     actionMatches(filter, expenseStatus(entry)),
@@ -7834,8 +7870,8 @@ function ActionList(props: ActionListProps) {
     "Payment Evidence": paymentEvidence.filter(
       (entry) => evidenceStatus(entry) === "Pending",
     ).length,
-    "Payment Verification": bankSources.filter(
-      (entry) => entry.sourceType === "Payment" && !entry.bankTransactionId,
+    "Payment Verification": paymentVerificationRows.filter(
+      (entry) => !entry.completed,
     ).length,
     "Expense Approval": expenses.filter(
       (entry) => expenseStatus(entry) === "Pending",
@@ -7891,6 +7927,7 @@ function ActionList(props: ActionListProps) {
       {tab === "Payment Verification" && (
         <ActionPaymentVerification
           entries={visiblePayments}
+          updated={paymentUpdated}
           go={() => go("Bank Reconciliation")}
         />
       )}
@@ -8353,44 +8390,93 @@ function RoomTransferApproval({
 
 function ActionPaymentVerification({
   entries,
+  updated,
   go,
 }: {
-  entries: BankSource[];
+  entries: Array<BankSource & {
+    settlementMethod: "Bank Transfer" | "Cash" | "Cash/Bank";
+    cashVerified: boolean;
+    cashVerifiedAt?: string;
+    completed: boolean;
+  }>;
+  updated: (payment: Payment) => void;
   go: () => void;
 }) {
+  const [busy, setBusy] = useState(0);
+  const [error, setError] = useState("");
+  const verifyCash = async (entry: (typeof entries)[number]) => {
+    setBusy(entry.recordId);
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/v1/payments/${entry.recordId}/cash-verification?verified=true`,
+        { method: "PATCH" },
+      );
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(
+          result.detail || result.error || "Unable to verify cash payment.",
+        );
+      const changed = result.payment || result;
+      if (!changed || typeof changed.id !== "number")
+        throw new Error("The server returned an invalid payment response.");
+      updated(changed as Payment);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to verify cash payment.",
+      );
+    } finally {
+      setBusy(0);
+    }
+  };
+  const hasBankPayments = entries.some(
+    (entry) => entry.settlementMethod !== "Cash",
+  );
   return (
     <section className="panel payment-section">
       <div className="section-heading">
         <div>
           <p className="tag">PAYMENT VERIFICATION</p>
-          <h2>Bank reconciliation actions</h2>
+          <h2>Payment verification actions</h2>
+          <span>
+            Cash payments are verified by Admin. Bank Transfer and Cash/Bank payments require bank reconciliation.
+          </span>
         </div>
-        <button className="primary" onClick={go}>
-          Open Bank Reconciliation
-        </button>
+        {hasBankPayments && (
+          <button className="primary" onClick={go}>
+            Open Bank Reconciliation
+          </button>
+        )}
       </div>
+      {error && <p className="form-error">⚠ {error}</p>}
       <div className="tablewrap">
         <table className="ledger-table">
           <thead>
             <tr>
               <th>TRANSACTION</th>
               <th>DESCRIPTION</th>
+              <th>PAYMENT METHOD</th>
               <th>AMOUNT<small>(LKR)</small></th>
               <th>ACTION STATUS</th>
               <th>LOGGED DATE</th>
               <th>ACTION DATE</th>
               <th>BANK TRANSACTION</th>
+              <th>ACTION</th>
             </tr>
           </thead>
           <tbody>
             {entries.map((entry) => {
-              const status = entry.bankTransactionId ? "Completed" : "Pending";
+              const status = entry.completed ? "Completed" : "Pending";
+              const cashPayment = entry.settlementMethod === "Cash";
               return (
                 <tr key={`${entry.sourceType}-${entry.recordId}`}>
                   <td>
                     <b className="transaction-id">{entry.transactionId}</b>
                   </td>
                   <td>{entry.description}</td>
+                  <td><b>{entry.settlementMethod}</b></td>
                   <td>
                     <b>{amountOnly.format(entry.amount)}</b>
                   </td>
@@ -8405,13 +8491,32 @@ function ActionPaymentVerification({
                       ? fmtDate(entry.actionDate.slice(0, 10))
                       : "—"}
                   </td>
-                  <td>{entry.bankTransactionId || "—"}</td>
+                  <td>{cashPayment ? "N/A" : entry.bankTransactionId || "—"}</td>
+                  <td>
+                    {cashPayment && !entry.completed ? (
+                      <button
+                        className="primary compact"
+                        disabled={busy === entry.recordId}
+                        onClick={() => void verifyCash(entry)}
+                      >
+                        {busy === entry.recordId ? "Verifying…" : "Verify"}
+                      </button>
+                    ) : cashPayment ? (
+                      <small>Cash verified</small>
+                    ) : entry.completed ? (
+                      <small>Reconciled</small>
+                    ) : (
+                      <button className="review-button" onClick={go}>
+                        Reconcile
+                      </button>
+                    )}
+                  </td>
                 </tr>
               );
             })}
             {!entries.length && (
               <tr>
-                <td colSpan={7}>No actions match this filter.</td>
+                <td colSpan={9}>No actions match this filter.</td>
               </tr>
             )}
           </tbody>
@@ -10535,7 +10640,7 @@ function PaymentLedger({
               <th>{sortHead("month", "MONTH")}</th>
               <th>{sortHead("amount", "AMOUNT (LKR)")}</th>
               <th>TRANSACTION TYPE</th>
-              <th>BANK/CASH VERIFICATION</th>
+              <th>PAYMENT VERIFICATION</th>
               <th>BANK TRANSACTION ID</th>
               <th>PAYMENT RECEIPT</th>
               <th>{sortHead("evidence", "EVIDENCE")}</th>
