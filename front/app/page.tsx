@@ -14182,11 +14182,12 @@ function PaymentBankReconciliationModal({
                 </div>
               </div>
               <label className="wide">
-                Search bank transactions
+                Search / type Bank Transaction ID
                 <input
+                  autoFocus
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search by ID, date, description or amount"
+                  placeholder="Type Bank Transaction ID, date, description or amount"
                 />
               </label>
               <div className="tablewrap">
@@ -14270,6 +14271,262 @@ function PaymentBankReconciliationModal({
           <button type="button" onClick={close}>
             Cancel
           </button>
+          {(!currentBankTransactionId || unlocked) && (
+            <button
+              type="button"
+              className="primary"
+              disabled={!selectedBankTransactionId || saving}
+              onClick={() => void save()}
+            >
+              {saving ? "Reconciling…" : currentBankTransactionId ? "Save new reconciliation" : "Save reconciliation"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function ExpenseBankReconciliationModal({
+  expense,
+  bankTransactions,
+  links,
+  currentBankTransactionId,
+  close,
+  saved,
+}: {
+  expense: Expense;
+  bankTransactions: BankTransaction[];
+  links: BankLink[];
+  currentBankTransactionId: string;
+  close: () => void;
+  saved: () => Promise<void>;
+}) {
+  const [selectedBankTransactionId, setSelectedBankTransactionId] =
+    useState(currentBankTransactionId);
+  const [unlocked, setUnlocked] = useState(!currentBankTransactionId);
+  const [search, setSearch] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const candidates = bankTransactions
+    .filter((bank) => bank.drCr.toLowerCase().includes("dr"))
+    .filter(
+      (bank) =>
+        !links.some(
+          (link) => link.bankTransactionId === bank.bankTransactionId,
+        ),
+    )
+    .filter(
+      (bank) => Math.abs(Number(bank.amount || 0)) + 0.01 >= expense.amount,
+    )
+    .filter((bank) =>
+      `${bank.bankTransactionId} ${bank.transactionDate} ${bank.remarks || ""} ${bank.amount}`
+        .toLowerCase()
+        .includes(search.toLowerCase()),
+    )
+    .sort((left, right) => {
+      const amountDelta =
+        Math.abs(Math.abs(Number(left.amount || 0)) - expense.amount) -
+        Math.abs(Math.abs(Number(right.amount || 0)) - expense.amount);
+      if (Math.abs(amountDelta) > 0.01) return amountDelta;
+      return (
+        Math.abs(
+          new Date(left.transactionDate).getTime() -
+            new Date(expense.transactionDate).getTime(),
+        ) -
+        Math.abs(
+          new Date(right.transactionDate).getTime() -
+            new Date(expense.transactionDate).getTime(),
+        )
+      );
+    });
+
+  const saveBankSelections = async (
+    bankTransactionId: string,
+    selections: Array<{
+      sourceType: BankLink["sourceType"];
+      recordId: number;
+      reconciledAmount: number;
+    }>,
+  ) => {
+    const response = await fetch("/api/v1/bank-reconciliation", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ bankTransactionId, selections }),
+    });
+    const result = await response.json();
+    if (!response.ok)
+      throw new Error(
+        result.error || result.detail || "Unable to save bank reconciliation.",
+      );
+  };
+
+  const save = async () => {
+    if (!selectedBankTransactionId) {
+      setError("Select the relevant bank transaction.");
+      return;
+    }
+    if (selectedBankTransactionId === currentBankTransactionId) {
+      close();
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      if (currentBankTransactionId) {
+        const remainingCurrentLinks = links
+          .filter(
+            (link) =>
+              link.bankTransactionId === currentBankTransactionId &&
+              !(link.sourceType === "Expense" && link.sourceRecordId === expense.id),
+          )
+          .map((link) => ({
+            sourceType: link.sourceType,
+            recordId: link.sourceRecordId,
+            reconciledAmount: link.reconciledAmount,
+          }));
+        await saveBankSelections(currentBankTransactionId, remainingCurrentLinks);
+      }
+
+      const existingTargetLinks = links
+        .filter(
+          (link) =>
+            link.bankTransactionId === selectedBankTransactionId &&
+            !(link.sourceType === "Expense" && link.sourceRecordId === expense.id),
+        )
+        .map((link) => ({
+          sourceType: link.sourceType,
+          recordId: link.sourceRecordId,
+          reconciledAmount: link.reconciledAmount,
+        }));
+
+      await saveBankSelections(selectedBankTransactionId, [
+        ...existingTargetLinks,
+        {
+          sourceType: "Expense",
+          recordId: expense.id,
+          reconciledAmount: expense.amount,
+        },
+      ]);
+      await saved();
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Unable to reconcile this expense.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="backdrop">
+      <div className="modal paymentmodal payment-bank-reconcile-modal">
+        <ModalHead
+          tag="BANK RECONCILIATION"
+          title={expense.transactionId}
+          text={`${expense.personPaidName} · ${fmtCompactDate(expense.transactionDate)} · LKR ${amountOnly.format(expense.amount)}`}
+          close={close}
+        />
+        <section className="formsection">
+          {currentBankTransactionId && !unlocked ? (
+            <>
+              <div className="section-heading">
+                <div>
+                  <h3>Bank transaction reconciled</h3>
+                  <span>This reconciliation is locked to prevent accidental changes.</span>
+                </div>
+              </div>
+              <div className="wide approval-entry-note">
+                <b>Bank Transaction ID</b>
+                <button
+                  type="button"
+                  className="invoice-number-button transaction-id"
+                  onClick={() => {
+                    setUnlocked(true);
+                    setError("");
+                  }}
+                  title="Unlock this reconciliation to change the bank transaction"
+                >
+                  {currentBankTransactionId}
+                </button>
+                <small>Click the Bank Transaction ID above to unlock and change the reconciliation.</small>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="section-heading">
+                <div>
+                  <h3>{currentBankTransactionId ? "Change bank transaction" : "Select the relevant bank transaction"}</h3>
+                  <span>Only unreconciled outgoing bank transactions are shown.</span>
+                </div>
+              </div>
+              <label className="wide">
+                Search / type Bank Transaction ID
+                <input
+                  autoFocus
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Type Bank Transaction ID, date, description or amount"
+                />
+              </label>
+              <div className="tablewrap">
+                <table className="ledger-table">
+                  <thead>
+                    <tr>
+                      <th>SELECT</th>
+                      <th>BANK TRANSACTION ID</th>
+                      <th>DATE</th>
+                      <th>DESCRIPTION</th>
+                      <th>AMOUNT</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {candidates.map((bank) => (
+                      <tr
+                        key={bank.bankTransactionId}
+                        className={
+                          selectedBankTransactionId === bank.bankTransactionId
+                            ? "selected-reconciliation-row"
+                            : ""
+                        }
+                        onClick={() =>
+                          setSelectedBankTransactionId(bank.bankTransactionId)
+                        }
+                      >
+                        <td>
+                          <input
+                            type="radio"
+                            name={`expense-bank-${expense.id}`}
+                            checked={
+                              selectedBankTransactionId === bank.bankTransactionId
+                            }
+                            onChange={() =>
+                              setSelectedBankTransactionId(bank.bankTransactionId)
+                            }
+                          />
+                        </td>
+                        <td><b className="transaction-id">{bank.bankTransactionId}</b></td>
+                        <td>{fmtCompactDate(bank.transactionDate)}</td>
+                        <td>{bank.remarks || "—"}</td>
+                        <td><b>{bank.currency} {amountOnly.format(Math.abs(bank.amount))}</b></td>
+                      </tr>
+                    ))}
+                    {!candidates.length && (
+                      <tr>
+                        <td colSpan={5}>No unreconciled bank transactions match this search.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+          {error && <p className="form-error">⚠ {error}</p>}
+        </section>
+        <div className="modalactions">
+          <button type="button" onClick={close}>Cancel</button>
           {(!currentBankTransactionId || unlocked) && (
             <button
               type="button"
@@ -15862,8 +16119,7 @@ function ExpensesView({
   const [bankSources, setBankSources] = useState<BankSource[]>([]);
   const [bankTransactions, setBankTransactions] = useState<BankTransaction[]>([]);
   const [bankLinks, setBankLinks] = useState<BankLink[]>([]);
-  const [reconcilingExpenseId, setReconcilingExpenseId] = useState<number | null>(null);
-  const [expenseReconciliationError, setExpenseReconciliationError] = useState("");
+  const [reconcilingExpense, setReconcilingExpense] = useState<Expense | null>(null);
   const [reviewingPettyDeposit, setReviewingPettyDeposit] =
     useState<PettyCashDeposit | null>(null);
   const [pettySort, setPettySort] = useState<{
@@ -15939,103 +16195,6 @@ function ExpensesView({
       (source) =>
         source.sourceType === sourceType && source.recordId === recordId,
     );
-  const bankAvailableForExpense = (bank: BankTransaction, expense: Expense) => {
-    const allocatedToOthers = bankLinks
-      .filter(
-        (link) =>
-          link.bankTransactionId === bank.bankTransactionId &&
-          !(link.sourceType === "Expense" && link.sourceRecordId === expense.id),
-      )
-      .reduce((sum, link) => sum + Number(link.reconciledAmount || 0), 0);
-    return Math.max(0, Number(bank.amount || 0) - allocatedToOthers);
-  };
-  const bankCandidatesForExpense = (expense: Expense) =>
-    bankTransactions
-      .filter(
-        (bank) =>
-          bank.drCr.toLowerCase().includes("dr") &&
-          bankAvailableForExpense(bank, expense) + 0.01 >= expense.amount,
-      )
-      .sort((left, right) => {
-        const amountDifference =
-          Math.abs(bankAvailableForExpense(left, expense) - expense.amount) -
-          Math.abs(bankAvailableForExpense(right, expense) - expense.amount);
-        if (Math.abs(amountDifference) > 0.01) return amountDifference;
-        const leftDate = Math.abs(
-          new Date(left.transactionDate).getTime() -
-            new Date(expense.transactionDate).getTime(),
-        );
-        const rightDate = Math.abs(
-          new Date(right.transactionDate).getTime() -
-            new Date(expense.transactionDate).getTime(),
-        );
-        return leftDate - rightDate;
-      });
-  const saveBankSelections = async (
-    bankTransactionId: string,
-    links: Array<{ sourceType: BankLink["sourceType"]; recordId: number; reconciledAmount: number }>,
-  ) => {
-    const response = await fetch("/api/v1/bank-reconciliation", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ bankTransactionId, selections: links }),
-    });
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(result.error || result.detail || "Unable to reconcile this expense.");
-  };
-  const reconcileExpenseToBank = async (expense: Expense, nextBankTransactionId: string) => {
-    if (reconcilingExpenseId !== null) return;
-    setReconcilingExpenseId(expense.id);
-    setExpenseReconciliationError("");
-    try {
-      const current = bankSource("Expense", expense.id)?.bankTransactionId || "";
-      if (current === nextBankTransactionId) return;
-
-      if (current) {
-        const remainingOldLinks = bankLinks
-          .filter(
-            (link) =>
-              link.bankTransactionId === current &&
-              !(link.sourceType === "Expense" && link.sourceRecordId === expense.id),
-          )
-          .map((link) => ({
-            sourceType: link.sourceType,
-            recordId: link.sourceRecordId,
-            reconciledAmount: link.reconciledAmount,
-          }));
-        await saveBankSelections(current, remainingOldLinks);
-      }
-
-      if (nextBankTransactionId) {
-        const existingNewLinks = bankLinks
-          .filter(
-            (link) =>
-              link.bankTransactionId === nextBankTransactionId &&
-              !(link.sourceType === "Expense" && link.sourceRecordId === expense.id),
-          )
-          .map((link) => ({
-            sourceType: link.sourceType,
-            recordId: link.sourceRecordId,
-            reconciledAmount: link.reconciledAmount,
-          }));
-        await saveBankSelections(nextBankTransactionId, [
-          ...existingNewLinks,
-          { sourceType: "Expense", recordId: expense.id, reconciledAmount: expense.amount },
-        ]);
-      }
-
-      await loadExpenseBankReconciliation();
-      window.dispatchEvent(new Event("bank-reconciliation-updated"));
-    } catch (caught) {
-      setExpenseReconciliationError(
-        caught instanceof Error ? caught.message : "Unable to reconcile this expense.",
-      );
-      await loadExpenseBankReconciliation();
-    } finally {
-      setReconcilingExpenseId(null);
-    }
-  };
   const expenseLedgerStatus = (expense: Expense) => {
     if (expense.approvalStatus !== "Approved")
       return "Unapproved Transaction";
@@ -16354,9 +16513,6 @@ function ExpensesView({
         )}
       </div>
       {categoryError && <p className="form-error">⚠ {categoryError}</p>}
-      {expenseReconciliationError && (
-        <p className="form-error">⚠ {expenseReconciliationError}</p>
-      )}
 
       {tab === "categories" && (
         <section>
@@ -16578,27 +16734,14 @@ function ExpensesView({
                         ) : expense.approvalStatus !== "Approved" ? (
                           <small>Approve first</small>
                         ) : (
-                          <select
-                            className="expense-bank-transaction-select"
-                            value={bank?.bankTransactionId || ""}
-                            disabled={reconcilingExpenseId === expense.id}
-                            onChange={(event) =>
-                              void reconcileExpenseToBank(expense, event.target.value)
-                            }
-                            aria-label={`Bank transaction for ${expense.transactionId}`}
+                          <button
+                            type="button"
+                            className="invoice-number-button transaction-id"
+                            onClick={() => setReconcilingExpense(expense)}
+                            title="Open bank reconciliation for this expense"
                           >
-                            <option value="">
-                              {bank?.bankTransactionId ? "Remove reconciliation" : "Select bank transaction"}
-                            </option>
-                            {bankCandidatesForExpense(expense).map((candidate) => (
-                              <option
-                                key={candidate.bankTransactionId}
-                                value={candidate.bankTransactionId}
-                              >
-                                {fmtCompactDate(candidate.transactionDate)} · {candidate.remarks || "No description"} · {candidate.currency} {amountOnly.format(candidate.amount)} · {candidate.bankTransactionId}
-                              </option>
-                            ))}
-                          </select>
+                            {bank?.bankTransactionId || "Select bank transaction"}
+                          </button>
                         )}
                       </td>
                       <td>
@@ -16932,6 +17075,22 @@ function ExpensesView({
           <div className="payment-export-summary"><b>{expenseExportData().rows.length}</b> record(s) will be exported.</div>
           <div className="modalactions"><button onClick={() => setExpenseExportFilters({ from: "", to: "", mainCategories: [], subCategories: [], people: [], methods: [], statuses: [] })}>Clear filters</button><button onClick={() => setExpenseExport(null)}>Cancel</button><button className="secondary" disabled={!expenseExportData().rows.length} onClick={() => void exportExpensesPdf()}>Download PDF</button><button className="primary" disabled={!expenseExportData().rows.length} onClick={() => void exportExpensesSpreadsheet()}>Export Spreadsheet</button></div>
         </div></div>
+      )}
+      {reconcilingExpense && (
+        <ExpenseBankReconciliationModal
+          expense={reconcilingExpense}
+          bankTransactions={bankTransactions}
+          links={bankLinks}
+          currentBankTransactionId={
+            bankSource("Expense", reconcilingExpense.id)?.bankTransactionId || ""
+          }
+          close={() => setReconcilingExpense(null)}
+          saved={async () => {
+            await loadExpenseBankReconciliation();
+            window.dispatchEvent(new Event("bank-reconciliation-updated"));
+            setReconcilingExpense(null);
+          }}
+        />
       )}
       {addingExpense && (
         <AddExpense
