@@ -21461,10 +21461,7 @@ function StudentPaymentProfile({
     new Date().getMonth() + 1,
   ).padStart(2, "0")}`;
   const lastCompletedMonth = addMonths(currentMonth, -1);
-  const firstPayableMonth =
-    student.startDate.slice(0, 7) < "2026-01"
-      ? "2026-01"
-      : student.startDate.slice(0, 7);
+  const firstPayableMonth = student.startDate.slice(0, 7);
   const finalPayableMonth = student.vacatedDate
     ? student.vacatedDate.slice(0, 7) < lastCompletedMonth
       ? student.vacatedDate.slice(0, 7)
@@ -21494,16 +21491,33 @@ function StudentPaymentProfile({
     (sum, payment) => sum + payment.paidAmount,
     0,
   );
-  const depositPayable = student.depositPayable;
-  const depositOutstanding = Math.max(0, depositPayable - totalDeposit);
+  const latestDepositInvoice = invoiceEntries
+    .filter(
+      (invoice) =>
+        invoice.invoiceType === "Deposit" && invoice.status !== "Cancelled",
+    )
+    .sort(
+      (a, b) =>
+        (b.revisionNumber ?? b.version ?? 0) -
+          (a.revisionNumber ?? a.version ?? 0) ||
+        String(b.createdAt || "").localeCompare(String(a.createdAt || "")),
+    )[0];
+  const depositPayable = latestDepositInvoice
+    ? latestDepositInvoice.amount
+    : student.depositPayable;
+  const depositPaid = latestDepositInvoice
+    ? latestDepositInvoice.paidAmount || 0
+    : totalDeposit;
+  const depositOutstanding = Math.max(0, depositPayable - depositPaid);
   const totalRent = rentReceipts.reduce(
     (sum, payment) => sum + payment.paidAmount,
     0,
   );
-  const totalOutstanding = outstandingRows.reduce(
+  const outstandingRent = outstandingRows.reduce(
     (sum, row) => sum + row.outstanding,
     0,
   );
+  const totalOutstanding = depositOutstanding + outstandingRent;
   const paymentDueDate = (payment: Payment) => {
     if (canonicalPaymentType(payment.type) === "Deposit")
       return student.startDate;
@@ -21679,9 +21693,9 @@ function StudentPaymentProfile({
           <span>{rentReceipts.length} transaction(s)</span>
         </article>
         <article className={totalOutstanding ? "attention" : "clear"}>
-          <small>OUTSTANDING HOSTEL ROOM PAYMENTS</small>
+          <small>TOTAL OUTSTANDING PAYMENTS</small>
           <b>{cash.format(totalOutstanding)}</b>
-          <span>Through {fmtMonth(lastCompletedMonth)}</span>
+          <span>Deposit + accommodation fees through {fmtMonth(lastCompletedMonth)}</span>
         </article>
       </div>
       <div
@@ -21795,7 +21809,7 @@ function StudentPaymentProfile({
               </span>
               <span>
                 <small>SECURITY DEPOSIT PAID</small>
-                <b>{cash.format(totalDeposit)}</b>
+                <b>{cash.format(depositPaid)}</b>
               </span>
               <span className={depositOutstanding ? "attention" : "clear"}>
                 <small>OUTSTANDING AMOUNT</small>
