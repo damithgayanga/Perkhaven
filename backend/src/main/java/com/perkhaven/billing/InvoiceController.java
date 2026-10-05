@@ -161,18 +161,7 @@ public class InvoiceController {
         if (invoice.getPaidAmount().signum() > 0) throw new IllegalArgumentException("Invoices with payments cannot be deleted.");
         var reference = invoice.getInvoiceNo();
         invoices.delete(invoice);
-        var separator = reference.lastIndexOf('-');
-        if (separator >= 0 && separator < reference.length() - 1) {
-            try {
-                var sequenceNo = Long.parseLong(reference.substring(separator + 1));
-                sequences.findForUpdate("INVOICE")
-                        .orElseThrow(() -> new IllegalStateException("Invoice sequence is not configured."))
-                        .recycle(sequenceNo);
-            } catch (NumberFormatException ignored) {
-                // Keep the invoice sequence unchanged if the reference is not in the standard format.
-            }
-        }
-        audit.record("DELETE", "INVOICE", reference, "Sequence number recycled");
+        audit.record("DELETE", "INVOICE", reference, "Invoice permanently deleted; sequence retained");
     }
 
     @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
