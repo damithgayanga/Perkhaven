@@ -111,7 +111,9 @@ jobs:
   aws-ready:
     needs: changes
     runs-on: ubuntu-latest
-    environment: production
+    environment:
+      name: production
+      deployment: false
     outputs:
       ready: ${{ steps.status.outputs.ready }}
     steps:
