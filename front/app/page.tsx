@@ -9291,6 +9291,23 @@ function InvoiceLedger({
     [exportFilters, setExportFilters] = useState({ invoice: "", registration: "", name: "", room: "", type: "All", status: "All" }),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [invoiceSort, setInvoiceSort] = useState<{
+    key:
+      | "invoice"
+      | "issueDate"
+      | "dueDate"
+      | "type"
+      | "month"
+      | "registration"
+      | "name"
+      | "room"
+      | "amount"
+      | "status"
+      | "revision"
+      | "email"
+      | "transaction";
+    direction: "asc" | "desc";
+  }>({ key: "issueDate", direction: "desc" });
   const invoiceTypeLabel = (invoice: StudentInvoice) => {
     if (invoice.invoiceType === "Deposit") return "Deposit";
     if (invoice.invoiceType === "Security Deposit Adjustment")
@@ -9310,12 +9327,61 @@ function InvoiceLedger({
       (row) => adjustmentUiType(row.type) === "Late Start Adjustment" && Number(row.amount) > 0,
     );
 
-  const visibleInvoices = invoices.filter((invoice) =>
-    invoice.registrationNo.toLowerCase().includes(ledgerFilters.registration.toLowerCase()) &&
-    invoice.studentName.toLowerCase().includes(ledgerFilters.name.toLowerCase()) &&
-    (!ledgerFilters.month || invoice.month.slice(0, 7) === ledgerFilters.month) &&
-    (ledgerFilters.type === "All" || invoiceTypeLabel(invoice) === ledgerFilters.type) &&
-    (ledgerFilters.status === "All" || invoice.status === ledgerFilters.status));
+  const invoiceSortValue = (invoice: StudentInvoice) =>
+    ({
+      invoice: invoice.invoiceNo,
+      issueDate: invoice.issueDate,
+      dueDate: invoice.dueDate,
+      type: invoiceTypeLabel(invoice),
+      month: invoice.month || "",
+      registration: invoice.registrationNo,
+      name: invoice.studentName,
+      room: invoice.roomNo,
+      amount: invoice.amount,
+      status: invoice.status,
+      revision: invoiceRevision(invoice),
+      email: invoice.emailStatus || "",
+      transaction: invoice.transactionIds?.join(", ") || "",
+    })[invoiceSort.key];
+  const changeInvoiceSort = (key: typeof invoiceSort.key) =>
+    setInvoiceSort((current) =>
+      current.key === key
+        ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
+        : { key, direction: "asc" },
+    );
+  const invoiceSortHead = (column: typeof invoiceSort.key, label: string) => (
+    <button
+      type="button"
+      className="table-sort-head"
+      onClick={() => changeInvoiceSort(column)}
+      title={`Sort by ${label}`}
+    >
+      {label}
+      <span>
+        {invoiceSort.key === column
+          ? invoiceSort.direction === "asc"
+            ? "▲"
+            : "▼"
+          : "↕"}
+      </span>
+    </button>
+  );
+  const visibleInvoices = invoices
+    .filter((invoice) =>
+      invoice.registrationNo.toLowerCase().includes(ledgerFilters.registration.toLowerCase()) &&
+      invoice.studentName.toLowerCase().includes(ledgerFilters.name.toLowerCase()) &&
+      (!ledgerFilters.month || invoice.month.slice(0, 7) === ledgerFilters.month) &&
+      (ledgerFilters.type === "All" || invoiceTypeLabel(invoice) === ledgerFilters.type) &&
+      (ledgerFilters.status === "All" || invoice.status === ledgerFilters.status))
+    .sort((left, right) => {
+      const a = invoiceSortValue(left);
+      const b = invoiceSortValue(right);
+      const result =
+        typeof a === "number" && typeof b === "number"
+          ? a - b
+          : String(a).localeCompare(String(b), undefined, { numeric: true });
+      return (invoiceSort.direction === "asc" ? 1 : -1) * result;
+    });
   const exportRows = invoices.filter((invoice) =>
     invoice.invoiceNo.toLowerCase().includes(exportFilters.invoice.toLowerCase()) &&
     invoice.registrationNo.toLowerCase().includes(exportFilters.registration.toLowerCase()) &&
@@ -9377,19 +9443,19 @@ function InvoiceLedger({
         <table className="ledger-table">
           <thead>
             <tr>
-              <th>INVOICE NO.</th>
-              <th>ISSUE DATE</th>
-              <th>DUE DATE</th>
-              <th>TYPE</th>
-              <th>MONTH</th>
-              <th>REGISTRATION</th>
-              <th>NAME</th>
-              <th>HOSTEL ROOM</th>
-              <th>AMOUNT<small>(LKR)</small></th>
-              <th>STATUS</th>
-              <th>REVISION</th>
-              <th>EMAIL</th>
-              <th>TRANSACTION ID(S)</th>
+              <th>{invoiceSortHead("invoice", "INVOICE NO.")}</th>
+              <th>{invoiceSortHead("issueDate", "ISSUE DATE")}</th>
+              <th>{invoiceSortHead("dueDate", "DUE DATE")}</th>
+              <th>{invoiceSortHead("type", "TYPE")}</th>
+              <th>{invoiceSortHead("month", "MONTH")}</th>
+              <th>{invoiceSortHead("registration", "REGISTRATION")}</th>
+              <th>{invoiceSortHead("name", "NAME")}</th>
+              <th>{invoiceSortHead("room", "HOSTEL ROOM")}</th>
+              <th>{invoiceSortHead("amount", "AMOUNT (LKR)")}</th>
+              <th>{invoiceSortHead("status", "STATUS")}</th>
+              <th>{invoiceSortHead("revision", "REVISION")}</th>
+              <th>{invoiceSortHead("email", "EMAIL")}</th>
+              <th>{invoiceSortHead("transaction", "TRANSACTION ID(S)")}</th>
               <th>ACTIONS</th>
             </tr>
           </thead>
