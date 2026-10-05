@@ -21994,7 +21994,7 @@ function StudentPaymentProfile({
         <article>
           <small>SECURITY DEPOSIT PAYABLE</small>
           <b>{cash.format(depositPayable)}</b>
-          <span>Set when the resident was registered</span>
+          <span>{depositPayable > 0 && depositOutstanding === 0 ? "Paid" : "Not Paid"}</span>
         </article>
         <article>
           <small>TOTAL HOSTEL ROOM PAYMENTS</small>
