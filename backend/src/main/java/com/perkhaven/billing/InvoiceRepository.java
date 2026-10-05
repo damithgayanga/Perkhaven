@@ -14,6 +14,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     Optional<Invoice> findByStudentIdAndInvoiceType(Long studentId, InvoiceType type);
     Optional<Invoice> findByStudentRegistrationNoIgnoreCaseAndInvoiceType(String registrationNo, InvoiceType type);
     Optional<Invoice> findByBillingKey(String billingKey);
+    boolean existsByInvoiceNoEndingWith(String suffix);
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from Invoice invoice where invoice.student.id = :studentId")
     void deleteByStudentId(@Param("studentId") Long studentId);
