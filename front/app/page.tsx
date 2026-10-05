@@ -658,6 +658,7 @@ const adjustmentTotal = (
     )
     .reduce((sum, item) => sum + item.amount, 0);
 const studentStayedInMonth = (student: Student, month: string) => {
+  if (!/^\d{4}-\d{2}$/.test(month)) return false;
   if (!student.startDate) return true;
   const firstDay = `${month}-01`;
   const [year, monthNumber] = month.split("-").map(Number);
@@ -20177,8 +20178,14 @@ function AddPayment({
     shopTenant = shopTenants.find(
       (tenant) => tenant.registrationNo === shopReg,
     ),
-    rentAmountPayable = s ? rentPayable(s, month, adjustments) : 0,
-    rentAlreadyPaid = s ? rentPaid(payments, s.registrationNo, month) : 0,
+    rentAmountPayable =
+      s && type === "Rent" && /^\d{4}-\d{2}$/.test(month)
+        ? rentPayable(s, month, adjustments)
+        : 0,
+    rentAlreadyPaid =
+      s && type === "Rent" && /^\d{4}-\d{2}$/.test(month)
+        ? rentPaid(payments, s.registrationNo, month)
+        : 0,
     originalDepositDue = Boolean(
       oldestInvoice &&
         oldestInvoice.invoiceType === "Deposit" &&
@@ -20401,7 +20408,25 @@ function AddPayment({
                           )
                           .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.issueDate.localeCompare(b.issueDate) || a.id - b.id);
                         setDueInvoices(due);
-                        if (due[0]) { setType(due[0].invoiceType === "Deposit" || due[0].invoiceType === "Security Deposit Adjustment" ? "Deposit" : "Rent"); setMonth(due[0].month || ""); setAmount(String(Math.max(0, due[0].amount - (due[0].paidAmount || 0)))); }
+                        if (due[0]) {
+                          const nextType =
+                            due[0].invoiceType === "Deposit" ||
+                            due[0].invoiceType === "Security Deposit Adjustment"
+                              ? "Deposit"
+                              : "Rent";
+                          setType(nextType);
+                          if (nextType === "Rent" && due[0].month) {
+                            setMonth(due[0].month);
+                          }
+                          setAmount(
+                            String(
+                              Math.max(
+                                0,
+                                due[0].amount - (due[0].paidAmount || 0),
+                              ),
+                            ),
+                          );
+                        }
                       })
                       .catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to load due invoices"));
                   }
