@@ -2,6 +2,7 @@ package com.perkhaven.billing;
 
 import com.perkhaven.common.api.PageResponse;
 import com.perkhaven.common.audit.AuditService;
+import com.perkhaven.common.sequence.NumberSequenceRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
@@ -37,7 +38,8 @@ public class InvoiceController {
     private final InvoicePdfService pdf;
     private final AuditService audit;
     private final PaymentRepository payments;
-    public InvoiceController(InvoiceRepository invoices, InvoiceService service, InvoicePdfService pdf, AuditService audit, PaymentRepository payments) { this.invoices = invoices; this.service = service; this.pdf = pdf; this.audit = audit; this.payments = payments; }
+    private final NumberSequenceRepository sequences;
+    public InvoiceController(InvoiceRepository invoices, InvoiceService service, InvoicePdfService pdf, AuditService audit, PaymentRepository payments, NumberSequenceRepository sequences) { this.invoices = invoices; this.service = service; this.pdf = pdf; this.audit = audit; this.payments = payments; this.sequences = sequences; }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR','WARDEN') or @invoiceService.canAccessRegistration(#registrationNo, authentication)")
@@ -157,8 +159,20 @@ public class InvoiceController {
     public void delete(@PathVariable long id) {
         var invoice = service.find(id);
         if (invoice.getPaidAmount().signum() > 0) throw new IllegalArgumentException("Invoices with payments cannot be deleted.");
+        var reference = invoice.getInvoiceNo();
         invoices.delete(invoice);
-        audit.record("DELETE", "INVOICE", invoice.getInvoiceNo(), null);
+        var separator = reference.lastIndexOf('-');
+        if (separator >= 0 && separator < reference.length() - 1) {
+            try {
+                var sequenceNo = Long.parseLong(reference.substring(separator + 1));
+                sequences.findForUpdate("INVOICE")
+                        .orElseThrow(() -> new IllegalStateException("Invoice sequence is not configured."))
+                        .recycle(sequenceNo);
+            } catch (NumberFormatException ignored) {
+                // Keep the invoice sequence unchanged if the reference is not in the standard format.
+            }
+        }
+        audit.record("DELETE", "INVOICE", reference, "Sequence number recycled");
     }
 
     @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
