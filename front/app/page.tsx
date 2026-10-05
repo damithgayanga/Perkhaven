@@ -9664,24 +9664,28 @@ function ManualInvoiceModal({
     setSaving(true);
     try {
       const response = await fetch(
-        `/api/v1/invoices/deposit-status?registrationNo=${encodeURIComponent(value)}`,
+        `/api/v1/invoices?registrationNo=${encodeURIComponent(value)}&size=100`,
       );
-      const result = await response.json();
+      const result = (await response.json()) as ApiPage<StudentInvoice>;
       if (!response.ok) {
-        setError(result.detail || "Unable to check the existing Security Deposit invoice.");
+        setRegistrationNo("");
+        setError("Unable to check the resident's existing invoices. Please try again.");
         return;
       }
-      if (result.exists) {
+      const existingDeposit = (result.items || []).find(
+        (invoice) => invoice.invoiceType === "Deposit",
+      );
+      if (existingDeposit) {
         setRegistrationNo("");
         setError(
-          `Security Deposit invoice ${result.invoiceNo} already exists for this student. Use the existing invoice instead.`,
+          `Security Deposit invoice ${existingDeposit.invoiceNo} already exists for this student. Use the existing invoice instead.`,
         );
         return;
       }
       setRegistrationNo(value);
     } catch {
       setRegistrationNo("");
-      setError("Unable to check the existing Security Deposit invoice. Please try again.");
+      setError("Unable to check the resident's existing invoices. Please try again.");
     } finally {
       setSaving(false);
     }
