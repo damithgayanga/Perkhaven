@@ -1703,18 +1703,23 @@ mark {
   z-index: auto;
   box-shadow: none;
 }
-.invoice-ledger-section .tablewrap {
+.payment-workspace .payment-section > .tablewrap,
+.payment-workspace .payment-section > .summary-table-wrap {
   max-height: calc(100vh - 300px);
   min-height: 360px;
   overflow-x: auto;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
-.invoice-ledger-section .ledger-table thead th {
+.payment-workspace .payment-section > .tablewrap > table > thead th,
+.payment-workspace .payment-section > .summary-table-wrap > table > thead th {
   position: sticky;
   top: 0;
   z-index: 4;
-  background: #f8fafc;
   box-shadow: inset 0 -1px 0 #dce3ea;
+}
+.invoice-ledger-section .ledger-table thead th {
+  background: #f8fafc;
 }
 
 .register-tabs-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
@@ -1804,7 +1809,7 @@ mark {
 }
 .payment-workspace { max-width: none; margin: 0; padding: 18px 14px 45px; }
 .payment-workspace > .tablewrap,
-.payment-section > .tablewrap { overflow-x: hidden; }
+.payment-section > .tablewrap { overflow-x: auto; }
 .ledger-table { width: 100%; min-width: 0; table-layout: fixed; font-size: 10px; }
 .ledger-table th { padding: 9px 5px; white-space: normal; line-height: 1.2; text-align: center; }
 .ledger-table th .table-sort-head { width: 100%; min-width: 0; justify-content: center; gap: 3px; white-space: normal; line-height: 1.2; text-align: center; }
@@ -3234,12 +3239,14 @@ mark {
   box-shadow: 0 8px 30px #102a4355;
 }
 @media (max-width: 1050px) {
-  .invoice-ledger-section .tablewrap {
+  .payment-workspace .payment-section > .tablewrap,
+  .payment-workspace .payment-section > .summary-table-wrap {
     max-height: none;
     min-height: 0;
     overflow-y: visible;
   }
-  .invoice-ledger-section .ledger-table thead th {
+  .payment-workspace .payment-section > .tablewrap > table > thead th,
+  .payment-workspace .payment-section > .summary-table-wrap > table > thead th {
     position: static;
     top: auto;
   }
