@@ -21826,6 +21826,12 @@ function StudentPaymentProfile({
     (sum, payment) => sum + payment.paidAmount,
     0,
   );
+  const rentPaymentMonths = rentReceipts
+    .map((payment) => payment.month)
+    .filter((month) => /^\d{4}-\d{2}$/.test(month))
+    .sort();
+  const latestRentPaymentMonth =
+    rentPaymentMonths[rentPaymentMonths.length - 1] || "";
   const outstandingRent = outstandingRows.reduce(
     (sum, row) => sum + row.outstanding,
     0,
@@ -22003,7 +22009,11 @@ function StudentPaymentProfile({
         <article>
           <small>TOTAL HOSTEL ROOM PAYMENTS</small>
           <b>{cash.format(totalRent)}</b>
-          <span>{rentReceipts.length} transaction(s)</span>
+          <span>
+            {latestRentPaymentMonth
+              ? `Payments completed until ${fmtMonth(latestRentPaymentMonth).replace(" ", "-")}`
+              : "No monthly accommodation payments recorded"}
+          </span>
         </article>
         <article className={totalOutstanding ? "attention" : "clear"}>
           <small>TOTAL OUTSTANDING PAYMENTS</small>
