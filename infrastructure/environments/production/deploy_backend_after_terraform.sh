@@ -50,23 +50,39 @@ if [[ "$exit_code" != "0" ]]; then
   echo "Migration task details:"
   aws ecs describe-tasks     --cluster "$CLUSTER"     --tasks "$task_arn"     --query 'tasks[0].{taskArn:taskArn,stopCode:stopCode,stoppedReason:stoppedReason,containers:containers[*].{name:name,reason:reason,exitCode:exitCode,lastStatus:lastStatus,logStreamName:logStreamName}}'     --output json || true
 
-  log_group=$(aws ecs describe-task-definition     --task-definition "$TASK_DEFINITION"     --query 'taskDefinition.containerDefinitions[?name==`backend`].logConfiguration.options."awslogs-group" | [0]'     --output text)
+  log_group=$(aws ecs describe-task-definition \
+    --task-definition "$TASK_DEFINITION" \
+    --query 'taskDefinition.containerDefinitions[?name==`backend`].logConfiguration.options."awslogs-group" | [0]' \
+    --output text)
 
   task_id="${task_arn##*/}"
   echo "Migration log group: $log_group"
   echo "Migration task id: $task_id"
 
   if [[ -n "$log_group" && "$log_group" != "None" ]]; then
-    log_stream=$(aws logs describe-log-streams       --log-group-name "$log_group"       --log-stream-name-prefix "backend/backend/"       --order-by LastEventTime       --descending       --max-items 20       --query "logStreams[?contains(logStreamName, '${task_id}')].logStreamName | [0]"       --output text 2>/dev/null || true)
-
-    if [[ -z "$log_stream" || "$log_stream" == "None" ]]; then
-      log_stream=$(aws logs describe-log-streams         --log-group-name "$log_group"         --order-by LastEventTime         --descending         --max-items 20         --query "logStreams[?contains(logStreamName, '${task_id}')].logStreamName | [0]"         --output text 2>/dev/null || true)
-    fi
+    log_stream="None"
+    for attempt in 1 2 3 4 5; do
+      log_stream=$(aws logs describe-log-streams \
+        --log-group-name "$log_group" \
+        --log-stream-name-prefix "backend/backend/$task_id" \
+        --no-paginate \
+        --query 'logStreams[0].logStreamName' \
+        --output text 2>/dev/null || true)
+      if [[ -n "$log_stream" && "$log_stream" != "None" ]]; then
+        break
+      fi
+      sleep 3
+    done
 
     echo "Migration log stream: $log_stream"
     if [[ -n "$log_stream" && "$log_stream" != "None" ]]; then
       echo "----- Flyway task logs -----"
-      aws logs get-log-events         --log-group-name "$log_group"         --log-stream-name "$log_stream"         --limit 200         --query 'events[*].message'         --output text || true
+      aws logs get-log-events \
+        --log-group-name "$log_group" \
+        --log-stream-name "$log_stream" \
+        --limit 300 \
+        --query 'events[*].message' \
+        --output text || true
       echo "----- End Flyway task logs -----"
     fi
   fi
