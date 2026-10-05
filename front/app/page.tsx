@@ -9327,12 +9327,16 @@ function InvoiceLedger({
       (row) => adjustmentUiType(row.type) === "Late Start Adjustment" && Number(row.amount) > 0,
     );
 
+  const invoiceSortParts = (invoiceNo: string) => {
+    const parts = invoiceNo.split("-");
+    return {
+      year: Number(parts[1] || 0),
+      sequence: Number(parts[3] || 0),
+    };
+  };
   const invoiceSortValue = (invoice: StudentInvoice) =>
     ({
-      invoice: (() => {
-        const match = invoice.invoiceNo.match(/^INV-(\d{4})-.*-(\d{5})$/);
-        return match ? `${match[1]}-${match[2]}` : invoice.invoiceNo;
-      })(),
+      invoice: invoice.invoiceNo,
       issueDate: invoice.issueDate,
       dueDate: invoice.dueDate,
       type: invoiceTypeLabel(invoice),
@@ -9377,12 +9381,19 @@ function InvoiceLedger({
       (ledgerFilters.type === "All" || invoiceTypeLabel(invoice) === ledgerFilters.type) &&
       (ledgerFilters.status === "All" || invoice.status === ledgerFilters.status))
     .sort((left, right) => {
-      const a = invoiceSortValue(left);
-      const b = invoiceSortValue(right);
-      const result =
-        typeof a === "number" && typeof b === "number"
-          ? a - b
-          : String(a).localeCompare(String(b), undefined, { numeric: true });
+      let result: number;
+      if (invoiceSort.key === "invoice") {
+        const a = invoiceSortParts(left.invoiceNo);
+        const b = invoiceSortParts(right.invoiceNo);
+        result = a.year - b.year || a.sequence - b.sequence;
+      } else {
+        const a = invoiceSortValue(left);
+        const b = invoiceSortValue(right);
+        result =
+          typeof a === "number" && typeof b === "number"
+            ? a - b
+            : String(a).localeCompare(String(b), undefined, { numeric: true });
+      }
       return (invoiceSort.direction === "asc" ? 1 : -1) * result;
     });
   const exportRows = invoices.filter((invoice) =>
