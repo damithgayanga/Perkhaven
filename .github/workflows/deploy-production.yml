@@ -31,7 +31,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: perkhaven-production
+  group: perkhaven-production-v2
   cancel-in-progress: false
 
 env:
@@ -334,7 +334,11 @@ jobs:
 
       - name: Apply infrastructure
         working-directory: infrastructure/environments/production
-        run: terraform apply -lock-timeout=10m -auto-approve production.tfplan
+        env:
+          PERKHAVEN_BACKEND_CHANGED: ${{ needs.changes.outputs.backend }}
+        run: |
+          terraform apply -lock-timeout=10m -auto-approve production.tfplan
+          bash ./deploy_backend_after_terraform.sh
 
   backend-refresh-after-infrastructure:
     name: Refresh backend after infrastructure deployment
