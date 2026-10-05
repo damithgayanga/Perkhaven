@@ -22106,11 +22106,12 @@ function StudentPaymentProfile({
       </div>
       <div className="panel tablewrap payment-records-table">
         <table>
-          <thead><tr><th>INVOICE NO.</th><th>TYPE</th><th>DUE DATE</th><th>TRANSACTION ID</th><th>PAYMENT DATE</th><th>PAYABLE<small>(LKR)</small></th><th>PAID<small>(LKR)</small></th><th>OUTSTANDING<small>(LKR)</small></th></tr></thead>
+          <thead><tr><th>INVOICE NO.</th><th>TYPE</th><th>MONTH</th><th>DUE DATE</th><th>TRANSACTION ID</th><th>PAYMENT DATE</th><th>PAYABLE<small>(LKR)</small></th><th>PAID<small>(LKR)</small></th><th>OUTSTANDING<small>(LKR)</small></th></tr></thead>
           <tbody>
             {recordRows.map(({ invoice, payment, payable }, index) => <tr key={`${invoice.id}-${payment?.id || "outstanding"}-${index}`}>
               <td><button type="button" className="invoice-link-button" onClick={() => setInvoicePreview(invoice)}>{invoice.invoiceNo}</button></td>
               <td>{invoice.invoiceType}</td>
+              <td>{invoice.invoiceType === "Rent" && invoice.month ? fmtMonth(invoice.month).replace(" ", "-") : "—"}</td>
               <td>{fmtDate(invoice.dueDate)}</td>
               <td>{payment ? transactionIdFor(payment) : "—"}</td>
               <td>{payment ? fmtDate(payment.paidDate) : "—"}</td>
@@ -22118,7 +22119,7 @@ function StudentPaymentProfile({
               <td>{payment ? amountOnly.format(payment.paidAmount) : "—"}</td>
               <td>{amountOnly.format(Math.max(0, invoice.amount - (invoice.paidAmount || 0)))}</td>
             </tr>)}
-            {!recordRows.length && <tr><td colSpan={8}>No invoice or payment records match this filter.</td></tr>}
+            {!recordRows.length && <tr><td colSpan={9}>No invoice or payment records match this filter.</td></tr>}
           </tbody>
         </table>
       </div></>}
