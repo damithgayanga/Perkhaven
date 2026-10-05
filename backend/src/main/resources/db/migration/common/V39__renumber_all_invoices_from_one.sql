@@ -1,5 +1,4 @@
 -- Renumber all retained invoices into one continuous sequence starting at 00001.
--- Deployment trigger after workflow queue fix.
 -- Ordering is deterministic and follows the existing numeric invoice suffix, then invoice id
 -- only as a tie-breaker. The year and student-registration portions are preserved.
 CREATE TEMP TABLE invoice_renumber_map AS
