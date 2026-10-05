@@ -364,7 +364,12 @@ public class InvoiceService {
     }
 
     private String numberForYear(Student student, int year) {
-        var sequence = sequences.findForUpdate("INVOICE").orElseThrow(() -> new IllegalStateException("Invoice sequence is not configured.")).takeNextValue();
+        var numberSequence = sequences.findForUpdate("INVOICE")
+                .orElseThrow(() -> new IllegalStateException("Invoice sequence is not configured."));
+        var sequence = numberSequence.takeNextValue();
+        while (invoices.existsByInvoiceNoEndingWith("-%05d".formatted(sequence))) {
+            sequence = numberSequence.takeNextValue();
+        }
         var digits = student.getRegistrationNo().replaceAll("\\D", "");
         var reference = (digits.isBlank() ? student.getRegistrationNo().replaceAll("[^A-Za-z0-9]", "") : digits);
         reference = reference.length() > 4 ? reference.substring(reference.length() - 4) : String.format("%4s", reference).replace(' ', '0');
