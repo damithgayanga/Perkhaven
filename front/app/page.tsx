@@ -21837,6 +21837,15 @@ function StudentPaymentProfile({
     0,
   );
   const totalOutstanding = depositOutstanding + outstandingRent;
+  const outstandingMonthLabels = outstandingRows.map((row) =>
+    fmtMonth(row.month).replace(" ", "-"),
+  );
+  const outstandingMonthsText =
+    outstandingMonthLabels.length === 0
+      ? "No outstanding monthly accommodation payments"
+      : outstandingMonthLabels.length === 1
+        ? `${outstandingMonthLabels[0]} Outstanding`
+        : `${outstandingMonthLabels.slice(0, -1).join(", ")} and ${outstandingMonthLabels[outstandingMonthLabels.length - 1]} Outstanding`;
   const paymentDueDate = (payment: Payment) => {
     if (canonicalPaymentType(payment.type) === "Deposit")
       return student.startDate;
@@ -22018,7 +22027,7 @@ function StudentPaymentProfile({
         <article className={totalOutstanding ? "attention" : "clear"}>
           <small>TOTAL OUTSTANDING PAYMENTS</small>
           <b>{cash.format(totalOutstanding)}</b>
-          <span>Deposit + accommodation fees through {fmtMonth(lastCompletedMonth)}</span>
+          <span>{outstandingMonthsText}</span>
         </article>
       </div>
       <div
