@@ -131,11 +131,8 @@ public class PaymentController {
         payment.getInvoice().removePayment(payment.getPaidAmount());
         reconciliationLinks.deleteBySourceTypeAndSourceRecordId("Payment", id);
         payments.delete(payment);
-        sequences.findForUpdate("PAYMENT")
-                .orElseThrow(() -> new IllegalStateException("Payment sequence is not configured."))
-                .recycle(sequenceNumber(reference));
         storage.delete(evidenceKey);
-        audit.record("DELETE", "PAYMENT", reference, "Sequence number recycled");
+        audit.record("DELETE", "PAYMENT", reference, "Payment permanently deleted; sequence retained");
         return java.util.Map.of("success", true);
     }
 
@@ -172,14 +169,6 @@ public class PaymentController {
         var payment = payments.findById(id).orElseThrow(() -> new NotFoundException("Payment not found."));
         var disposition = (download ? "attachment" : "inline") + "; filename=\"" + payment.getTransactionId() + ".pdf\"";
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).header(HttpHeaders.CONTENT_DISPOSITION, disposition).body(receipts.create(payment));
-    }
-
-    private long sequenceNumber(String transactionId) {
-        try {
-            return Long.parseLong(transactionId.substring(transactionId.lastIndexOf('-') + 1));
-        } catch (RuntimeException exception) {
-            throw new IllegalStateException("Invalid transaction number: " + transactionId, exception);
-        }
     }
 
     public record Response(Long id, String transactionId, String invoiceNo, Long invoiceId, String registrationNo,
