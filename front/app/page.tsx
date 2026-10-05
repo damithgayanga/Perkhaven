@@ -9329,7 +9329,10 @@ function InvoiceLedger({
 
   const invoiceSortValue = (invoice: StudentInvoice) =>
     ({
-      invoice: invoice.invoiceNo,
+      invoice: (() => {
+        const match = invoice.invoiceNo.match(/^INV-(\d{4})-.*-(\d{5})$/);
+        return match ? `${match[1]}-${match[2]}` : invoice.invoiceNo;
+      })(),
       issueDate: invoice.issueDate,
       dueDate: invoice.dueDate,
       type: invoiceTypeLabel(invoice),
