@@ -876,12 +876,17 @@ class CoreApiIntegrationTest {
                 .andExpect(status().isOk());
 
         var replacementEvidence = new MockMultipartFile("evidence", "replacement-payment.pdf", "application/pdf", new byte[]{'%', 'P', 'D', 'F'});
-        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payments")
+        var replacementResponse = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payments")
                         .file(replacementEvidence).param("invoiceId", String.valueOf(invoiceId)).param("paidAmount", "100.00")
                         .param("paidDate", "2026-08-13").param("settlementMethod", "Bank Transfer")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.transactionId").value(transactionId));
+                .andReturn().getResponse().getContentAsString();
+        var replacementTransactionId = mapper.readTree(replacementResponse).get("transactionId").asText();
+        var originalTransactionNumber = Integer.parseInt(transactionId.substring(transactionId.lastIndexOf('-') + 1));
+        var replacementTransactionNumber = Integer.parseInt(replacementTransactionId.substring(replacementTransactionId.lastIndexOf('-') + 1));
+        if (replacementTransactionNumber != originalTransactionNumber + 1)
+            throw new AssertionError("Deleted payment references must not be recycled.");
 
         mvc.perform(delete("/api/v1/students/{registrationNo}", firstRegistration).header("Authorization", "Bearer " + token))
                 .andExpect(status().isNoContent());
