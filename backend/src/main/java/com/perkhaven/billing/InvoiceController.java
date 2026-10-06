@@ -51,7 +51,7 @@ public class InvoiceController {
             var values = invoices.findByStudentRegistrationNoIgnoreCaseOrderByIssueDateDesc(registrationNo);
             return PageResponse.from(new PageImpl<>(values, PageRequest.of(0, Math.max(1, values.size())), values.size()), this::response);
         }
-        return PageResponse.from(invoices.findAll(PageRequest.of(page, Math.min(size, 100), Sort.by(Sort.Direction.DESC, "issueDate", "id"))), this::response);
+        return PageResponse.from(invoices.findAll(PageRequest.of(page, Math.min(size, 1000), Sort.by(Sort.Direction.DESC, "issueDate", "id"))), this::response);
     }
 
     @GetMapping("/deposit-status")
