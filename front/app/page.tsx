@@ -886,7 +886,7 @@ export default function Home() {
         return studentFromApi(await response.json());
       }).then(async (student) => {
         setStudents([student]);
-        const response = await fetch(`/api/v1/invoices?registrationNo=${encodeURIComponent(student.registrationNo)}&size=100`);
+        const response = await fetch(`/api/v1/invoices?registrationNo=${encodeURIComponent(student.registrationNo)}&size=1000`);
         if (response.ok) setStudentInvoices(((await response.json()) as ApiPage<StudentInvoice>).items);
         const evidenceResponse = await fetch("/api/v1/payment-evidence-submissions");
         if (evidenceResponse.ok) setPaymentEvidence((await evidenceResponse.json()).evidence || []);
@@ -902,7 +902,7 @@ export default function Home() {
       return;
     }
     const page = <T,>(path: string) =>
-      fetch(`${path}${path.includes("?") ? "&" : "?"}size=100`).then(async (response) => {
+      fetch(`${path}${path.includes("?") ? "&" : "?"}size=1000`).then(async (response) => {
         if (!response.ok) throw new Error(`Unable to load ${path}`);
         return (await response.json()) as ApiPage<T>;
       });
@@ -929,7 +929,7 @@ export default function Home() {
   }, [currentUser]);
   useEffect(() => {
     if (!currentUser || !["Admin", "Chairman", "Managing Director", "Hostel Warden"].includes(currentUser.role)) return;
-    const reload = () => void fetch("/api/v1/invoices?size=100")
+    const reload = () => void fetch("/api/v1/invoices?size=1000")
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to reload invoices")))
       .then((result: ApiPage<StudentInvoice>) => setStudentInvoices(result.items))
       .catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to reload invoices"));
@@ -9426,7 +9426,7 @@ function InvoiceLedger({
     setBusy(false);
     if (!response.ok)
       return setError(result.detail || "Unable to issue invoices");
-    const refreshed = await fetch("/api/v1/invoices?size=100");
+    const refreshed = await fetch("/api/v1/invoices?size=1000");
     if (refreshed.ok) invoicesUpdated(((await refreshed.json()) as ApiPage<StudentInvoice>).items);
   };
   const removeInvoice = async (invoice: StudentInvoice) => {
@@ -9744,7 +9744,7 @@ function ManualInvoiceModal({
     setSaving(true);
     try {
       const response = await fetch(
-        `/api/v1/invoices?registrationNo=${encodeURIComponent(value)}&size=100`,
+        `/api/v1/invoices?registrationNo=${encodeURIComponent(value)}&size=1000`,
       );
       const result = (await response.json()) as ApiPage<StudentInvoice>;
       if (!response.ok) {
@@ -20481,7 +20481,7 @@ function AddPayment({
                   setReg(registrationNo);
                   setDueInvoices([]);
                   if (student) {
-                    void fetch(`/api/v1/invoices?registrationNo=${encodeURIComponent(registrationNo)}&size=100`)
+                    void fetch(`/api/v1/invoices?registrationNo=${encodeURIComponent(registrationNo)}&size=1000`)
                       .then(async (response) => { if (!response.ok) throw new Error("Unable to load due invoices"); return (await response.json()) as ApiPage<StudentInvoice>; })
                       .then((page) => {
                         const due = page.items
@@ -21815,7 +21815,7 @@ function StudentPaymentProfile({
       .catch(() => setEvidenceEntries([]));
   }, [student.registrationNo]);
   useEffect(() => {
-    fetch(`/api/v1/invoices?registrationNo=${encodeURIComponent(student.registrationNo)}&size=100`)
+    fetch(`/api/v1/invoices?registrationNo=${encodeURIComponent(student.registrationNo)}&size=1000`)
       .then((response) => response.json())
       .then((result) =>
         setInvoiceEntries(
