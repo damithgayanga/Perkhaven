@@ -1,0 +1,12 @@
+"use client";
+import {useEffect,useState} from "react";
+
+type Draft={id:number;status:string;firstName?:string;middleNames?:string;lastName?:string;email?:string;mobile?:string;updatedAt:string;createdBy:string;notes?:string;};
+export default function ManagementDraftInbox(){
+ const[drafts,setDrafts]=useState<Draft[]>([]),[error,setError]=useState(""),[busy,setBusy]=useState<number|null>(null),[message,setMessage]=useState("");
+ const load=async()=>{const r=await fetch("/api/v1/student-drafts");const j=await r.json();if(!r.ok)throw new Error(j.error||"Unable to load student drafts");setDrafts((j.drafts||[]).filter((d:Draft)=>d.status==="SUBMITTED"))};
+ useEffect(()=>{void load().catch(e=>setError(e instanceof Error?e.message:"Unable to load student drafts"))},[]);
+ const convert=async(d:Draft)=>{if(!window.confirm("Create an incomplete PerkHaven student record from this submitted draft? You can complete the remaining details from Residents afterwards."))return;setBusy(d.id);setError("");setMessage("");try{const r=await fetch("/api/v1/student-drafts/"+d.id+"/convert",{method:"POST"});const j=await r.json();if(!r.ok)throw new Error(j.error||"Unable to create student record");setMessage(j.registrationNo+" created. Complete the remaining details from Residents.");await load()}catch(e){setError(e instanceof Error?e.message:"Unable to create student record")}finally{setBusy(null)}};
+ if(!drafts.length&&!error&&!message)return null;
+ return <section className="management-draft-inbox"><div className="management-draft-head"><div><p className="tag">WARDEN PORTAL</p><h2>Student Records Pending Completion</h2><p>Submitted by the Warden. Create the incomplete resident record, then complete room and financial details from Residents.</p></div><b>{drafts.length}</b></div>{message&&<p className="warden-ok">✓ {message}</p>}{error&&<p className="form-error">⚠ {error}</p>}<div className="management-draft-rows">{drafts.map(d=><article key={d.id}><div><b>{[d.firstName,d.middleNames,d.lastName].filter(Boolean).join(" ")||"Unnamed student"}</b><small>{d.email||"No email"} · {d.mobile||"No mobile"} · Entered by {d.createdBy}</small>{d.notes&&<p>{d.notes}</p>}</div><button className="primary" disabled={busy===d.id} onClick={()=>void convert(d)}>{busy===d.id?"Creating…":"Create Student Record"}</button></article>)}</div></section>
+}
