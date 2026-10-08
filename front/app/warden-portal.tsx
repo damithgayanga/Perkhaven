@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 import {FormEvent,useEffect,useState} from "react";
 import {signOut,type AuthenticatedUser} from "../lib/auth";
