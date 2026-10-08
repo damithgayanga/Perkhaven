@@ -46,6 +46,7 @@ public class StudentDraftController {
         return Map.of("drafts", result.stream().map(Response::from).toList());
     }
 
+    // Admin handoff endpoint: deployed with the Warden registration workflow.
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR')")
     @Transactional(readOnly = true)
