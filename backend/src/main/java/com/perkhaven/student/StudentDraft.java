@@ -38,6 +38,8 @@ public class StudentDraft extends AuditedEntity {
     @Column(name = "medical_condition_details", length = 2000) private String medicalConditionDetails;
     @Column(name = "registered_date") private LocalDate registeredDate;
     @Column(name = "start_date") private LocalDate startDate;
+    @Column(name = "room_no", length = 40) private String roomNo;
+    @Column(name = "requested_status", length = 20) private String requestedStatus;
     @Column(name = "emergency1_name", length = 180) private String emergency1Name;
     @Column(name = "emergency1_contact", length = 80) private String emergency1Contact;
     @Column(name = "emergency1_relationship", length = 100) private String emergency1Relationship;
@@ -74,6 +76,8 @@ public class StudentDraft extends AuditedEntity {
         medicalConditionDetails = hasMedicalCondition ? clean(data.medicalConditionDetails()) : null;
         registeredDate = data.registeredDate();
         startDate = data.startDate();
+        roomNo = clean(data.roomNo());
+        requestedStatus = clean(data.requestedStatus());
         emergency1Name = clean(data.emergency1Name());
         emergency1Contact = clean(data.emergency1Contact());
         emergency1Relationship = clean(data.emergency1Relationship());
@@ -130,6 +134,8 @@ public class StudentDraft extends AuditedEntity {
     public String getMedicalConditionDetails() { return medicalConditionDetails; }
     public LocalDate getRegisteredDate() { return registeredDate; }
     public LocalDate getStartDate() { return startDate; }
+    public String getRoomNo() { return roomNo; }
+    public String getRequestedStatus() { return requestedStatus; }
     public String getEmergency1Name() { return emergency1Name; }
     public String getEmergency1Contact() { return emergency1Contact; }
     public String getEmergency1Relationship() { return emergency1Relationship; }
@@ -145,6 +151,7 @@ public class StudentDraft extends AuditedEntity {
                        String university, String currentYear, String address,
                        boolean hasMedicalCondition, String medicalConditionDetails,
                        LocalDate registeredDate, LocalDate startDate,
+                       String roomNo, String requestedStatus,
                        String emergency1Name, String emergency1Contact,
                        String emergency1Relationship, String emergency1Address,
                        String emergency2Name, String emergency2Contact,
