@@ -19452,8 +19452,8 @@ function AddStaff({
             : "All staff details are mandatory when registration is delegated. Finish date may remain blank for current staff."}
         </p>
         <FormSection title="Personal details">
-          <Field name="firstName" label="First name" required />
-          <Field name="lastName" label="Last name" required />
+          <Field name="firstName" label="First name" defaultValue={sourceDraft?.firstName || ""} required />
+          <Field name="lastName" label="Last name" defaultValue={sourceDraft?.lastName || ""} required />
           <Field name="idNo" label="National ID no." required={!managementCreator} />
           <PhoneField prefix="mobile" label="Mobile no." required={!managementCreator} />
           <PhoneField prefix="whatsapp" label="WhatsApp no." required={!managementCreator} />
@@ -19761,25 +19761,30 @@ function Register({
   students,
   rooms,
   creatorRole,
+  sourceDraft,
   close,
   save,
 }: {
   students: Student[];
   rooms: Room[];
   creatorRole: AppRole;
+  sourceDraft?: WardenStudentDraft | null;
   close: () => void;
   save: (s: Student) => void;
 }) {
   const managementCreator = ["Admin", "Chairman", "Managing Director"].includes(creatorRole);
-  const [profileOnly, setProfileOnly] = useState(creatorRole === "Admin");
-  const [selectedRoom, setSelectedRoom] = useState("");
-  const [registrationStatus, setRegistrationStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
-  const [registeredDate, setRegisteredDate] = useState(new Date().toISOString().slice(0, 10));
-  const [startDate, setStartDate] = useState("");
-  const [monthlyRent, setMonthlyRent] = useState("");
-  const [depositPayable, setDepositPayable] = useState("");
+  const initialStatus: "ACTIVE" | "INACTIVE" =
+    sourceDraft?.requestedStatus?.toUpperCase() === "INACTIVE" ? "INACTIVE" : "ACTIVE";
+  const [profileOnly, setProfileOnly] = useState(sourceDraft ? false : creatorRole === "Admin");
+  const [selectedRoom, setSelectedRoom] = useState(sourceDraft?.roomNo || "");
+  const [registrationStatus, setRegistrationStatus] = useState<"ACTIVE" | "INACTIVE">(initialStatus);
+  const [registeredDate, setRegisteredDate] = useState(sourceDraft?.registeredDate || new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(sourceDraft?.startDate || "");
+  const initialRoomRent = rooms.find((room) => room.roomNo === sourceDraft?.roomNo)?.price;
+  const [monthlyRent, setMonthlyRent] = useState(initialRoomRent ? String(initialRoomRent) : "");
+  const [depositPayable, setDepositPayable] = useState(initialRoomRent ? String(initialRoomRent * 3) : "");
   const [depositAdjusted, setDepositAdjusted] = useState(false);
-  const [hasMedicalCondition, setHasMedicalCondition] = useState(false);
+  const [hasMedicalCondition, setHasMedicalCondition] = useState(Boolean(sourceDraft?.hasMedicalCondition));
   const [registrationError, setRegistrationError] = useState("");
   const next = Math.max(...students.map((s) => s.id), 1000) + 1,
     selectedRoomRecord = rooms.find((room) => room.roomNo === selectedRoom),
@@ -19871,7 +19876,9 @@ function Register({
     ];
     if (!inactiveRegistration && activeRequired.some((entry) => !String(entry).trim()))
       return setRegistrationError("Active students require all registration details except Notice to Check-Out date and Check-Out date.");
-    const response = await fetch("/api/v1/students", {
+    const response = await fetch(
+      sourceDraft ? `/api/v1/students?sourceDraftId=${encodeURIComponent(String(sourceDraft.id))}` : "/api/v1/students",
+      {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -19895,10 +19902,10 @@ function Register({
         <ModalHead
           tag="NEW RESIDENT"
           title="Resident registration"
-          text="The registration number is assigned automatically when saved."
+          text={sourceDraft ? "Warden-entered details are prefilled below. Complete the remaining fields and save to assign the next registration number." : "The registration number is assigned automatically when saved."}
           close={close}
         />
-        {creatorRole === "Admin" && (
+        {creatorRole === "Admin" && !sourceDraft && (
           <div className="payment-tabs" role="tablist" aria-label="Resident creation mode">
             <button type="button" className={profileOnly ? "active" : ""} onClick={() => setProfileOnly(true)}>
               Basic profile
@@ -19920,28 +19927,28 @@ function Register({
           <Field name="lastName" label="Last name" required />
           {!profileOnly && (
             <>
-              <Field name="middleNames" label="Middle name(s)" />
-              <Field name="dateOfBirth" label="Date of birth" type="date" required={registrationStatus === "ACTIVE"} />
-              <Field name="idNo" label="National ID no." required={registrationStatus === "ACTIVE"} />
-              <PhoneField prefix="mobile" label="Mobile no." required={registrationStatus === "ACTIVE"} />
-              <PhoneField prefix="whatsapp" label="WhatsApp no." required={registrationStatus === "ACTIVE"} />
-              <Field name="email" label="Email address" type="email" required={registrationStatus === "ACTIVE"} />
-              <Field name="university" label="University" required={registrationStatus === "ACTIVE"} />
-              <Field name="currentYear" label="Current year" required={registrationStatus === "ACTIVE"} />
-              <Field name="address" label="Permanent address" wide required={registrationStatus === "ACTIVE"} />
+              <Field name="middleNames" label="Middle name(s)" defaultValue={sourceDraft?.middleNames || ""} />
+              <Field name="dateOfBirth" label="Date of birth" type="date" defaultValue={sourceDraft?.dateOfBirth || ""} required={registrationStatus === "ACTIVE"} />
+              <Field name="idNo" label="National ID no." defaultValue={sourceDraft?.idNo || ""} required={registrationStatus === "ACTIVE"} />
+              <PhoneField prefix="mobile" label="Mobile no." defaultValue={sourceDraft?.mobile || ""} required={registrationStatus === "ACTIVE"} />
+              <PhoneField prefix="whatsapp" label="WhatsApp no." defaultValue={sourceDraft?.whatsapp || ""} required={registrationStatus === "ACTIVE"} />
+              <Field name="email" label="Email address" type="email" defaultValue={sourceDraft?.email || ""} required={registrationStatus === "ACTIVE"} />
+              <Field name="university" label="University" defaultValue={sourceDraft?.university || ""} required={registrationStatus === "ACTIVE"} />
+              <Field name="currentYear" label="Current year" defaultValue={sourceDraft?.currentYear || ""} required={registrationStatus === "ACTIVE"} />
+              <Field name="address" label="Permanent address" defaultValue={sourceDraft?.address || ""} wide required={registrationStatus === "ACTIVE"} />
             </>
           )}
         </FormSection>
         {!profileOnly && <>
         <FormSection title="Emergency contacts">
-          <Field name="emergency1Name" label="Contact 1 · name" required={registrationStatus === "ACTIVE"} />
-          <PhoneField prefix="emergency1Contact" label="Contact 1 · phone" required={!managementCreator && registrationStatus === "ACTIVE"} />
-          <Field name="emergency1Relationship" label="Relationship" required={!managementCreator && registrationStatus === "ACTIVE"} />
-          <Field name="emergency1Address" label="Contact 1 · address" wide required={!managementCreator && registrationStatus === "ACTIVE"} />
-          <Field name="emergency2Name" label="Contact 2 · name" startRow required={!managementCreator && registrationStatus === "ACTIVE"} />
-          <PhoneField prefix="emergency2Contact" label="Contact 2 · phone" required={!managementCreator && registrationStatus === "ACTIVE"} />
-          <Field name="emergency2Relationship" label="Relationship" required={!managementCreator && registrationStatus === "ACTIVE"} />
-          <Field name="emergency2Address" label="Contact 2 · address" wide required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="emergency1Name" label="Contact 1 · name" defaultValue={sourceDraft?.emergency1Name || ""} required={registrationStatus === "ACTIVE"} />
+          <PhoneField prefix="emergency1Contact" label="Contact 1 · phone" defaultValue={sourceDraft?.emergency1Contact || ""} required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="emergency1Relationship" label="Relationship" defaultValue={sourceDraft?.emergency1Relationship || ""} required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="emergency1Address" label="Contact 1 · address" defaultValue={sourceDraft?.emergency1Address || ""} wide required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="emergency2Name" label="Contact 2 · name" defaultValue={sourceDraft?.emergency2Name || ""} startRow required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <PhoneField prefix="emergency2Contact" label="Contact 2 · phone" defaultValue={sourceDraft?.emergency2Contact || ""} required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="emergency2Relationship" label="Relationship" defaultValue={sourceDraft?.emergency2Relationship || ""} required={!managementCreator && registrationStatus === "ACTIVE"} />
+          <Field name="emergency2Address" label="Contact 2 · address" defaultValue={sourceDraft?.emergency2Address || ""} wide required={!managementCreator && registrationStatus === "ACTIVE"} />
         </FormSection>
         <FormSection title="Medical condition">
           <fieldset className="medical-condition-choice">
@@ -19949,7 +19956,7 @@ function Register({
             <label><input type="radio" name="hasMedicalCondition" checked={!hasMedicalCondition} onChange={() => setHasMedicalCondition(false)} /> No</label>
             <label><input type="radio" name="hasMedicalCondition" checked={hasMedicalCondition} onChange={() => setHasMedicalCondition(true)} /> Yes</label>
           </fieldset>
-          {hasMedicalCondition && <label className="wide">Medical condition details<textarea name="medicalConditionDetails" maxLength={2000} required /></label>}
+          {hasMedicalCondition && <label className="wide">Medical condition details<textarea name="medicalConditionDetails" maxLength={2000} defaultValue={sourceDraft?.medicalConditionDetails || ""} required /></label>}
         </FormSection>
         <FormSection title="Hostel allocation">
           <label>
@@ -20088,7 +20095,7 @@ function Register({
         </>}
         <Actions
           close={close}
-          text={profileOnly ? "Create resident profile" : "Register resident"}
+          text={sourceDraft ? "Create Student Profile" : profileOnly ? "Create resident profile" : "Register resident"}
           disabled={!profileOnly && roomFull}
         />
       </form>
