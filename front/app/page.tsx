@@ -1,7 +1,7 @@
 "use client";
 import { Dispatch, FormEvent, SetStateAction, useEffect, useRef, useState } from "react";
 import { type Room } from "../lib/room-data";
-import WardenPortal from "./warden-portal";
+import StandaloneWardenPortal from "./warden-portal";
 import {
   completeSignIn,
   installAuthenticatedFetch,
@@ -992,7 +992,7 @@ export default function Home() {
       setAuthenticatedUser(null);
     }
   }} />;
-  if (isWardenPortalHost()) return <WardenPortal user={currentUser} />;
+  if (isWardenPortalHost()) return <StandaloneWardenPortal user={currentUser} />;
   if (!["Admin", "Chairman", "Managing Director"].includes(currentUser.role))
     return (
       <LimitedPortal
