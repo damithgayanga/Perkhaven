@@ -8030,7 +8030,7 @@ function ActionList(props: ActionListProps) {
             </div>
             <button
               className="primary compact"
-              onClick={() => window.location.assign("/student-draft-review")}
+              onClick={() => window.location.assign("/student-draft-review.html")}
             >
               Review submissions
             </button>
@@ -8075,7 +8075,7 @@ function ActionList(props: ActionListProps) {
                       <button
                         className="primary compact"
                         onClick={() =>
-                          window.location.assign("/student-draft-review")
+                          window.location.assign("/student-draft-review.html")
                         }
                       >
                         Review
