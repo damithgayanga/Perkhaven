@@ -138,6 +138,7 @@ public class StudentDraftController {
                           String university, String currentYear, String address,
                           boolean hasMedicalCondition, String medicalConditionDetails,
                           LocalDate registeredDate, LocalDate startDate,
+                          String roomNo, String requestedStatus,
                           String emergency1Name, String emergency1Contact,
                           String emergency1Relationship, String emergency1Address,
                           String emergency2Name, String emergency2Contact,
@@ -146,7 +147,7 @@ public class StudentDraftController {
         StudentDraft.Data toData() {
             return new StudentDraft.Data(firstName, middleNames, lastName, dateOfBirth, idNo, mobile,
                     whatsapp, email, university, currentYear, address, hasMedicalCondition,
-                    medicalConditionDetails, registeredDate, startDate,
+                    medicalConditionDetails, registeredDate, startDate, roomNo, requestedStatus,
                     emergency1Name, emergency1Contact, emergency1Relationship, emergency1Address,
                     emergency2Name, emergency2Contact, emergency2Relationship, emergency2Address, notes);
         }
@@ -159,6 +160,7 @@ public class StudentDraftController {
                            String university, String currentYear, String address,
                            boolean hasMedicalCondition, String medicalConditionDetails,
                            LocalDate registeredDate, LocalDate startDate,
+                           String roomNo, String requestedStatus,
                            String emergency1Name, String emergency1Contact,
                            String emergency1Relationship, String emergency1Address,
                            String emergency2Name, String emergency2Contact,
@@ -171,7 +173,7 @@ public class StudentDraftController {
                     d.getIdNo(), d.getMobile(), d.getWhatsapp(), d.getEmail(),
                     d.getUniversity(), d.getCurrentYear(), d.getAddress(),
                     d.hasMedicalCondition(), d.getMedicalConditionDetails(),
-                    d.getRegisteredDate(), d.getStartDate(),
+                    d.getRegisteredDate(), d.getStartDate(), d.getRoomNo(), d.getRequestedStatus(),
                     d.getEmergency1Name(), d.getEmergency1Contact(), d.getEmergency1Relationship(), d.getEmergency1Address(),
                     d.getEmergency2Name(), d.getEmergency2Contact(), d.getEmergency2Relationship(), d.getEmergency2Address(),
                     d.getNotes(), d.getConvertedRegistrationNo());
