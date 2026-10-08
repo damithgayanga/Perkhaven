@@ -10467,6 +10467,8 @@ function PaymentLedger({
     }
   };
   useEffect(() => {
+    // Existing reconciliation loader intentionally hydrates local state after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadPaymentBankReconciliation();
   }, []);
   const [filters, setFilters] = useState({
@@ -16625,6 +16627,8 @@ function ExpensesView({
         (result) => result.deposits && setPettyCashDeposits(result.deposits),
       )
       .catch(() => {});
+    // Existing reconciliation loader intentionally hydrates local state after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadExpenseBankReconciliation();
   }, []);
   const bankSource = (sourceType: BankSource["sourceType"], recordId: number) =>
