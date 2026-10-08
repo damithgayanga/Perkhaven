@@ -19452,8 +19452,8 @@ function AddStaff({
             : "All staff details are mandatory when registration is delegated. Finish date may remain blank for current staff."}
         </p>
         <FormSection title="Personal details">
-          <Field name="firstName" label="First name" defaultValue={sourceDraft?.firstName || ""} required />
-          <Field name="lastName" label="Last name" defaultValue={sourceDraft?.lastName || ""} required />
+          <Field name="firstName" label="First name" required />
+          <Field name="lastName" label="Last name" required />
           <Field name="idNo" label="National ID no." required={!managementCreator} />
           <PhoneField prefix="mobile" label="Mobile no." required={!managementCreator} />
           <PhoneField prefix="whatsapp" label="WhatsApp no." required={!managementCreator} />
