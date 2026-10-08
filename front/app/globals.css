@@ -3966,3 +3966,187 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(52, 139, 106
 .warden-readonly{padding:11px 13px;margin:0 0 16px;border-radius:8px;background:#fff5dc;border:1px solid #eed28c;color:#765315}.warden-ok{padding:10px 12px;border-radius:8px;background:#eaf7ee;color:#28623a}
 .management-draft-inbox{margin:16px 20px 0 270px;padding:18px;background:#fff7e8;border:1px solid #efcf8e;border-radius:12px}.management-draft-head{display:flex;justify-content:space-between;gap:20px}.management-draft-head h2{margin:3px 0 5px}.management-draft-head>div>p:last-child{margin:0;color:#6d7782}.management-draft-head>b{font-size:28px}.management-draft-rows{display:grid;gap:8px;margin-top:12px}.management-draft-rows article{display:flex;justify-content:space-between;gap:14px;align-items:center;background:#fff;border:1px solid #eadfc9;border-radius:8px;padding:12px}.management-draft-rows article>div{display:grid;gap:3px}.management-draft-rows small{color:#75808a}.management-draft-rows p{margin:3px 0 0;color:#5f6d79}
 @media(max-width:900px){.warden-layout{grid-template-columns:1fr}.warden-layout>aside{border-right:0;border-bottom:1px solid #dbe3eb}.warden-grid{grid-template-columns:1fr}.warden-content{padding:20px}.warden-title{flex-direction:column}.management-draft-inbox{margin:12px}.warden-fields{grid-template-columns:1fr}.warden-fields .wide{grid-column:auto}}
+
+
+/* Warden Portal layout isolation: prevent the Management Portal's global
+   fixed-aside rules from collapsing the Warden workspace. */
+.warden-portal .warden-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  align-items: start;
+  width: 100%;
+  min-height: calc(100vh - 76px);
+}
+
+.warden-portal .warden-layout > aside {
+  position: sticky;
+  inset: auto;
+  top: 76px;
+  width: 240px;
+  height: calc(100vh - 76px);
+  z-index: 5;
+  overflow-y: auto;
+  margin: 0;
+  padding: 28px 18px;
+  background: #fff;
+  color: #18362f;
+  border-right: 1px solid #dbe6df;
+  box-shadow: none;
+}
+
+.warden-portal .warden-content {
+  width: 100%;
+  max-width: 1500px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 34px 36px 56px;
+}
+
+.warden-portal .warden-title {
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.warden-portal .warden-title > div {
+  min-width: 0;
+}
+
+.warden-portal .warden-title h1 {
+  margin: 5px 0 8px;
+  color: #173d34;
+  font: 700 30px/1.2 Georgia, serif;
+}
+
+.warden-portal .warden-title .primary {
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 10px 16px;
+  white-space: nowrap;
+}
+
+.warden-portal .warden-grid {
+  width: 100%;
+  grid-template-columns: minmax(250px, 300px) minmax(620px, 1fr);
+  align-items: start;
+  gap: 24px;
+}
+
+.warden-portal .warden-list,
+.warden-portal .warden-form {
+  width: 100%;
+  min-width: 0;
+}
+
+.warden-portal .warden-list {
+  position: sticky;
+  top: 100px;
+  max-height: calc(100vh - 124px);
+  overflow-y: auto;
+}
+
+.warden-portal .warden-form {
+  padding: 24px;
+}
+
+.warden-portal .warden-form fieldset {
+  min-width: 0;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.warden-portal .warden-fields {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  column-gap: 18px;
+  row-gap: 14px;
+}
+
+.warden-portal .warden-fields label {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.warden-portal .warden-fields input,
+.warden-portal .warden-fields select,
+.warden-portal .warden-fields textarea {
+  min-width: 0;
+  min-height: 42px;
+  padding: 10px 12px;
+}
+
+.warden-portal .warden-fields textarea {
+  min-height: 88px;
+}
+
+.warden-portal .warden-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  margin: 20px -24px -24px;
+  padding: 16px 24px;
+  background: rgba(255,255,255,.96);
+  border-top: 1px solid #e2ebe5;
+  backdrop-filter: blur(8px);
+}
+
+@media (max-width: 1180px) {
+  .warden-portal .warden-grid {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+  .warden-portal .warden-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .warden-portal .warden-fields .wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .warden-portal .warden-layout {
+    grid-template-columns: 1fr;
+  }
+  .warden-portal .warden-layout > aside {
+    position: static;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    border-right: 0;
+    border-bottom: 1px solid #dbe6df;
+  }
+  .warden-portal .warden-content {
+    padding: 22px 18px 42px;
+  }
+  .warden-portal .warden-grid {
+    grid-template-columns: 1fr;
+  }
+  .warden-portal .warden-list {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .warden-topbar {
+    padding: 9px 14px;
+  }
+  .warden-topbar > div:last-child span {
+    display: none;
+  }
+  .warden-portal .warden-title {
+    flex-direction: column;
+  }
+  .warden-portal .warden-title .primary {
+    width: 100%;
+  }
+  .warden-portal .warden-form {
+    padding: 16px;
+  }
+  .warden-portal .warden-actions {
+    margin: 18px -16px -16px;
+    padding: 14px 16px;
+    flex-direction: column;
+  }
+  .warden-portal .warden-actions button {
+    width: 100%;
+  }
+}

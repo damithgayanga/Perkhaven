@@ -9,7 +9,7 @@ type Form=typeof empty;
 const val=(d:Draft):Form=>({firstName:d.firstName||"",middleNames:d.middleNames||"",lastName:d.lastName||"",dateOfBirth:d.dateOfBirth||"",idNo:d.idNo||"",mobile:d.mobile||"",whatsapp:d.whatsapp||"",email:d.email||"",university:d.university||"",currentYear:d.currentYear||"",address:d.address||"",hasMedicalCondition:!!d.hasMedicalCondition,medicalConditionDetails:d.medicalConditionDetails||"",registeredDate:d.registeredDate||"",startDate:d.startDate||"",emergency1Name:d.emergency1Name||"",emergency1Contact:d.emergency1Contact||"",emergency1Relationship:d.emergency1Relationship||"",emergency1Address:d.emergency1Address||"",emergency2Name:d.emergency2Name||"",emergency2Contact:d.emergency2Contact||"",emergency2Relationship:d.emergency2Relationship||"",emergency2Address:d.emergency2Address||"",notes:d.notes||""});
 export default function WardenPortal({user}:{user:AuthenticatedUser}){
  const[drafts,setDrafts]=useState<Draft[]>([]),[selected,setSelected]=useState<Draft|null>(null),[form,setForm]=useState<Form>(empty),[busy,setBusy]=useState(false),[msg,setMsg]=useState(""),[err,setErr]=useState("");
- const load=async()=>{const r=await fetch("/api/v1/student-drafts");const j=await r.json();if(!r.ok)throw new Error(j.error||"Unable to load drafts");setDrafts(j.drafts||[])};
+ const load=async()=>{const r=await fetch("/api/v1/student-drafts");const j=await r.json();if(!r.ok)throw new Error(j.error||"Unable to load drafts");setDrafts((j.drafts||[]).filter((d:Draft)=>d.status!=="CONVERTED"))};
  useEffect(()=>{void load().catch(e=>setErr(e.message))},[]);
  const set=(k:keyof Form,v:string|boolean)=>setForm(x=>({...x,[k]:v}));
  const open=(d?:Draft)=>{setSelected(d||null);setForm(d?val(d):empty);setMsg("");setErr("")};
