@@ -46,6 +46,13 @@ public class StudentDraftController {
         return Map.of("drafts", result.stream().map(Response::from).toList());
     }
 
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','CHAIRMAN','MANAGING_DIRECTOR')")
+    @Transactional(readOnly = true)
+    public Response get(@PathVariable Long id) {
+        return Response.from(find(id));
+    }
+
     @PostMapping
     @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
     @Transactional
