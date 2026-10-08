@@ -2,6 +2,7 @@ package com.perkhaven.student;
 
 import com.perkhaven.common.audit.AuditService;
 import com.perkhaven.common.error.NotFoundException;
+import com.perkhaven.common.domain.RecordStatus;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -22,10 +23,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class StudentDraftController {
     private final StudentDraftRepository drafts;
     private final AuditService audit;
+    private final StudentRepository students;
+    private final StudentRegistrationNumberService registrationNumbers;
 
-    public StudentDraftController(StudentDraftRepository drafts, AuditService audit) {
+    public StudentDraftController(StudentDraftRepository drafts, AuditService audit,
+                                  StudentRepository students, StudentRegistrationNumberService registrationNumbers) {
         this.drafts = drafts;
         this.audit = audit;
+        this.students = students;
+        this.registrationNumbers = registrationNumbers;
     }
 
     @GetMapping
@@ -71,6 +77,49 @@ public class StudentDraftController {
         draft.submit(authentication.getName());
         audit.record("SUBMIT", "STUDENT_DRAFT", String.valueOf(id), "Submitted for management review by " + authentication.getName());
         return Response.from(draft);
+    }
+
+    @PostMapping("/{id}/convert")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public Map<String, Object> convert(@PathVariable Long id, Authentication authentication) {
+        var draft = find(id);
+        if (!"SUBMITTED".equals(draft.getStatus())) {
+            throw new IllegalArgumentException("Only submitted student drafts can be converted.");
+        }
+        if (draft.getFirstName() == null || draft.getFirstName().isBlank()
+                || draft.getLastName() == null || draft.getLastName().isBlank()) {
+            throw new IllegalArgumentException("First name and last name are required before conversion.");
+        }
+        if (draft.getEmail() != null && !draft.getEmail().isBlank()
+                && students.findByEmailIgnoreCase(draft.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("Email is already assigned to another student.");
+        }
+
+        var registrationNo = registrationNumbers.next();
+        var student = new Student(registrationNo);
+        var contacts = new java.util.ArrayList<Student.EmergencyContactData>();
+        if (draft.getEmergency1Name() != null && !draft.getEmergency1Name().isBlank()) {
+            contacts.add(new Student.EmergencyContactData(draft.getEmergency1Name(), draft.getEmergency1Contact(),
+                    draft.getEmergency1Relationship(), draft.getEmergency1Address()));
+        }
+        if (draft.getEmergency2Name() != null && !draft.getEmergency2Name().isBlank()) {
+            contacts.add(new Student.EmergencyContactData(draft.getEmergency2Name(), draft.getEmergency2Contact(),
+                    draft.getEmergency2Relationship(), draft.getEmergency2Address()));
+        }
+        student.update(new Student.StudentData(
+                draft.getFirstName(), draft.getMiddleNames(), draft.getLastName(), draft.getDateOfBirth(),
+                draft.getIdNo(), draft.getMobile(), draft.getWhatsapp(), draft.getEmail(),
+                draft.getUniversity(), draft.getCurrentYear(), draft.getAddress(),
+                draft.hasMedicalCondition(), draft.getMedicalConditionDetails(),
+                draft.getRegisteredDate(), draft.getStartDate(), null, null,
+                null, null, RecordStatus.INACTIVE, contacts), null);
+        students.save(student);
+        draft.markConverted(registrationNo, authentication.getName());
+        audit.record("CONVERT", "STUDENT_DRAFT", String.valueOf(id),
+                "Converted to " + registrationNo + " by " + authentication.getName());
+        audit.record("CREATE", "STUDENT", registrationNo, "Created from Warden Portal draft #" + id);
+        return Map.of("draft", Response.from(draft), "registrationNo", registrationNo);
     }
 
     private StudentDraft find(Long id) {
