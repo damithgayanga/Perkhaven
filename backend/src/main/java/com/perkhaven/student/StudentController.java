@@ -67,15 +67,17 @@ public class StudentController {
     private final StudentRegistrationNumberService registrationNumbers;
     private final AuditEventRepository auditEvents;
     private final StudentIdentityResolver studentIdentity;
+    private final StudentDraftRepository studentDrafts;
     public StudentController(StudentRepository students, RoomRepository rooms, StorageService storage, AuditService audit,
                              InvoiceService invoiceService, InvoiceRepository invoices, PaymentRepository payments,
                              PaymentEvidenceSubmissionRepository paymentEvidence,
                              StudentRegistrationNumberService registrationNumbers, AuditEventRepository auditEvents,
-                             StudentIdentityResolver studentIdentity) {
+                             StudentIdentityResolver studentIdentity, StudentDraftRepository studentDrafts) {
         this.students = students; this.rooms = rooms; this.storage = storage; this.audit = audit; this.invoiceService = invoiceService;
         this.invoices = invoices; this.payments = payments; this.paymentEvidence = paymentEvidence; this.registrationNumbers = registrationNumbers;
         this.auditEvents = auditEvents;
         this.studentIdentity = studentIdentity;
+        this.studentDrafts = studentDrafts;
     }
 
     @GetMapping
@@ -130,7 +132,16 @@ public class StudentController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public StudentResponse create(@Valid @RequestBody StudentRequest request) {
+    public StudentResponse create(@Valid @RequestBody StudentRequest request,
+                                  @RequestParam(required = false) Long sourceDraftId) {
+        StudentDraft sourceDraft = null;
+        if (sourceDraftId != null) {
+            sourceDraft = studentDrafts.findById(sourceDraftId)
+                    .orElseThrow(() -> new NotFoundException("Warden student draft not found."));
+            if (!"SUBMITTED".equals(sourceDraft.getStatus())) {
+                throw new IllegalArgumentException("Only submitted Warden student drafts can be completed.");
+            }
+        }
         var registrationNo = request.registrationNo() == null || request.registrationNo().isBlank()
                 ? registrationNumbers.next()
                 : request.registrationNo().trim();
@@ -140,6 +151,11 @@ public class StudentController {
         var saved = students.save(student);
         invoiceService.createRegistrationInvoices(saved);
         audit.record("CREATE", "STUDENT", saved.getRegistrationNo(), null);
+        if (sourceDraft != null) {
+            sourceDraft.markConverted(saved.getRegistrationNo(), "ADMIN");
+            audit.record("CONVERT", "STUDENT_DRAFT", String.valueOf(sourceDraftId),
+                    "Approved and converted to " + saved.getRegistrationNo() + " through Admin Resident Registration");
+        }
         return StudentResponse.from(saved);
     }
 
