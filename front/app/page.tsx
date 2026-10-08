@@ -7801,15 +7801,40 @@ function ActionList(props: ActionListProps) {
     | "Profile Edit Approval"
     | "Check-Out Notice Approval"
     | "Hostel Room Change Approval"
+    | "Student Registration Approval"
   >("Payment Evidence");
   const [filter, setFilter] = useState<ActionFilter>("Pending"),
     [bankSources, setBankSources] = useState<BankSource[]>([]),
-    [reviewingExpense, setReviewingExpense] = useState<Expense | null>(null);
+    [reviewingExpense, setReviewingExpense] = useState<Expense | null>(null),
+    [studentDrafts, setStudentDrafts] = useState<Array<{
+      id: number;
+      status: string;
+      firstName?: string;
+      middleNames?: string;
+      lastName?: string;
+      email?: string;
+      mobile?: string;
+      university?: string;
+      roomNo?: string;
+      requestedStatus?: string;
+      createdBy: string;
+      submittedAt?: string;
+    }>>([]);
   useEffect(() => {
     fetch("/api/v1/bank-reconciliation")
       .then((response) => response.json())
       .then((result) => setBankSources(result.sources || []))
       .catch(() => setBankSources([]));
+    fetch("/api/v1/student-drafts")
+      .then((response) => response.json())
+      .then((result) =>
+        setStudentDrafts(
+          (result.drafts || []).filter(
+            (draft: { status?: string }) => draft.status === "SUBMITTED",
+          ),
+        ),
+      )
+      .catch(() => setStudentDrafts([]));
   }, []);
   const evidenceStatus = (
     entry: StudentPaymentEvidence,
@@ -7914,6 +7939,7 @@ function ActionList(props: ActionListProps) {
     "Hostel Room Change Approval": roomTransferRequests.filter(
       (entry) => roomTransferStatus(entry) === "Pending",
     ).length,
+    "Student Registration Approval": studentDrafts.length,
   };
   return (
     <div className="content action-list">
@@ -7993,6 +8019,79 @@ function ActionList(props: ActionListProps) {
           reviewed={roomTransferReviewed}
           statusFor={roomTransferStatus}
         />
+      )}
+      {tab === "Student Registration Approval" && (
+        <section className="panel payment-section">
+          <div className="section-heading">
+            <div>
+              <p className="tag">WARDEN SUBMISSIONS</p>
+              <h2>Student registrations awaiting approval</h2>
+              <p>These records are still drafts. No student registration number is assigned until Management approves them.</p>
+            </div>
+            <button
+              className="primary compact"
+              onClick={() => window.location.assign("/student-draft-review")}
+            >
+              Review submissions
+            </button>
+          </div>
+          <div className="tablewrap">
+            <table className="ledger-table">
+              <thead>
+                <tr>
+                  <th>STUDENT</th>
+                  <th>EMAIL</th>
+                  <th>MOBILE</th>
+                  <th>UNIVERSITY</th>
+                  <th>ROOM NO.</th>
+                  <th>STATUS</th>
+                  <th>ENTERED BY</th>
+                  <th>SUBMITTED</th>
+                  <th>ACTION</th>
+                </tr>
+              </thead>
+              <tbody>
+                {studentDrafts.map((draft) => (
+                  <tr key={draft.id}>
+                    <td>
+                      <b>
+                        {[draft.firstName, draft.middleNames, draft.lastName]
+                          .filter(Boolean)
+                          .join(" ") || "Unnamed student"}
+                      </b>
+                    </td>
+                    <td>{draft.email || "—"}</td>
+                    <td>{draft.mobile || "—"}</td>
+                    <td>{draft.university || "—"}</td>
+                    <td>{draft.roomNo || "—"}</td>
+                    <td>{draft.requestedStatus || "Inactive"}</td>
+                    <td>{draft.createdBy}</td>
+                    <td>
+                      {draft.submittedAt
+                        ? fmtDate(draft.submittedAt.slice(0, 10))
+                        : "—"}
+                    </td>
+                    <td>
+                      <button
+                        className="primary compact"
+                        onClick={() =>
+                          window.location.assign("/student-draft-review")
+                        }
+                      >
+                        Review
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {!studentDrafts.length && (
+                  <tr>
+                    <td colSpan={9}>No Warden student registrations are awaiting approval.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
       {reviewingExpense && (
         <ExpenseApproval
