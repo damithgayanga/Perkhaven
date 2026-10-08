@@ -19923,8 +19923,8 @@ function Register({
               : "For an active resident, all registration details are required except Notice to Check-Out date and Check-Out date."}
         </p>
         <FormSection title="Personal details">
-          <Field name="firstName" label="First name" required />
-          <Field name="lastName" label="Last name" required />
+          <Field name="firstName" label="First name" defaultValue={sourceDraft?.firstName || ""} required />
+          <Field name="lastName" label="Last name" defaultValue={sourceDraft?.lastName || ""} required />
           {!profileOnly && (
             <>
               <Field name="middleNames" label="Middle name(s)" defaultValue={sourceDraft?.middleNames || ""} />
