@@ -1,6 +1,7 @@
 "use client";
 import { Dispatch, FormEvent, SetStateAction, useEffect, useRef, useState } from "react";
 import { type Room } from "../lib/room-data";
+import StandaloneWardenPortal from "./warden-portal";
 import {
   completeSignIn,
   installAuthenticatedFetch,
@@ -579,9 +580,19 @@ const fmtMonth = (m: string) =>
   };
 const isStudentPortalHost = () =>
   typeof window !== "undefined" && window.location.hostname.toLowerCase() === "student.perkhaven.lk";
+const isWardenPortalHost = () =>
+  typeof window !== "undefined" && window.location.hostname.toLowerCase() === "warden.perkhaven.lk";
 
 const enforceStudentPortalAccess = async (user: AuthenticatedUser | null) => {
-  if (!user || !isStudentPortalHost()) return user;
+  if (!user) return user;
+  if (isWardenPortalHost()) {
+    if (user.role !== "Hostel Warden") {
+      signOut();
+      throw new Error("This portal is for the Hostel Warden only.");
+    }
+    return user;
+  }
+  if (!isStudentPortalHost()) return user;
   if (user.role !== "Student") {
     signOut();
     throw new Error("This portal is for students only. Management users must use the management portal directly.");
@@ -880,6 +891,7 @@ export default function Home() {
   }, []);
   useEffect(() => {
     if (!currentUser) return;
+    if (isWardenPortalHost()) return;
     if (currentUser.role === "Student") {
       void fetch("/api/v1/students/me").then(async (response) => {
         if (!response.ok) throw new Error("No resident profile is linked to this email address");
@@ -980,6 +992,7 @@ export default function Home() {
       setAuthenticatedUser(null);
     }
   }} />;
+  if (isWardenPortalHost()) return <StandaloneWardenPortal user={currentUser} />;
   if (!["Admin", "Chairman", "Managing Director"].includes(currentUser.role))
     return (
       <LimitedPortal
@@ -1771,8 +1784,8 @@ function ProductionLogin({ loading = false, error = "", onSignedIn }: { loading?
         <div className="production-login-brand">
           <span className="brand-logo" />
           <p className="tag">THE PERK HAVEN HOSTEL</p>
-          <h1>{isStudentPortalHost() ? "Student Login" : "Sign in to Perkhaven"}</h1>
-          <p>{isStudentPortalHost() ? "Sign in using your student account." : "Sign in securely using your Perkhaven account."}</p>
+          <h1>{isStudentPortalHost() ? "Student Login" : isWardenPortalHost() ? "Warden Login" : "Sign in to Perkhaven"}</h1>
+          <p>{isStudentPortalHost() ? "Sign in using your student account." : isWardenPortalHost() ? "Sign in using your Hostel Warden account." : "Sign in securely using your Perkhaven account."}</p>
         </div>
         {loading && <p>Checking session…</p>}
         {(error || loginError) && <p className="form-error">⚠ {loginError || error}</p>}
@@ -10454,6 +10467,8 @@ function PaymentLedger({
     }
   };
   useEffect(() => {
+    // Existing reconciliation loader intentionally hydrates local state after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadPaymentBankReconciliation();
   }, []);
   const [filters, setFilters] = useState({
@@ -16612,6 +16627,8 @@ function ExpensesView({
         (result) => result.deposits && setPettyCashDeposits(result.deposits),
       )
       .catch(() => {});
+    // Existing reconciliation loader intentionally hydrates local state after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadExpenseBankReconciliation();
   }, []);
   const bankSource = (sourceType: BankSource["sourceType"], recordId: number) =>

@@ -28,7 +28,7 @@ resource "aws_cloudfront_distribution" "main" {
   comment             = "Perkhaven production"
   default_root_object = "index.html"
   price_class         = "PriceClass_200"
-  aliases             = var.enable_custom_domain ? [local.management_hostname, local.student_hostname] : []
+  aliases             = var.enable_custom_domain ? [local.management_hostname, local.student_hostname, local.warden_hostname] : []
 
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
@@ -165,6 +165,32 @@ resource "aws_route53_record" "student_ipv6" {
   count           = var.enable_custom_domain ? 1 : 0
   zone_id         = local.route53_zone_id
   name            = local.student_hostname
+  type            = "AAAA"
+  allow_overwrite = true
+  alias {
+    name                   = aws_cloudfront_distribution.main.domain_name
+    zone_id                = aws_cloudfront_distribution.main.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "warden" {
+  count           = var.enable_custom_domain ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = local.warden_hostname
+  type            = "A"
+  allow_overwrite = true
+  alias {
+    name                   = aws_cloudfront_distribution.main.domain_name
+    zone_id                = aws_cloudfront_distribution.main.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "warden_ipv6" {
+  count           = var.enable_custom_domain ? 1 : 0
+  zone_id         = local.route53_zone_id
+  name            = local.warden_hostname
   type            = "AAAA"
   allow_overwrite = true
   alias {
