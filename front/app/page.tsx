@@ -7815,6 +7815,8 @@ function ActionList(props: ActionListProps) {
       email?: string;
       mobile?: string;
       university?: string;
+      roomNo?: string;
+      requestedStatus?: string;
       createdBy: string;
       submittedAt?: string;
     }>>([]);
@@ -8041,6 +8043,8 @@ function ActionList(props: ActionListProps) {
                   <th>EMAIL</th>
                   <th>MOBILE</th>
                   <th>UNIVERSITY</th>
+                  <th>ROOM NO.</th>
+                  <th>STATUS</th>
                   <th>ENTERED BY</th>
                   <th>SUBMITTED</th>
                   <th>ACTION</th>
@@ -8059,6 +8063,8 @@ function ActionList(props: ActionListProps) {
                     <td>{draft.email || "—"}</td>
                     <td>{draft.mobile || "—"}</td>
                     <td>{draft.university || "—"}</td>
+                    <td>{draft.roomNo || "—"}</td>
+                    <td>{draft.requestedStatus || "Inactive"}</td>
                     <td>{draft.createdBy}</td>
                     <td>
                       {draft.submittedAt
@@ -8079,7 +8085,7 @@ function ActionList(props: ActionListProps) {
                 ))}
                 {!studentDrafts.length && (
                   <tr>
-                    <td colSpan={7}>No Warden student registrations are awaiting approval.</td>
+                    <td colSpan={9}>No Warden student registrations are awaiting approval.</td>
                   </tr>
                 )}
               </tbody>
