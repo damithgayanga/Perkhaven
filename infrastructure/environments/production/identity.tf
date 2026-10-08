@@ -21,8 +21,8 @@ resource "aws_cognito_user_pool" "main" {
   admin_create_user_config {
     allow_admin_create_user_only = true
     invite_message_template {
-      email_subject = "Your Perk Haven Student Portal access"
-      email_message = "Welcome to The Perk Haven. Your Student Portal access has been approved. Sign in at ${local.student_portal_url} using username {username} and temporary password {####}. You will be asked to create your own password when you first sign in. This temporary password expires in 7 days. If you did not expect this invitation, please contact The Perk Haven Management."
+      email_subject = "Your Perk Haven account access"
+      email_message = "Welcome to The Perk Haven. Your account has been created. If you are the Hostel Warden, sign in at https://${local.warden_hostname}/ using username {username} and temporary password {####}. You will be asked to create your own password when you first sign in. This temporary password expires in 7 days. If you did not expect this invitation, please contact The Perk Haven Management."
       sms_message   = "Perkhaven username: {username}; temporary password: {####}"
     }
   }
@@ -218,6 +218,24 @@ resource "aws_cognito_user_in_group" "username_initial_admin" {
   user_pool_id = aws_cognito_user_pool.username_main.id
   group_name   = aws_cognito_user_group.username_roles["ADMIN"].name
   username     = aws_cognito_user.username_initial_admin[0].username
+}
+
+resource "aws_cognito_user" "warden" {
+  user_pool_id             = aws_cognito_user_pool.username_main.id
+  username                 = "warden"
+  desired_delivery_mediums = ["EMAIL"]
+
+  attributes = {
+    email              = "warden@perkhaven.lk"
+    email_verified     = "true"
+    preferred_username = "warden"
+  }
+}
+
+resource "aws_cognito_user_in_group" "warden" {
+  user_pool_id = aws_cognito_user_pool.username_main.id
+  group_name   = aws_cognito_user_group.username_roles["WARDEN"].name
+  username     = aws_cognito_user.warden.username
 }
 
 resource "aws_ses_domain_identity" "main" {
