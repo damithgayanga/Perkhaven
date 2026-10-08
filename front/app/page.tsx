@@ -67,6 +67,36 @@ type Student = {
   portalAccessDisabledAt?: string;
   portalAccessUpdatedBy?: string;
 };
+type WardenStudentDraft = {
+  id: number;
+  status: string;
+  firstName?: string;
+  middleNames?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  idNo?: string;
+  mobile?: string;
+  whatsapp?: string;
+  email?: string;
+  university?: string;
+  currentYear?: string;
+  address?: string;
+  hasMedicalCondition?: boolean;
+  medicalConditionDetails?: string;
+  registeredDate?: string;
+  startDate?: string;
+  roomNo?: string;
+  requestedStatus?: string;
+  emergency1Name?: string;
+  emergency1Contact?: string;
+  emergency1Relationship?: string;
+  emergency1Address?: string;
+  emergency2Name?: string;
+  emergency2Contact?: string;
+  emergency2Relationship?: string;
+  emergency2Address?: string;
+  notes?: string;
+};
 type RoomTransferRequest = {
   id: number;
   requestNo: string;
@@ -857,6 +887,7 @@ export default function Home() {
     ),
     [search, setSearch] = useState(""),
     [studentForm, setStudentForm] = useState(false),
+    [studentDraftSource, setStudentDraftSource] = useState<WardenStudentDraft | null>(null),
     [staffForm, setStaffForm] = useState(false),
     [paymentForm, setPaymentForm] = useState(false),
     [profile, setProfile] = useState<Student | null>(null),
@@ -889,6 +920,21 @@ export default function Home() {
       });
     return restoreFetch;
   }, []);
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== "Admin" || isStudentPortalHost() || isWardenPortalHost()) return;
+    const draftId = new URLSearchParams(window.location.search).get("studentDraftId");
+    if (!draftId) return;
+    void fetch(`/api/v1/student-drafts/${encodeURIComponent(draftId)}`)
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || result.detail || "Unable to load Warden student submission");
+        if (result.status !== "SUBMITTED") throw new Error("This Warden student submission is no longer awaiting approval.");
+        setStudentDraftSource(result as WardenStudentDraft);
+        setPage("Residents");
+        setStudentForm(true);
+      })
+      .catch((reason) => setToast(reason instanceof Error ? reason.message : "Unable to load Warden student submission"));
+  }, [currentUser]);
   useEffect(() => {
     if (!currentUser) return;
     if (isWardenPortalHost()) return;
@@ -1662,10 +1708,21 @@ export default function Home() {
           students={students}
           rooms={rooms}
           creatorRole={currentUser.role}
-          close={() => setStudentForm(false)}
+          sourceDraft={studentDraftSource}
+          close={() => {
+            setStudentForm(false);
+            setStudentDraftSource(null);
+            if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("studentDraftId")) {
+              window.history.replaceState({}, "", "/");
+            }
+          }}
           save={(s) => {
             setStudents((v) => [...v, s]);
             setStudentForm(false);
+            setStudentDraftSource(null);
+            if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("studentDraftId")) {
+              window.history.replaceState({}, "", "/");
+            }
             setToast(`${s.registrationNo} registered`);
           }}
         />
