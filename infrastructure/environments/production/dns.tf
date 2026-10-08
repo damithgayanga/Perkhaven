@@ -7,6 +7,7 @@ locals {
   route53_zone_id     = var.enable_custom_domain ? (var.create_route53_zone ? aws_route53_zone.main[0].zone_id : var.route53_zone_id) : null
   management_hostname = "management.${var.domain_name}"
   student_hostname    = "student.${var.domain_name}"
+  warden_hostname     = "warden.${var.domain_name}"
 }
 
 resource "aws_acm_certificate" "cloudfront" {
@@ -18,6 +19,7 @@ resource "aws_acm_certificate" "cloudfront" {
     "www.${var.domain_name}",
     local.management_hostname,
     local.student_hostname,
+    local.warden_hostname,
   ]
   validation_method = "DNS"
 
