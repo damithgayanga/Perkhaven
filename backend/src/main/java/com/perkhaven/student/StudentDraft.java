@@ -98,6 +98,14 @@ public class StudentDraft extends AuditedEntity {
         updatedBy = actor;
     }
 
+    public void markConverted(String registrationNo, String actor) {
+        if (!"SUBMITTED".equals(status)) throw new IllegalStateException("Only submitted drafts can be converted.");
+        status = "CONVERTED";
+        convertedAt = Instant.now();
+        convertedRegistrationNo = registrationNo;
+        updatedBy = actor;
+    }
+
     public boolean belongsTo(String actor) { return createdBy.equalsIgnoreCase(actor); }
     private static String clean(String value) { return value == null || value.isBlank() ? null : value.trim(); }
 
